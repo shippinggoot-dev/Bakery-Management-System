@@ -1,0 +1,5 @@
+{
+  "buildCommand": "turbo run build --filter=@bakery/web",
+  "outputDirectory": "apps/web/.next",
+  "installCommand": "pnpm install"
+}
