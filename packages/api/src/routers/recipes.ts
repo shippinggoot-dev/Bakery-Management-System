@@ -4,6 +4,7 @@ import { createTRPCRouter, publicProcedure } from "../trpc";
 import {
   recipes,
   recipeIngredients,
+  recipeCategories,
   supplierPrices,
 } from "@bakery/db";
 
@@ -29,6 +30,12 @@ const recipeIngredientInputSchema = z.object({
 });
 
 export const recipesRouter = createTRPCRouter({
+  getCategories: publicProcedure.query(async ({ ctx }) => {
+    return ctx.db.query.recipeCategories.findMany({
+      orderBy: (c, { asc }) => [asc(c.name)],
+    });
+  }),
+
   getAll: publicProcedure
     .input(
       z

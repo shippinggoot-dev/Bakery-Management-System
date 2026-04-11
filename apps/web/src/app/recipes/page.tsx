@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { api } from "@/trpc/server";
+import { PlusIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,13 @@ export default async function RecipesPage() {
           <h2 className="page-title">Recipes</h2>
           <p className="text-gray-500 mt-1">{recipes.length} active recipe{recipes.length !== 1 ? "s" : ""}</p>
         </div>
+        <Link
+          href="/recipes/new"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 hover:text-brand-300 transition-colors text-sm font-medium"
+        >
+          <PlusIcon />
+          New Recipe
+        </Link>
       </div>
 
       {recipes.length === 0 ? (

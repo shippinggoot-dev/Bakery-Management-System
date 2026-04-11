@@ -37,16 +37,39 @@ async function seed() {
 
   // ─── 2. Allergens ────────────────────────────────────────────────────────
   console.log("  Inserting allergens...");
-  const [gluten, milk, eggs, treeNuts, peanuts, soy, sesame] = await db
+  // All 14 EU mandatory allergens (EU Regulation 1169/2011), required in Norway
+  const [
+    gluten,
+    crustaceans,
+    eggs,
+    fish,
+    peanuts,
+    soy,
+    milk,
+    treeNuts,
+    celery,
+    mustard,
+    sesame,
+    sulphites,
+    lupin,
+    molluscs,
+  ] = await db
     .insert(allergens)
     .values([
-      { name: "Gluten", description: "Found in wheat, rye, barley, and oats" },
-      { name: "Milk", description: "Dairy including butter, cream, and cheese" },
-      { name: "Eggs", description: "Hen eggs and egg-derived products" },
-      { name: "Tree Nuts", description: "Almonds, cashews, walnuts, pecans, pistachios, etc." },
-      { name: "Peanuts", description: "Peanuts and peanut-derived products" },
-      { name: "Soy", description: "Soya beans and soy-derived products" },
-      { name: "Sesame", description: "Sesame seeds and sesame oil" },
+      { name: "Gluten", description: "Cereals containing gluten: wheat, rye, barley, oats, spelt, and kamut" },
+      { name: "Crustaceans", description: "Crab, lobster, shrimp, prawns, and crayfish" },
+      { name: "Eggs", description: "Hen eggs and all egg-derived products" },
+      { name: "Fish", description: "All fish species and fish-derived products" },
+      { name: "Peanuts", description: "Peanuts (groundnuts) and peanut-derived products" },
+      { name: "Soybeans", description: "Soya beans and all soy-derived products including soy lecithin" },
+      { name: "Milk", description: "Dairy milk including butter, cream, cheese, yoghurt, and lactose" },
+      { name: "Tree Nuts", description: "Almonds, hazelnuts, walnuts, cashews, pecans, Brazil nuts, pistachios, macadamia" },
+      { name: "Celery", description: "Celery stalks, leaves, seeds, and celeriac" },
+      { name: "Mustard", description: "Mustard seeds, leaves, oil, and mustard-containing products" },
+      { name: "Sesame", description: "Sesame seeds, sesame oil, and tahini" },
+      { name: "Sulphites", description: "Sulphur dioxide and sulphites at concentrations above 10 mg/kg or 10 mg/L" },
+      { name: "Lupin", description: "Lupin seeds and lupin flour, used in some gluten-free and specialty baking" },
+      { name: "Molluscs", description: "Clams, mussels, oysters, squid, and octopus" },
     ])
     .returning();
 
@@ -433,7 +456,7 @@ BAKE & FROST:
   ]);
 
   console.log("\n✅ Seeding complete!");
-  console.log("   Allergens:          7");
+  console.log("   Allergens:         14");
   console.log("   Ingredient cats:    9");
   console.log("   Recipe cats:        5");
   console.log("   Suppliers:          3");
