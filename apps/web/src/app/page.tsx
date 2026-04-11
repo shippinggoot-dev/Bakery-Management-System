@@ -4,14 +4,26 @@ import { api } from "@/trpc/server";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [recipes, ingredients, suppliers, shoppingLists, purchaseOrders] =
-    await Promise.all([
-      api.recipes.getAll({ limit: 100 }),
-      api.ingredients.getAll({ limit: 100 }),
-      api.suppliers.getAll(),
-      api.shoppingLists.getAll({ limit: 100 }),
-      api.purchaseOrders.getAll({ limit: 100 }),
-    ]);
+  let recipes: Awaited<ReturnType<typeof api.recipes.getAll>> = [];
+  let ingredients: Awaited<ReturnType<typeof api.ingredients.getAll>> = [];
+  let suppliers: Awaited<ReturnType<typeof api.suppliers.getAll>> = [];
+  let shoppingLists: Awaited<ReturnType<typeof api.shoppingLists.getAll>> = [];
+  let purchaseOrders: Awaited<ReturnType<typeof api.purchaseOrders.getAll>> = [];
+  let dbError: string | null = null;
+
+  try {
+    [recipes, ingredients, suppliers, shoppingLists, purchaseOrders] =
+      await Promise.all([
+        api.recipes.getAll({ limit: 100 }),
+        api.ingredients.getAll({ limit: 100 }),
+        api.suppliers.getAll(),
+        api.shoppingLists.getAll({ limit: 100 }),
+        api.purchaseOrders.getAll({ limit: 100 }),
+      ]);
+  } catch (err) {
+    dbError = err instanceof Error ? err.message : String(err);
+    console.error("Dashboard DB error:", dbError);
+  }
 
   const activeRecipes   = recipes.filter((r) => r.isActive).length;
   const activeSuppliers = suppliers.filter((s) => s.isActive).length;
@@ -37,6 +49,14 @@ export default async function DashboardPage() {
         <h2 className="page-title">Dashboard</h2>
         <p className="text-gray-500 mt-1">Welcome back — here's your bakery at a glance.</p>
       </div>
+
+      {/* DB error banner */}
+      {dbError && (
+        <div className="rounded-lg border border-red-800 bg-red-950/40 px-5 py-4 text-sm text-red-300">
+          <p className="font-semibold mb-1">Database connection error</p>
+          <p className="font-mono text-xs break-all">{dbError}</p>
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
