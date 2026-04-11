@@ -1,0 +1,65 @@
+import Link from "next/link";
+import { api } from "@/trpc/server";
+
+export const dynamic = "force-dynamic";
+
+const categoryColour: Record<string, string> = {
+  "Breads & Loaves":        "bg-amber-950/60 text-amber-300",
+  "Pastries":               "bg-pink-950/60 text-pink-300",
+  "Muffins & Quick Breads": "bg-yellow-950/60 text-yellow-300",
+  "Sweet Rolls":            "bg-orange-950/60 text-orange-300",
+  "Cakes & Brownies":       "bg-rose-950/60 text-rose-300",
+};
+
+export default async function RecipesPage() {
+  const recipes = await api.recipes.getAll({ limit: 100, isActive: true });
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="page-title">Recipes</h2>
+          <p className="text-gray-500 mt-1">{recipes.length} active recipe{recipes.length !== 1 ? "s" : ""}</p>
+        </div>
+      </div>
+
+      {recipes.length === 0 ? (
+        <div className="card p-12 text-center text-gray-600">
+          <p className="text-4xl mb-3">📖</p>
+          <p className="font-medium">No recipes yet</p>
+          <p className="text-sm mt-1">Run <code className="bg-gray-800 px-1 rounded">pnpm db:seed</code> to add sample data</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {recipes.map((recipe) => {
+            const catName    = recipe.category?.name ?? "";
+            const badgeClass = categoryColour[catName] ?? "bg-gray-800 text-gray-400";
+            const totalTime  = (recipe.prepTimeMinutes ?? 0) + (recipe.bakeTimeMinutes ?? 0);
+
+            return (
+              <Link
+                key={recipe.id}
+                href={`/recipes/${recipe.id}`}
+                className="card p-5 hover:border-gray-700 hover:bg-gray-800/50 transition-all flex flex-col gap-3"
+              >
+                {catName && (
+                  <span className={`badge w-fit ${badgeClass}`}>{catName}</span>
+                )}
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-100 leading-snug">{recipe.name}</h3>
+                  {recipe.description && (
+                    <p className="text-sm text-gray-500 mt-1 line-clamp-2">{recipe.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 text-xs text-gray-600 border-t border-gray-800 pt-3">
+                  <span>🎯 {recipe.yieldAmount} {recipe.yieldUnit}</span>
+                  {totalTime > 0 && <span>⏱ {totalTime} min</span>}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

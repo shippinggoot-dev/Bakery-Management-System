@@ -1,0 +1,237 @@
+"use client";
+
+import { useState } from "react";
+import { api } from "@/trpc/react";
+
+const allergenColour: Record<string, string> = {
+  Gluten:      "bg-yellow-950/60 text-yellow-300",
+  Milk:        "bg-blue-950/60 text-blue-300",
+  Eggs:        "bg-orange-950/60 text-orange-300",
+  "Tree Nuts": "bg-emerald-950/60 text-emerald-300",
+  Peanuts:     "bg-red-950/60 text-red-300",
+  Soy:         "bg-purple-950/60 text-purple-300",
+  Sesame:      "bg-stone-900 text-stone-300",
+};
+
+function LinkPanel({
+  ingredientId,
+  currentEan,
+  onClose,
+}: {
+  ingredientId: string;
+  currentEan: string | null;
+  onClose: () => void;
+}) {
+  const utils = api.useUtils();
+  const [query, setQuery] = useState("");
+  const [submitted, setSubmitted] = useState("");
+
+  const { data: results = [], isFetching } = api.priceSync.searchProducts.useQuery(
+    submitted,
+    { enabled: submitted.length >= 2 }
+  );
+
+  const link = api.priceSync.linkProduct.useMutation({
+    onSuccess: () => {
+      utils.ingredients.getAll.invalidate();
+      utils.priceSync.getLinkedCount.invalidate();
+      onClose();
+    },
+  });
+  const unlink = api.priceSync.unlinkProduct.useMutation({
+    onSuccess: () => {
+      utils.ingredients.getAll.invalidate();
+      utils.priceSync.getLinkedCount.invalidate();
+      onClose();
+    },
+  });
+
+  return (
+    <div className="px-6 py-4 bg-gray-800/60 border-t border-gray-800 space-y-3">
+      <div className="flex items-center gap-2">
+        <input
+          autoFocus
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") setSubmitted(query); }}
+          placeholder="Search grocery product name…"
+          className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-brand-500"
+        />
+        <button
+          onClick={() => setSubmitted(query)}
+          disabled={query.length < 2}
+          className="btn-primary text-xs px-3 py-2"
+        >
+          Search
+        </button>
+        {currentEan && (
+          <button
+            onClick={() => unlink.mutate(ingredientId)}
+            disabled={unlink.isPending}
+            className="btn-ghost text-xs px-3 py-2 text-red-400 hover:text-red-300"
+          >
+            Remove link
+          </button>
+        )}
+        <button onClick={onClose} className="text-gray-600 hover:text-gray-400 text-lg leading-none px-1">×</button>
+      </div>
+
+      {isFetching && <p className="text-sm text-gray-500">Searching Kassal.app…</p>}
+
+      {!isFetching && submitted && results.length === 0 && (
+        <p className="text-sm text-gray-600">No results found. Try a different name.</p>
+      )}
+
+      {results.length > 0 && (
+        <ul className="space-y-1 max-h-56 overflow-y-auto">
+          {results.map((product) => (
+            <li key={product.id}>
+              <button
+                onClick={() => link.mutate({ ingredientId, ean: product.ean })}
+                disabled={link.isPending}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-700/60 transition-colors text-left gap-4"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-200 truncate">{product.name}</p>
+                  <p className="text-xs text-gray-500">{product.brand} · {product.store?.name}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  {product.current_price != null && (
+                    <p className="text-sm font-semibold text-brand-400">
+                      kr {product.current_price.toFixed(2)}
+                    </p>
+                  )}
+                  {product.weight && (
+                    <p className="text-xs text-gray-600">{product.weight}{product.weight_unit}</p>
+                  )}
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export default function IngredientsPage() {
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+
+  const { data: ingredients = [], isLoading } = api.ingredients.getAll.useQuery({ limit: 200 });
+
+  const grouped = ingredients.reduce<Record<string, typeof ingredients>>(
+    (acc, ing) => {
+      const cat = ing.category?.name ?? "Uncategorised";
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat]!.push(ing);
+      return acc;
+    },
+    {}
+  );
+  const categories = Object.keys(grouped).sort();
+
+  if (isLoading) {
+    return (
+      <div className="max-w-5xl mx-auto">
+        <div className="card p-10 text-center text-gray-600">Loading…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div>
+        <h2 className="page-title">Ingredients</h2>
+        <p className="text-gray-500 mt-1">
+          {ingredients.length} ingredients across {categories.length} categories
+        </p>
+      </div>
+
+      {categories.map((cat) => (
+        <div key={cat} className="card overflow-hidden">
+          <div className="px-6 py-3 bg-gray-800/50 border-b border-gray-800">
+            <h3 className="text-sm font-semibold text-gray-400">{cat}</h3>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-800">
+                <th className="table-header px-6 py-3">Name</th>
+                <th className="table-header px-6 py-3">Unit</th>
+                <th className="table-header px-6 py-3">Allergens</th>
+                <th className="table-header px-6 py-3">Price</th>
+                <th className="table-header px-6 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {grouped[cat]!.map((ing) => (
+                <>
+                  <tr key={ing.id} className="hover:bg-gray-800/40">
+                    <td className="px-6 py-3 font-medium text-gray-200">{ing.name}</td>
+                    <td className="px-6 py-3 text-gray-500 text-sm">{ing.unit}</td>
+                    <td className="px-6 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {ing.allergens.length === 0 ? (
+                          <span className="text-gray-700 text-sm">None</span>
+                        ) : (
+                          ing.allergens.map((ia) => {
+                            const name = ia.allergen?.name ?? "";
+                            return (
+                              <span key={name} className={`badge ${allergenColour[name] ?? "bg-gray-800 text-gray-400"}`}>
+                                {name}
+                              </span>
+                            );
+                          })
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-3 text-sm">
+                      {ing.currentPriceNok ? (
+                        <div>
+                          <span className="text-brand-400 font-medium">
+                            kr {parseFloat(ing.currentPriceNok).toFixed(2)}
+                          </span>
+                          {ing.currentPricePer && (
+                            <span className="text-gray-600 ml-1">/ {ing.currentPricePer}</span>
+                          )}
+                          {ing.cheapestStore && (
+                            <p className="text-xs text-gray-600 mt-0.5">{ing.cheapestStore}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-700">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3 text-right">
+                      <button
+                        onClick={() => setLinkingId(linkingId === ing.id ? null : ing.id)}
+                        className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                          ing.kassalappEan
+                            ? "border-brand-500/40 text-brand-400 hover:bg-brand-500/10"
+                            : "border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600"
+                        }`}
+                      >
+                        {ing.kassalappEan ? "🔗 Linked" : "Link price"}
+                      </button>
+                    </td>
+                  </tr>
+                  {linkingId === ing.id && (
+                    <tr key={`${ing.id}-link`}>
+                      <td colSpan={5} className="p-0">
+                        <LinkPanel
+                          ingredientId={ing.id}
+                          currentEan={ing.kassalappEan ?? null}
+                          onClose={() => setLinkingId(null)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}

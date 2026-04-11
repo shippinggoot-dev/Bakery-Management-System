@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+.next/
+dist/
+out/
+build/
+
+# Environment variables — never commit real secrets
+.env
+.env.local
+.env.*.local
+apps/**/.env.local
+
+# Turbo
+.turbo/
+
+# Drizzle generated migrations folder
+drizzle/
+
+# Local SQLite database file (contains your data — do not share)
+*.db
+*.db-shm
+*.db-wal
+
+# Editor
+.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
