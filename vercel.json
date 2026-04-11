@@ -1,5 +1,5 @@
 {
-  "buildCommand": "turbo run build --filter=@bakery/web",
-  "outputDirectory": "apps/web/.next",
-  "installCommand": "pnpm install"
+  "buildCommand": "cd ../.. && turbo run build --filter=@bakery/web",
+  "outputDirectory": ".next",
+  "installCommand": "cd ../.. && pnpm install"
 }
