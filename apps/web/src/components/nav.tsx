@@ -119,9 +119,8 @@ export function Nav() {
         ) : (
           <Link
             href="/login"
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-800 hover:text-gray-200 border border-transparent transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-brand-500/20 text-brand-400 border border-brand-500/40 hover:bg-brand-500/30 hover:text-brand-300 transition-colors"
           >
-            <span className="text-base leading-none">→</span>
             Log in
           </Link>
         )}
