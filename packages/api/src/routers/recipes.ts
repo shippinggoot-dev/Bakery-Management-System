@@ -37,6 +37,25 @@ export const recipesRouter = createTRPCRouter({
     });
   }),
 
+  createCategory: protectedProcedure
+    .input(z.object({ name: z.string().min(1).max(100) }))
+    .mutation(async ({ ctx, input }) => {
+      const [category] = await ctx.db
+        .insert(recipeCategories)
+        .values({ name: input.name.trim() })
+        .returning();
+      return category;
+    }),
+
+  deleteCategory: protectedProcedure
+    .input(z.string().uuid())
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .delete(recipeCategories)
+        .where(eq(recipeCategories.id, input));
+      return { success: true };
+    }),
+
   getAll: protectedProcedure
     .input(
       z.object({
@@ -224,7 +243,7 @@ Schema (all fields required, use null for missing values):
 {
   "name": string,
   "description": string | null,
-  "category": "Breads & Loaves" | "Pastries" | "Muffins & Quick Breads" | "Sweet Rolls" | "Cakes & Brownies" | null,
+  "category": "Sponges" | "Fillings" | "Frostings" | "Mousse" | "Brownie" | "Cookies" | "Cupcakes" | "Entremet" | null,
   "yieldAmount": string,
   "yieldUnit": string,
   "prepTimeMinutes": number | null,

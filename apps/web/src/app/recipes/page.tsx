@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { api } from "@/trpc/server";
 import { PlusIcon } from "@/components/icons";
+import { CategoryManager } from "./CategoryManager";
 
 export const dynamic = "force-dynamic";
 
 const categoryColour: Record<string, string> = {
-  "Breads & Loaves":        "bg-amber-950/60 text-amber-300",
-  "Pastries":               "bg-pink-950/60 text-pink-300",
-  "Muffins & Quick Breads": "bg-yellow-950/60 text-yellow-300",
-  "Sweet Rolls":            "bg-orange-950/60 text-orange-300",
-  "Cakes & Brownies":       "bg-rose-950/60 text-rose-300",
+  "Sponges":  "bg-amber-950/60 text-amber-300",
+  "Fillings": "bg-blue-950/60 text-blue-300",
+  "Frostings":"bg-pink-950/60 text-pink-300",
+  "Mousse":   "bg-violet-950/60 text-violet-300",
+  "Brownie":  "bg-orange-950/60 text-orange-300",
+  "Cookies":  "bg-yellow-950/60 text-yellow-300",
+  "Cupcakes": "bg-rose-950/60 text-rose-300",
+  "Entremet": "bg-emerald-950/60 text-emerald-300",
 };
 
 export default async function RecipesPage() {
-  const recipes = await api.recipes.getAll({ limit: 100, isActive: true });
+  const [recipes, categories] = await Promise.all([
+    api.recipes.getAll({ limit: 100, isActive: true }),
+    api.recipes.getCategories(),
+  ]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -30,6 +37,8 @@ export default async function RecipesPage() {
           New Recipe
         </Link>
       </div>
+
+      <CategoryManager initialCategories={categories} />
 
       {recipes.length === 0 ? (
         <div className="card p-12 text-center text-gray-600">

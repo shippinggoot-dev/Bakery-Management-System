@@ -108,16 +108,20 @@ async function seed() {
 
   // ─── 4. Recipe Categories ────────────────────────────────────────────────
   console.log("  Inserting recipe categories...");
-  const [catBreads, catPastries, catMuffins, catRolls, catCakes] = await db
+  const insertedCats = await db
     .insert(recipeCategories)
     .values([
-      { name: "Breads & Loaves", description: "Sourdough, sandwich loaves, focaccia, and artisan breads" },
-      { name: "Pastries", description: "Croissants, danishes, and laminated doughs" },
-      { name: "Muffins & Quick Breads", description: "Muffins, scones, and chemically leavened bakes" },
-      { name: "Sweet Rolls", description: "Cinnamon rolls, sticky buns, and enriched dough rolls" },
-      { name: "Cakes & Brownies", description: "Layer cakes, brownies, traybakes, and tortes" },
+      { name: "Sponges",   description: "Genoise, chiffon, joconde, and other sponge bases" },
+      { name: "Fillings",  description: "Curds, compotes, pastry creams, and ganache fillings" },
+      { name: "Frostings", description: "Buttercreams, cream cheese frostings, and glazes" },
+      { name: "Mousse",    description: "Chocolate, fruit, and bavarois mousse components" },
+      { name: "Brownie",   description: "Dense, fudgy brownies and blondie bars" },
+      { name: "Cookies",   description: "Drop cookies, shortbread, biscotti, and rolled cookies" },
+      { name: "Cupcakes",  description: "Individual cupcakes and mini cakes" },
+      { name: "Entremet",  description: "Multi-component mousse cakes and mirror-glaze entremets" },
     ])
     .returning();
+  const catBrownie = insertedCats.find((c) => c.name === "Brownie");
 
   // ─── 5. Suppliers ────────────────────────────────────────────────────────
   // Local Bergen/Fana stores are imported from Kassal.app via the UI.
@@ -201,7 +205,7 @@ async function seed() {
     .values({
       name: "Classic Sourdough Bread",
       description: "A rustic, open-crumb sourdough with a crisp blistered crust. Uses only flour, water, salt, and a live starter.",
-      categoryId: catBreads!.id,
+      categoryId: null,
       yieldAmount: "1",
       yieldUnit: "loaf (approx. 900g baked)",
       prepTimeMinutes: 30,
@@ -232,7 +236,7 @@ async function seed() {
     .values({
       name: "Butter Croissants",
       description: "Flaky, golden laminated croissants with 27 layers of butter. Takes 2 days but worth every minute.",
-      categoryId: catPastries!.id,
+      categoryId: null,
       yieldAmount: "12",
       yieldUnit: "croissants",
       prepTimeMinutes: 180,
@@ -272,7 +276,7 @@ DAY 2 – LAMINATION:
     .values({
       name: "Blueberry Lemon Muffins",
       description: "Tender, bakery-style muffins bursting with juicy blueberries and bright lemon zest. Ready in under 40 minutes.",
-      categoryId: catMuffins!.id,
+      categoryId: null,
       yieldAmount: "12",
       yieldUnit: "standard muffins",
       prepTimeMinutes: 15,
@@ -309,7 +313,7 @@ DAY 2 – LAMINATION:
     .values({
       name: "Cinnamon Rolls with Cream Cheese Frosting",
       description: "Pillowy soft rolls swirled with brown sugar and cinnamon, topped with a tangy cream cheese frosting. Bakery's best-seller.",
-      categoryId: catRolls!.id,
+      categoryId: null,
       yieldAmount: "12",
       yieldUnit: "large rolls",
       prepTimeMinutes: 120,
@@ -357,7 +361,7 @@ BAKE & FROST:
     .values({
       name: "Dark Chocolate Brownies",
       description: "Dense, fudgy brownies with a crackly top made from 70% dark chocolate. No mixer required.",
-      categoryId: catCakes!.id,
+      categoryId: catBrownie?.id ?? null,
       yieldAmount: "16",
       yieldUnit: "pieces (20×20cm tin)",
       prepTimeMinutes: 20,
