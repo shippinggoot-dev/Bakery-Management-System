@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { ingredients, priceAlerts } from "@bakery/db";
 import { getLocalStoreGroups, getCheapestLocalPrice, searchKassalProducts } from "../services/kassalapp";
@@ -106,9 +106,7 @@ export const priceSyncRouter = createTRPCRouter({
 
     await ctx.db.update(priceAlerts)
       .set({ dismissedAt: new Date() })
-      .where((a, { and, isNull, inArray }) =>
-        and(isNull(a.dismissedAt), inArray(a.ingredientId, ids)) as ReturnType<typeof and>
-      );
+      .where(and(isNull(priceAlerts.dismissedAt), inArray(priceAlerts.ingredientId, ids)));
     return { success: true };
   }),
 
