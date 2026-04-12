@@ -167,6 +167,74 @@ export const recipesRouter = createTRPCRouter({
       return { success: true };
     }),
 
+  /**
+   * Parse raw recipe text (pasted from any source) into structured recipe data using Claude.
+   * Returns pre-filled fields ready to populate the New Recipe form.
+   */
+  parseFromText: publicProcedure
+    .input(z.object({ text: z.string().min(10).max(30000) }))
+    .mutation(async ({ input }) => {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured.");
+
+      const Anthropic = await import("@anthropic-ai/sdk");
+      const client = new Anthropic.default({ apiKey });
+
+      const message = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 2048,
+        messages: [
+          {
+            role: "user",
+            content: `Extract this recipe into JSON. Return ONLY valid JSON — no explanation, no markdown, no code fences.
+
+Schema (all fields required, use null for missing values):
+{
+  "name": string,
+  "description": string | null,
+  "category": "Breads & Loaves" | "Pastries" | "Muffins & Quick Breads" | "Sweet Rolls" | "Cakes & Brownies" | null,
+  "yieldAmount": string,
+  "yieldUnit": string,
+  "prepTimeMinutes": number | null,
+  "bakeTimeMinutes": number | null,
+  "ingredients": [{ "name": string, "quantity": string, "unit": string, "notes": string | null }],
+  "instructions": string | null,
+  "notes": string | null
+}
+
+Rules:
+- quantities must be numbers as strings (e.g. "250", "1.5") — no fractions like "1/2" (convert to "0.5")
+- units should be standard (g, kg, ml, L, tsp, tbsp, piece, cup)
+- yieldUnit: singular noun (e.g. "bun", "loaf", "slice")
+- instructions: preserve numbered steps, join with newlines
+
+Recipe text:
+${input.text}`,
+          },
+        ],
+      });
+
+      const raw = message.content[0];
+      if (raw.type !== "text") throw new Error("Unexpected AI response format.");
+
+      try {
+        return JSON.parse(raw.text) as {
+          name: string;
+          description: string | null;
+          category: string | null;
+          yieldAmount: string;
+          yieldUnit: string;
+          prepTimeMinutes: number | null;
+          bakeTimeMinutes: number | null;
+          ingredients: { name: string; quantity: string; unit: string; notes: string | null }[];
+          instructions: string | null;
+          notes: string | null;
+        };
+      } catch {
+        throw new Error("AI returned invalid JSON. Please try again.");
+      }
+    }),
+
   /** Calculate the ingredient cost of a recipe using each ingredient's preferred supplier price. */
   calculateCost: publicProcedure
     .input(z.string().uuid())

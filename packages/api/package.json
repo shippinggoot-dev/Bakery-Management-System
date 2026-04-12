@@ -7,6 +7,7 @@
     "./trpc": "./src/trpc.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
     "@bakery/db": "workspace:*",
     "@trpc/server": "^11.0.0",
     "superjson": "^2.2.1",

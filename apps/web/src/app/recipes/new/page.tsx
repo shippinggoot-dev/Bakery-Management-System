@@ -8,15 +8,106 @@ import { TrashIcon, PlusIcon } from "@/components/icons";
 
 type IngredientRow = {
   ingredientId: string;
+  importedName: string; // name from AI parse — shown when ingredientId is not yet matched
   quantity: string;
   unit: string;
   notes: string;
 };
 
+function ImportPanel({ onImport }: {
+  onImport: (data: {
+    name: string; description: string | null; category: string | null;
+    yieldAmount: string; yieldUnit: string;
+    prepTimeMinutes: number | null; bakeTimeMinutes: number | null;
+    ingredients: { name: string; quantity: string; unit: string; notes: string | null }[];
+    instructions: string | null; notes: string | null;
+  }) => void;
+}) {
+  const [open, setOpen]     = useState(false);
+  const [text, setText]     = useState("");
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  const parse = api.recipes.parseFromText.useMutation({
+    onSuccess: (data) => {
+      onImport(data);
+      setOpen(false);
+      setText("");
+      setParseError(null);
+    },
+    onError: (err) => setParseError(err.message),
+  });
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full card px-5 py-4 flex items-center gap-3 text-left hover:border-brand-500/40 hover:bg-brand-500/5 transition-all group"
+      >
+        <span className="text-2xl">📋</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-gray-300 group-hover:text-brand-300 transition-colors">
+            Import from text
+          </p>
+          <p className="text-sm text-gray-600 mt-0.5">
+            Paste a recipe from a website, Word doc, PDF, or anywhere — AI will fill in the form
+          </p>
+        </div>
+        <span className="text-gray-600 group-hover:text-brand-400 transition-colors text-lg">→</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="card p-6 border-brand-500/30 bg-brand-500/5 space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="section-title">Import from text</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Paste any recipe text below. AI will extract the name, ingredients, times, and instructions automatically.
+          </p>
+        </div>
+        <button onClick={() => { setOpen(false); setParseError(null); }}
+          className="text-gray-600 hover:text-gray-400 text-xl leading-none shrink-0">×</button>
+      </div>
+
+      <textarea
+        className="form-input resize-none text-sm"
+        rows={10}
+        placeholder={"Paste the recipe here…\n\nExamples of what works:\n• Copy-paste from a recipe website\n• Text from a Word or Google Docs recipe\n• Text copied from a scanned cookbook (OCR)\n• A recipe written out in any format"}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        autoFocus
+      />
+
+      {parseError && (
+        <p className="text-sm text-red-400 bg-red-950/30 border border-red-800 rounded-lg px-4 py-3">
+          {parseError}
+        </p>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => { setParseError(null); parse.mutate({ text }); }}
+          disabled={text.trim().length < 10 || parse.isPending}
+          className="px-5 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 text-sm font-medium transition-colors disabled:opacity-50"
+        >
+          {parse.isPending ? "Parsing…" : "✨ Parse with AI"}
+        </button>
+        <button onClick={() => { setOpen(false); setParseError(null); }}
+          className="px-5 py-2 rounded-lg text-gray-500 hover:text-gray-300 text-sm transition-colors">
+          Cancel
+        </button>
+        {parse.isPending && (
+          <span className="text-xs text-gray-600">Usually takes 3–6 seconds…</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function NewRecipePage() {
   const router = useRouter();
 
-  // form state
   const [name, setName]               = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId]   = useState("");
@@ -28,19 +119,68 @@ export default function NewRecipePage() {
   const [notes, setNotes]             = useState("");
   const [rows, setRows]               = useState<IngredientRow[]>([]);
   const [error, setError]             = useState<string | null>(null);
+  const [importBanner, setImportBanner] = useState<string | null>(null);
 
   const { data: categories = [] } = api.recipes.getCategories.useQuery();
   const { data: allIngredients = [] } = api.ingredients.getAll.useQuery({ limit: 200 });
 
   const createMutation = api.recipes.create.useMutation({
-    onSuccess: (recipe) => {
-      router.push(`/recipes/${recipe!.id}`);
-    },
+    onSuccess: (recipe) => router.push(`/recipes/${recipe!.id}`),
     onError: (err) => setError(err.message),
   });
 
+  // Called when the AI returns parsed recipe data
+  function handleImport(data: {
+    name: string; description: string | null; category: string | null;
+    yieldAmount: string; yieldUnit: string;
+    prepTimeMinutes: number | null; bakeTimeMinutes: number | null;
+    ingredients: { name: string; quantity: string; unit: string; notes: string | null }[];
+    instructions: string | null; notes: string | null;
+  }) {
+    setName(data.name);
+    setDescription(data.description ?? "");
+    setYieldAmount(data.yieldAmount);
+    setYieldUnit(data.yieldUnit);
+    setPrepTime(data.prepTimeMinutes ? String(data.prepTimeMinutes) : "");
+    setBakeTime(data.bakeTimeMinutes ? String(data.bakeTimeMinutes) : "");
+    setInstructions(data.instructions ?? "");
+    setNotes(data.notes ?? "");
+
+    // Match category by name
+    if (data.category) {
+      const matched = categories.find(
+        (c) => c.name.toLowerCase() === data.category!.toLowerCase()
+      );
+      setCategoryId(matched?.id ?? "");
+    } else {
+      setCategoryId("");
+    }
+
+    // Match ingredients by name (case-insensitive), leave unmatched for user to pick
+    const newRows: IngredientRow[] = data.ingredients.map((ing) => {
+      const matched = allIngredients.find(
+        (db) => db.name.toLowerCase() === ing.name.toLowerCase()
+      );
+      return {
+        ingredientId: matched?.id ?? "",
+        importedName: ing.name,
+        quantity: ing.quantity,
+        unit: ing.unit,
+        notes: ing.notes ?? "",
+      };
+    });
+    setRows(newRows);
+
+    const unmatched = newRows.filter((r) => !r.ingredientId).length;
+    setImportBanner(
+      unmatched === 0
+        ? `Imported "${data.name}" — all ${newRows.length} ingredients matched. Review and save.`
+        : `Imported "${data.name}". ${unmatched} ingredient${unmatched !== 1 ? "s" : ""} not found in your list — select them below.`
+    );
+  }
+
   function addRow() {
-    setRows((r) => [...r, { ingredientId: "", quantity: "", unit: "g", notes: "" }]);
+    setRows((r) => [...r, { ingredientId: "", importedName: "", quantity: "", unit: "g", notes: "" }]);
   }
 
   function removeRow(i: number) {
@@ -90,12 +230,24 @@ export default function NewRecipePage() {
 
       <div>
         <h2 className="page-title">New Recipe</h2>
-        <p className="text-gray-500 mt-1">Fill in the details below to add a recipe.</p>
+        <p className="text-gray-500 mt-1">Fill in the details below, or import an existing recipe with AI.</p>
       </div>
+
+      {/* AI Import panel */}
+      <ImportPanel onImport={handleImport} />
+
+      {/* Import success banner */}
+      {importBanner && (
+        <div className="flex items-start gap-3 rounded-lg border border-emerald-800/50 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-300">
+          <span>✓</span>
+          <span className="flex-1">{importBanner}</span>
+          <button onClick={() => setImportBanner(null)} className="text-emerald-700 hover:text-emerald-400 leading-none">×</button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
 
-        {/* Name */}
+        {/* Basic info */}
         <div className="card p-6 space-y-4">
           <h3 className="section-title">Basic info</h3>
 
@@ -201,11 +353,13 @@ export default function NewRecipePage() {
                   <div>
                     {i === 0 && <p className="form-label mb-1">Ingredient</p>}
                     <select
-                      className="form-input"
+                      className={`form-input ${!row.ingredientId && row.importedName ? "border-amber-700/60 focus:border-amber-500/60 focus:ring-amber-500/20" : ""}`}
                       value={row.ingredientId}
                       onChange={(e) => updateRow(i, { ingredientId: e.target.value })}
                     >
-                      <option value="">— pick —</option>
+                      <option value="">
+                        {row.importedName ? `⚠ ${row.importedName}` : "— pick —"}
+                      </option>
                       {allIngredients.map((ing) => (
                         <option key={ing.id} value={ing.id}>{ing.name}</option>
                       ))}
