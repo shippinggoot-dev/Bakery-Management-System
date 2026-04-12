@@ -70,7 +70,7 @@ export const purchaseOrdersRouter = createTRPCRouter({
         supplierId: z.string().uuid(),
         orderNumber: z.string().optional().nullable(),
         notes: z.string().optional().nullable(),
-        items: z.array(orderItemInputSchema).min(1),
+        items: z.array(orderItemInputSchema).default([]),
       })
     )
     .mutation(async ({ ctx, input }) => {

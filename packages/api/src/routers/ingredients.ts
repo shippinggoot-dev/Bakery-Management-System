@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, like } from "drizzle-orm";
 import { createTRPCRouter, publicProcedure } from "../trpc";
-import { ingredients, ingredientAllergens } from "@bakery/db";
+import { ingredients, ingredientAllergens, ingredientCategories, allergens } from "@bakery/db";
 
 const ingredientInputSchema = z.object({
   name: z.string().min(1).max(255),
@@ -11,6 +11,18 @@ const ingredientInputSchema = z.object({
 });
 
 export const ingredientsRouter = createTRPCRouter({
+  getCategories: publicProcedure.query(async ({ ctx }) => {
+    return ctx.db.query.ingredientCategories.findMany({
+      orderBy: (c, { asc }) => [asc(c.name)],
+    });
+  }),
+
+  getAllAllergens: publicProcedure.query(async ({ ctx }) => {
+    return ctx.db.query.allergens.findMany({
+      orderBy: (a, { asc }) => [asc(a.name)],
+    });
+  }),
+
   getAll: publicProcedure
     .input(
       z

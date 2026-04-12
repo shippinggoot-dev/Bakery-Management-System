@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { api } from "@/trpc/react";
+import { PlusIcon } from "@/components/icons";
 
 const GROUP_LABELS: Record<string, string> = {
   MENY_NO:   "Meny",
@@ -23,6 +24,84 @@ const GROUP_COLOURS: Record<string, string> = {
 };
 
 type Tab = "local" | "manual";
+
+function AddSupplierForm({ onClose }: { onClose: () => void }) {
+  const utils = api.useUtils();
+  const [name, setName]               = useState("");
+  const [contactName, setContactName] = useState("");
+  const [email, setEmail]             = useState("");
+  const [phone, setPhone]             = useState("");
+  const [address, setAddress]         = useState("");
+  const [notes, setNotes]             = useState("");
+  const [error, setError]             = useState<string | null>(null);
+
+  const create = api.suppliers.create.useMutation({
+    onSuccess: () => { utils.suppliers.getAll.invalidate(); onClose(); },
+    onError: (err) => setError(err.message),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return setError("Supplier name is required.");
+    setError(null);
+    create.mutate({
+      name: name.trim(),
+      contactName: contactName.trim() || null,
+      email: email.trim() || null,
+      phone: phone.trim() || null,
+      address: address.trim() || null,
+      notes: notes.trim() || null,
+      isActive: true,
+    });
+  }
+
+  return (
+    <div className="card p-6 border-brand-500/30 bg-brand-500/5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="section-title">New Supplier</h3>
+        <button onClick={onClose} className="text-gray-600 hover:text-gray-400 text-xl leading-none">×</button>
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Supplier name *</label>
+            <input className="form-input" placeholder="e.g. Bergen Mel AS" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
+          </div>
+          <div>
+            <label className="form-label">Contact person</label>
+            <input className="form-input" placeholder="Full name" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Email</label>
+            <input className="form-input" type="email" placeholder="orders@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Phone</label>
+            <input className="form-input" placeholder="+47 000 00 000" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="form-label">Address</label>
+          <input className="form-input" placeholder="Street, city" value={address} onChange={(e) => setAddress(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label">Notes</label>
+          <input className="form-input" placeholder="Delivery days, lead times…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        <div className="flex gap-3">
+          <button type="submit" disabled={create.isPending}
+            className="px-5 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 text-sm font-medium transition-colors disabled:opacity-50">
+            {create.isPending ? "Saving…" : "Add Supplier"}
+          </button>
+          <button type="button" onClick={onClose} className="px-5 py-2 rounded-lg text-gray-500 hover:text-gray-300 text-sm transition-colors">Cancel</button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 function StoreCard({
   store,
@@ -68,6 +147,7 @@ function StoreCard({
 export default function SuppliersPage() {
   const [tab, setTab] = useState<Tab>("local");
   const [showAvailable, setShowAvailable] = useState(false);
+  const [showAddSupplier, setShowAddSupplier] = useState(false);
   const utils = api.useUtils();
 
   const { data: allSuppliers = [], isLoading } = api.suppliers.getAll.useQuery({ limit: 100 });
@@ -213,10 +293,23 @@ export default function SuppliersPage() {
       {tab === "manual" && (
         isLoading ? (
           <div className="card p-10 text-center text-gray-600">Loading…</div>
-        ) : manualSuppliers.length === 0 ? (
+        ) : (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowAddSupplier((v) => !v)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 transition-colors text-sm font-medium"
+            >
+              <PlusIcon />
+              Add Supplier
+            </button>
+          </div>
+          {showAddSupplier && <AddSupplierForm onClose={() => setShowAddSupplier(false)} />}
+          {manualSuppliers.length === 0 ? (
           <div className="card p-12 text-center text-gray-600">
             <p className="text-4xl mb-3">🚚</p>
             <p className="font-medium">No manual suppliers added</p>
+            <p className="text-sm mt-1">Use the button above to add one.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -238,6 +331,8 @@ export default function SuppliersPage() {
               </div>
             ))}
           </div>
+        )}
+        </div>
         )
       )}
     </div>
