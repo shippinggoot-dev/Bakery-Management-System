@@ -1,42 +1,28 @@
 import { z } from "zod";
-import { eq, isNull, isNotNull, count } from "drizzle-orm";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { eq, and, isNull, isNotNull } from "drizzle-orm";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { ingredients, priceAlerts } from "@bakery/db";
-import {
-  getLocalStoreGroups,
-  getCheapestLocalPrice,
-  searchKassalProducts,
-} from "../services/kassalapp";
+import { getLocalStoreGroups, getCheapestLocalPrice, searchKassalProducts } from "../services/kassalapp";
 
 export const priceSyncRouter = createTRPCRouter({
-  /**
-   * Checks all linked ingredients against Kassal.app prices,
-   * creates an alert for any that have changed, and updates the stored price.
-   */
-  sync: publicProcedure.mutation(async ({ ctx }) => {
+  sync: protectedProcedure.mutation(async ({ ctx }) => {
     const apiKey = process.env.KASSALAPP_API_KEY;
     if (!apiKey) throw new Error("KASSALAPP_API_KEY is not configured");
 
     const localGroups = await getLocalStoreGroups(apiKey);
 
+    // Only sync this user's linked ingredients
     const linked = await ctx.db.query.ingredients.findMany({
-      where: isNotNull(ingredients.kassalappEan),
+      where: and(eq(ingredients.ownerId, ctx.user.id), isNotNull(ingredients.kassalappEan)),
     });
 
-    if (linked.length === 0) {
-      return { checked: 0, updated: 0 };
-    }
+    if (linked.length === 0) return { checked: 0, updated: 0 };
 
     let updated = 0;
     const now = new Date();
 
     for (const ingredient of linked) {
-      const result = await getCheapestLocalPrice(
-        apiKey,
-        ingredient.kassalappEan!,
-        localGroups
-      );
-
+      const result = await getCheapestLocalPrice(apiKey, ingredient.kassalappEan!, localGroups);
       if (!result) continue;
 
       const newPrice = result.price.toFixed(2);
@@ -56,65 +42,77 @@ export const priceSyncRouter = createTRPCRouter({
 
       await ctx.db
         .update(ingredients)
-        .set({
-          currentPriceNok: newPrice,
-          currentPricePer: result.sizePer,
-          cheapestStore: result.store,
-          lastPriceCheck: now,
-          updatedAt: now,
-        })
+        .set({ currentPriceNok: newPrice, currentPricePer: result.sizePer, cheapestStore: result.store, lastPriceCheck: now, updatedAt: now })
         .where(eq(ingredients.id, ingredient.id));
     }
 
     return { checked: linked.length, updated };
   }),
 
-  /** Returns all unread (not dismissed) alerts, newest first */
-  getAlerts: publicProcedure.query(async ({ ctx }) => {
+  getAlerts: protectedProcedure.query(async ({ ctx }) => {
+    // Alerts are joined through ingredient — filter by owner via subquery
+    const userIngredientIds = await ctx.db.query.ingredients.findMany({
+      where: eq(ingredients.ownerId, ctx.user.id),
+      columns: { id: true },
+    });
+    const ids = userIngredientIds.map((i) => i.id);
+    if (ids.length === 0) return [];
+
     return ctx.db.query.priceAlerts.findMany({
-      where: isNull(priceAlerts.dismissedAt),
+      where: (a, { and, isNull, inArray }) =>
+        and(isNull(a.dismissedAt), inArray(a.ingredientId, ids)),
       orderBy: (a, { desc }) => [desc(a.detectedAt)],
     });
   }),
 
-  /** Number of ingredients with a Kassal.app EAN linked */
-  getLinkedCount: publicProcedure.query(async ({ ctx }) => {
+  getLinkedCount: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.query.ingredients.findMany({
-      where: isNotNull(ingredients.kassalappEan),
+      where: and(eq(ingredients.ownerId, ctx.user.id), isNotNull(ingredients.kassalappEan)),
       columns: { id: true },
     });
     return rows.length;
   }),
 
-  /** Count of unread alerts — used for the nav badge */
-  getAlertCount: publicProcedure.query(async ({ ctx }) => {
+  getAlertCount: protectedProcedure.query(async ({ ctx }) => {
+    const userIngredientIds = await ctx.db.query.ingredients.findMany({
+      where: eq(ingredients.ownerId, ctx.user.id),
+      columns: { id: true },
+    });
+    const ids = userIngredientIds.map((i) => i.id);
+    if (ids.length === 0) return 0;
+
     const rows = await ctx.db.query.priceAlerts.findMany({
-      where: isNull(priceAlerts.dismissedAt),
+      where: (a, { and, isNull, inArray }) =>
+        and(isNull(a.dismissedAt), inArray(a.ingredientId, ids)),
       columns: { id: true },
     });
     return rows.length;
   }),
 
-  dismissAlert: publicProcedure
+  dismissAlert: protectedProcedure
     .input(z.string())
     .mutation(async ({ ctx, input }) => {
-      await ctx.db
-        .update(priceAlerts)
-        .set({ dismissedAt: new Date() })
-        .where(eq(priceAlerts.id, input));
+      await ctx.db.update(priceAlerts).set({ dismissedAt: new Date() }).where(eq(priceAlerts.id, input));
       return { success: true };
     }),
 
-  dismissAll: publicProcedure.mutation(async ({ ctx }) => {
-    await ctx.db
-      .update(priceAlerts)
+  dismissAll: protectedProcedure.mutation(async ({ ctx }) => {
+    const userIngredientIds = await ctx.db.query.ingredients.findMany({
+      where: eq(ingredients.ownerId, ctx.user.id),
+      columns: { id: true },
+    });
+    const ids = userIngredientIds.map((i) => i.id);
+    if (ids.length === 0) return { success: true };
+
+    await ctx.db.update(priceAlerts)
       .set({ dismissedAt: new Date() })
-      .where(isNull(priceAlerts.dismissedAt));
+      .where((a, { and, isNull, inArray }) =>
+        and(isNull(a.dismissedAt), inArray(a.ingredientId, ids)) as ReturnType<typeof and>
+      );
     return { success: true };
   }),
 
-  /** Search Kassal.app by name — for linking an ingredient to a product */
-  searchProducts: publicProcedure
+  searchProducts: protectedProcedure
     .input(z.string().min(2))
     .query(async ({ input }) => {
       const apiKey = process.env.KASSALAPP_API_KEY;
@@ -122,58 +120,39 @@ export const priceSyncRouter = createTRPCRouter({
       return searchKassalProducts(apiKey, input);
     }),
 
-  /** Save a Kassal.app EAN to an ingredient and immediately fetch its price */
-  linkProduct: publicProcedure
+  linkProduct: protectedProcedure
     .input(z.object({ ingredientId: z.string(), ean: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const apiKey = process.env.KASSALAPP_API_KEY;
+      // Verify ownership before linking
+      const ingredient = await ctx.db.query.ingredients.findFirst({
+        where: and(eq(ingredients.id, input.ingredientId), eq(ingredients.ownerId, ctx.user.id)),
+        columns: { id: true },
+      });
+      if (!ingredient) throw new Error("Ingredient not found.");
 
-      // Save EAN first
-      await ctx.db
-        .update(ingredients)
-        .set({ kassalappEan: input.ean, updatedAt: new Date() })
-        .where(eq(ingredients.id, input.ingredientId));
+      await ctx.db.update(ingredients).set({ kassalappEan: input.ean, updatedAt: new Date() }).where(eq(ingredients.id, input.ingredientId));
 
-      // Immediately fetch current price so it shows without waiting for a sync
       if (apiKey) {
         try {
           const localGroups = await getLocalStoreGroups(apiKey);
           const result = await getCheapestLocalPrice(apiKey, input.ean, localGroups);
           if (result) {
-            await ctx.db
-              .update(ingredients)
-              .set({
-                currentPriceNok: result.price.toFixed(2),
-                currentPricePer: result.sizePer,
-                cheapestStore: result.store,
-                lastPriceCheck: new Date(),
-                updatedAt: new Date(),
-              })
+            await ctx.db.update(ingredients)
+              .set({ currentPriceNok: result.price.toFixed(2), currentPricePer: result.sizePer, cheapestStore: result.store, lastPriceCheck: new Date(), updatedAt: new Date() })
               .where(eq(ingredients.id, input.ingredientId));
           }
-        } catch {
-          // Price fetch failed — EAN is still saved, sync will pick it up later
-        }
+        } catch { /* Price fetch failed — EAN saved, sync will pick it up later */ }
       }
-
       return { success: true };
     }),
 
-  /** Remove a Kassal.app link from an ingredient */
-  unlinkProduct: publicProcedure
+  unlinkProduct: protectedProcedure
     .input(z.string())
     .mutation(async ({ ctx, input }) => {
-      await ctx.db
-        .update(ingredients)
-        .set({
-          kassalappEan: null,
-          currentPriceNok: null,
-          currentPricePer: null,
-          cheapestStore: null,
-          lastPriceCheck: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(ingredients.id, input));
+      await ctx.db.update(ingredients)
+        .set({ kassalappEan: null, currentPriceNok: null, currentPricePer: null, cheapestStore: null, lastPriceCheck: null, updatedAt: new Date() })
+        .where(and(eq(ingredients.id, input), eq(ingredients.ownerId, ctx.user.id)));
       return { success: true };
     }),
 });

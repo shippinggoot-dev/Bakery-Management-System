@@ -2,6 +2,8 @@ import { pgTable, text, uuid, timestamp, integer, boolean, index } from "drizzle
 
 export const suppliers = pgTable("suppliers", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** Supabase auth.users(id) — owner of this supplier record */
+  ownerId: uuid("owner_id"),
   name: text("name").notNull(),
   contactName: text("contact_name"),
   email: text("email"),

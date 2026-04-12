@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { suppliers, supplierPrices } from "@bakery/db";
 import { getLocalStores } from "../services/kassalapp";
 
@@ -27,71 +27,74 @@ const supplierPriceInputSchema = z.object({
 });
 
 export const suppliersRouter = createTRPCRouter({
-  getAll: publicProcedure
+  getAll: protectedProcedure
     .input(
-      z
-        .object({
-          isActive: z.boolean().optional(),
-          limit: z.number().min(1).max(100).default(50),
-          offset: z.number().min(0).default(0),
-        })
-        .optional()
+      z.object({
+        isActive: z.boolean().optional(),
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      }).optional()
     )
     .query(async ({ ctx, input }) => {
       const { isActive, limit = 50, offset = 0 } = input ?? {};
+      const conditions: ReturnType<typeof eq>[] = [
+        eq(suppliers.ownerId, ctx.user.id),
+      ];
+      if (isActive !== undefined) conditions.push(eq(suppliers.isActive, isActive));
       return ctx.db.query.suppliers.findMany({
-        where: isActive !== undefined ? eq(suppliers.isActive, isActive) : undefined,
+        where: and(...conditions),
         limit,
         offset,
         orderBy: (s, { asc }) => [asc(s.name)],
       });
     }),
 
-  getById: publicProcedure
+  getById: protectedProcedure
     .input(z.string().uuid())
     .query(async ({ ctx, input }) => {
       return ctx.db.query.suppliers.findFirst({
-        where: eq(suppliers.id, input),
-        with: {
-          supplierPrices: {
-            with: { ingredient: true },
-            orderBy: (sp, { asc }) => [asc(sp.unit)],
-          },
-        },
+        where: and(eq(suppliers.id, input), eq(suppliers.ownerId, ctx.user.id)),
+        with: { supplierPrices: { with: { ingredient: true }, orderBy: (sp, { asc }) => [asc(sp.unit)] } },
       });
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(supplierInputSchema)
     .mutation(async ({ ctx, input }) => {
       const [supplier] = await ctx.db
         .insert(suppliers)
-        .values(input)
+        .values({ ...input, ownerId: ctx.user.id })
         .returning();
       return supplier;
     }),
 
-  update: publicProcedure
+  update: protectedProcedure
     .input(z.object({ id: z.string().uuid(), data: supplierInputSchema.partial() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
         .update(suppliers)
         .set({ ...input.data, updatedAt: new Date() })
-        .where(eq(suppliers.id, input.id))
+        .where(and(eq(suppliers.id, input.id), eq(suppliers.ownerId, ctx.user.id)))
         .returning();
       return updated;
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.delete(suppliers).where(eq(suppliers.id, input));
+      await ctx.db.delete(suppliers).where(and(eq(suppliers.id, input), eq(suppliers.ownerId, ctx.user.id)));
       return { success: true };
     }),
 
-  getPrices: publicProcedure
+  getPrices: protectedProcedure
     .input(z.object({ supplierId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      // Verify supplier ownership first
+      const supplier = await ctx.db.query.suppliers.findFirst({
+        where: and(eq(suppliers.id, input.supplierId), eq(suppliers.ownerId, ctx.user.id)),
+        columns: { id: true },
+      });
+      if (!supplier) return [];
       return ctx.db.query.supplierPrices.findMany({
         where: eq(supplierPrices.supplierId, input.supplierId),
         with: { ingredient: true },
@@ -99,16 +102,11 @@ export const suppliersRouter = createTRPCRouter({
       });
     }),
 
-  /** Create or update a supplier price record. */
-  upsertPrice: publicProcedure
+  upsertPrice: protectedProcedure
     .input(supplierPriceInputSchema)
     .mutation(async ({ ctx, input }) => {
-      // Check if a price record already exists for this supplier+ingredient
       const existing = await ctx.db.query.supplierPrices.findFirst({
-        where: and(
-          eq(supplierPrices.supplierId, input.supplierId),
-          eq(supplierPrices.ingredientId, input.ingredientId)
-        ),
+        where: and(eq(supplierPrices.supplierId, input.supplierId), eq(supplierPrices.ingredientId, input.ingredientId)),
       });
       if (existing) {
         const [updated] = await ctx.db
@@ -118,25 +116,18 @@ export const suppliersRouter = createTRPCRouter({
           .returning();
         return updated;
       }
-      const [inserted] = await ctx.db
-        .insert(supplierPrices)
-        .values(input)
-        .returning();
+      const [inserted] = await ctx.db.insert(supplierPrices).values(input).returning();
       return inserted;
     }),
 
-  deletePrice: publicProcedure
+  deletePrice: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
       await ctx.db.delete(supplierPrices).where(eq(supplierPrices.id, input));
       return { success: true };
     }),
 
-  /**
-   * Fetches all grocery stores within 8 km of Fana from Kassal.app
-   * and creates or updates them as suppliers.
-   */
-  importLocalStores: publicProcedure.mutation(async ({ ctx }) => {
+  importLocalStores: protectedProcedure.mutation(async ({ ctx }) => {
     const apiKey = process.env.KASSALAPP_API_KEY;
     if (!apiKey) throw new Error("KASSALAPP_API_KEY is not configured");
 
@@ -145,24 +136,26 @@ export const suppliersRouter = createTRPCRouter({
 
     for (const store of stores) {
       const existing = await ctx.db.query.suppliers.findFirst({
-        where: eq(suppliers.kassalappStoreId, store.id),
+        where: and(
+          eq(suppliers.kassalappStoreId, store.id),
+          eq(suppliers.ownerId, ctx.user.id)
+        ),
       });
 
       if (existing) {
-        // Keep the user's isActive choice — only refresh name and address
         await ctx.db
           .update(suppliers)
           .set({ name: store.name, address: store.address, updatedAt: new Date() })
           .where(eq(suppliers.id, existing.id));
         updated++;
       } else {
-        // New stores start unselected so the user can pick which ones they use
         await ctx.db.insert(suppliers).values({
           name: store.name,
           address: store.address,
           kassalappStoreId: store.id,
           kassalappGroup: store.group,
           isActive: false,
+          ownerId: ctx.user.id,
         });
         created++;
       }

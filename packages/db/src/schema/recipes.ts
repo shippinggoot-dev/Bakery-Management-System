@@ -4,6 +4,8 @@ import { ingredients } from "./ingredients";
 
 export const recipes = pgTable("recipes", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** Supabase auth.users(id) — owner of this recipe */
+  ownerId: uuid("owner_id"),
   name: text("name").notNull(),
   description: text("description"),
   categoryId: uuid("category_id").references(() => recipeCategories.id, {

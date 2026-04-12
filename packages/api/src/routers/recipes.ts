@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and, desc, asc } from "drizzle-orm";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {
   recipes,
   recipeIngredients,
@@ -30,30 +30,31 @@ const recipeIngredientInputSchema = z.object({
 });
 
 export const recipesRouter = createTRPCRouter({
+  // Categories are global reference data — no owner filter needed
   getCategories: publicProcedure.query(async ({ ctx }) => {
     return ctx.db.query.recipeCategories.findMany({
       orderBy: (c, { asc }) => [asc(c.name)],
     });
   }),
 
-  getAll: publicProcedure
+  getAll: protectedProcedure
     .input(
-      z
-        .object({
-          limit: z.number().min(1).max(100).default(20),
-          offset: z.number().min(0).default(0),
-          categoryId: z.string().uuid().optional(),
-          isActive: z.boolean().optional(),
-        })
-        .optional()
+      z.object({
+        limit: z.number().min(1).max(100).default(20),
+        offset: z.number().min(0).default(0),
+        categoryId: z.string().uuid().optional(),
+        isActive: z.boolean().optional(),
+      }).optional()
     )
     .query(async ({ ctx, input }) => {
       const { limit = 20, offset = 0, categoryId, isActive } = input ?? {};
-      const conditions = [];
+      const conditions: ReturnType<typeof eq>[] = [
+        eq(recipes.ownerId, ctx.user.id),
+      ];
       if (categoryId) conditions.push(eq(recipes.categoryId, categoryId));
       if (isActive !== undefined) conditions.push(eq(recipes.isActive, isActive));
       return ctx.db.query.recipes.findMany({
-        where: conditions.length > 0 ? and(...conditions) : undefined,
+        where: and(...conditions),
         with: { category: true },
         limit,
         offset,
@@ -61,20 +62,16 @@ export const recipesRouter = createTRPCRouter({
       });
     }),
 
-  getById: publicProcedure
+  getById: protectedProcedure
     .input(z.string().uuid())
     .query(async ({ ctx, input }) => {
       return ctx.db.query.recipes.findFirst({
-        where: eq(recipes.id, input),
+        where: and(eq(recipes.id, input), eq(recipes.ownerId, ctx.user.id)),
         with: {
           category: true,
           ingredients: {
             with: {
-              ingredient: {
-                with: {
-                  allergens: { with: { allergen: true } },
-                },
-              },
+              ingredient: { with: { allergens: { with: { allergen: true } } } },
             },
             orderBy: (ri, { asc }) => [asc(ri.sortOrder)],
           },
@@ -82,7 +79,7 @@ export const recipesRouter = createTRPCRouter({
       });
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({
         recipe: recipeInputSchema,
@@ -93,7 +90,7 @@ export const recipesRouter = createTRPCRouter({
       return ctx.db.transaction(async (tx) => {
         const [recipe] = await tx
           .insert(recipes)
-          .values(input.recipe)
+          .values({ ...input.recipe, ownerId: ctx.user.id })
           .returning();
         if (input.ingredients?.length) {
           await tx.insert(recipeIngredients).values(
@@ -104,37 +101,35 @@ export const recipesRouter = createTRPCRouter({
       });
     }),
 
-  update: publicProcedure
-    .input(
-      z.object({
-        id: z.string().uuid(),
-        data: recipeInputSchema.partial(),
-      })
-    )
+  update: protectedProcedure
+    .input(z.object({ id: z.string().uuid(), data: recipeInputSchema.partial() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
         .update(recipes)
         .set({ ...input.data, updatedAt: new Date() })
-        .where(eq(recipes.id, input.id))
+        .where(and(eq(recipes.id, input.id), eq(recipes.ownerId, ctx.user.id)))
         .returning();
       return updated;
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.delete(recipes).where(eq(recipes.id, input));
+      await ctx.db
+        .delete(recipes)
+        .where(and(eq(recipes.id, input), eq(recipes.ownerId, ctx.user.id)));
       return { success: true };
     }),
 
-  addIngredient: publicProcedure
-    .input(
-      z.object({
-        recipeId: z.string().uuid(),
-        ingredient: recipeIngredientInputSchema,
-      })
-    )
+  addIngredient: protectedProcedure
+    .input(z.object({ recipeId: z.string().uuid(), ingredient: recipeIngredientInputSchema }))
     .mutation(async ({ ctx, input }) => {
+      // Verify the recipe belongs to this user before adding
+      const recipe = await ctx.db.query.recipes.findFirst({
+        where: and(eq(recipes.id, input.recipeId), eq(recipes.ownerId, ctx.user.id)),
+        columns: { id: true },
+      });
+      if (!recipe) throw new Error("Recipe not found.");
       const [inserted] = await ctx.db
         .insert(recipeIngredients)
         .values({ ...input.ingredient, recipeId: input.recipeId })
@@ -142,13 +137,8 @@ export const recipesRouter = createTRPCRouter({
       return inserted;
     }),
 
-  updateIngredient: publicProcedure
-    .input(
-      z.object({
-        id: z.string().uuid(),
-        data: recipeIngredientInputSchema.partial(),
-      })
-    )
+  updateIngredient: protectedProcedure
+    .input(z.object({ id: z.string().uuid(), data: recipeIngredientInputSchema.partial() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
         .update(recipeIngredients)
@@ -158,20 +148,62 @@ export const recipesRouter = createTRPCRouter({
       return updated;
     }),
 
-  removeIngredient: publicProcedure
+  removeIngredient: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
-      await ctx.db
-        .delete(recipeIngredients)
-        .where(eq(recipeIngredients.id, input));
+      await ctx.db.delete(recipeIngredients).where(eq(recipeIngredients.id, input));
       return { success: true };
     }),
 
-  /**
-   * Parse raw recipe text (pasted from any source) into structured recipe data using Claude.
-   * Returns pre-filled fields ready to populate the New Recipe form.
-   */
-  parseFromText: publicProcedure
+  calculateCost: protectedProcedure
+    .input(z.string().uuid())
+    .query(async ({ ctx, input }) => {
+      const recipe = await ctx.db.query.recipes.findFirst({
+        where: and(eq(recipes.id, input), eq(recipes.ownerId, ctx.user.id)),
+        with: {
+          ingredients: {
+            with: {
+              ingredient: {
+                with: {
+                  supplierPrices: {
+                    where: (sp, { eq }) => eq(sp.isPreferred, true),
+                    limit: 1,
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (!recipe) return null;
+
+      let totalCost = 0;
+      const lineItems = recipe.ingredients.map((ri) => {
+        const preferredPrice = ri.ingredient.supplierPrices[0];
+        const unitCost = preferredPrice ? parseFloat(preferredPrice.pricePerUnit) : 0;
+        const lineCost = unitCost * parseFloat(ri.quantity);
+        totalCost += lineCost;
+        return {
+          ingredientName: ri.ingredient.name,
+          quantity: ri.quantity,
+          unit: ri.unit,
+          unitCost,
+          lineCost: parseFloat(lineCost.toFixed(4)),
+          hasPricing: !!preferredPrice,
+        };
+      });
+
+      return {
+        recipeId: input,
+        recipeName: recipe.name,
+        yieldAmount: recipe.yieldAmount,
+        yieldUnit: recipe.yieldUnit,
+        lineItems,
+        totalCost: parseFloat(totalCost.toFixed(4)),
+      };
+    }),
+
+  parseFromText: protectedProcedure
     .input(z.object({ text: z.string().min(10).max(30000) }))
     .mutation(async ({ input }) => {
       const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -233,56 +265,5 @@ ${input.text}`,
       } catch {
         throw new Error("AI returned invalid JSON. Please try again.");
       }
-    }),
-
-  /** Calculate the ingredient cost of a recipe using each ingredient's preferred supplier price. */
-  calculateCost: publicProcedure
-    .input(z.string().uuid())
-    .query(async ({ ctx, input }) => {
-      const recipe = await ctx.db.query.recipes.findFirst({
-        where: eq(recipes.id, input),
-        with: {
-          ingredients: {
-            with: {
-              ingredient: {
-                with: {
-                  supplierPrices: {
-                    where: (sp, { eq }) => eq(sp.isPreferred, true),
-                    limit: 1,
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
-      if (!recipe) return null;
-
-      let totalCost = 0;
-      const lineItems = recipe.ingredients.map((ri) => {
-        const preferredPrice = ri.ingredient.supplierPrices[0];
-        const unitCost = preferredPrice
-          ? parseFloat(preferredPrice.pricePerUnit)
-          : 0;
-        const lineCost = unitCost * parseFloat(ri.quantity);
-        totalCost += lineCost;
-        return {
-          ingredientName: ri.ingredient.name,
-          quantity: ri.quantity,
-          unit: ri.unit,
-          unitCost,
-          lineCost: parseFloat(lineCost.toFixed(4)),
-          hasPricing: !!preferredPrice,
-        };
-      });
-
-      return {
-        recipeId: input,
-        recipeName: recipe.name,
-        yieldAmount: recipe.yieldAmount,
-        yieldUnit: recipe.yieldUnit,
-        lineItems,
-        totalCost: parseFloat(totalCost.toFixed(4)),
-      };
     }),
 });

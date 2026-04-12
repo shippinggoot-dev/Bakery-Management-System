@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and, like } from "drizzle-orm";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { ingredients, ingredientAllergens, ingredientCategories, allergens } from "@bakery/db";
 
 const ingredientInputSchema = z.object({
@@ -11,6 +11,7 @@ const ingredientInputSchema = z.object({
 });
 
 export const ingredientsRouter = createTRPCRouter({
+  // Reference data — global, no owner filter
   getCategories: publicProcedure.query(async ({ ctx }) => {
     return ctx.db.query.ingredientCategories.findMany({
       orderBy: (c, { asc }) => [asc(c.name)],
@@ -23,39 +24,36 @@ export const ingredientsRouter = createTRPCRouter({
     });
   }),
 
-  getAll: publicProcedure
+  getAll: protectedProcedure
     .input(
-      z
-        .object({
-          limit: z.number().min(1).max(200).default(50),
-          offset: z.number().min(0).default(0),
-          categoryId: z.string().uuid().optional(),
-          search: z.string().optional(),
-        })
-        .optional()
+      z.object({
+        limit: z.number().min(1).max(200).default(50),
+        offset: z.number().min(0).default(0),
+        categoryId: z.string().uuid().optional(),
+        search: z.string().optional(),
+      }).optional()
     )
     .query(async ({ ctx, input }) => {
       const { limit = 50, offset = 0, categoryId, search } = input ?? {};
-      const conditions = [];
+      const conditions: ReturnType<typeof eq>[] = [
+        eq(ingredients.ownerId, ctx.user.id),
+      ];
       if (categoryId) conditions.push(eq(ingredients.categoryId, categoryId));
-      if (search) conditions.push(like(ingredients.name, `%${search}%`));
+      if (search)     conditions.push(like(ingredients.name, `%${search}%`));
       return ctx.db.query.ingredients.findMany({
-        where: conditions.length > 0 ? and(...conditions) : undefined,
-        with: {
-          category: true,
-          allergens: { with: { allergen: true } },
-        },
+        where: and(...conditions),
+        with: { category: true, allergens: { with: { allergen: true } } },
         limit,
         offset,
         orderBy: (ing, { asc }) => [asc(ing.name)],
       });
     }),
 
-  getById: publicProcedure
+  getById: protectedProcedure
     .input(z.string().uuid())
     .query(async ({ ctx, input }) => {
       return ctx.db.query.ingredients.findFirst({
-        where: eq(ingredients.id, input),
+        where: and(eq(ingredients.id, input), eq(ingredients.ownerId, ctx.user.id)),
         with: {
           category: true,
           allergens: { with: { allergen: true } },
@@ -64,7 +62,7 @@ export const ingredientsRouter = createTRPCRouter({
       });
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({
         ingredient: ingredientInputSchema,
@@ -75,7 +73,7 @@ export const ingredientsRouter = createTRPCRouter({
       return ctx.db.transaction(async (tx) => {
         const [ingredient] = await tx
           .insert(ingredients)
-          .values(input.ingredient)
+          .values({ ...input.ingredient, ownerId: ctx.user.id })
           .returning();
         if (input.allergenIds?.length) {
           await tx.insert(ingredientAllergens).values(
@@ -89,48 +87,40 @@ export const ingredientsRouter = createTRPCRouter({
       });
     }),
 
-  update: publicProcedure
-    .input(
-      z.object({
-        id: z.string().uuid(),
-        data: ingredientInputSchema.partial(),
-      })
-    )
+  update: protectedProcedure
+    .input(z.object({ id: z.string().uuid(), data: ingredientInputSchema.partial() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
         .update(ingredients)
         .set({ ...input.data, updatedAt: new Date() })
-        .where(eq(ingredients.id, input.id))
+        .where(and(eq(ingredients.id, input.id), eq(ingredients.ownerId, ctx.user.id)))
         .returning();
       return updated;
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.delete(ingredients).where(eq(ingredients.id, input));
+      await ctx.db
+        .delete(ingredients)
+        .where(and(eq(ingredients.id, input), eq(ingredients.ownerId, ctx.user.id)));
       return { success: true };
     }),
 
-  /** Replace the full set of allergens for an ingredient. */
-  setAllergens: publicProcedure
-    .input(
-      z.object({
-        ingredientId: z.string().uuid(),
-        allergenIds: z.array(z.string().uuid()),
-      })
-    )
+  setAllergens: protectedProcedure
+    .input(z.object({ ingredientId: z.string().uuid(), allergenIds: z.array(z.string().uuid()) }))
     .mutation(async ({ ctx, input }) => {
+      // Verify ownership before modifying
+      const ingredient = await ctx.db.query.ingredients.findFirst({
+        where: and(eq(ingredients.id, input.ingredientId), eq(ingredients.ownerId, ctx.user.id)),
+        columns: { id: true },
+      });
+      if (!ingredient) throw new Error("Ingredient not found.");
       return ctx.db.transaction(async (tx) => {
-        await tx
-          .delete(ingredientAllergens)
-          .where(eq(ingredientAllergens.ingredientId, input.ingredientId));
+        await tx.delete(ingredientAllergens).where(eq(ingredientAllergens.ingredientId, input.ingredientId));
         if (input.allergenIds.length) {
           await tx.insert(ingredientAllergens).values(
-            input.allergenIds.map((allergenId) => ({
-              ingredientId: input.ingredientId,
-              allergenId,
-            }))
+            input.allergenIds.map((allergenId) => ({ ingredientId: input.ingredientId, allergenId }))
           );
         }
         return { success: true };

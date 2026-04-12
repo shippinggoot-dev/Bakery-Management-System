@@ -4,6 +4,8 @@ import { ingredients } from "./ingredients";
 
 export const purchaseOrders = pgTable("purchase_orders", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** Supabase auth.users(id) — owner of this purchase order */
+  ownerId: uuid("owner_id"),
   supplierId: uuid("supplier_id")
     .notNull()
     .references(() => suppliers.id, { onDelete: "restrict" }),

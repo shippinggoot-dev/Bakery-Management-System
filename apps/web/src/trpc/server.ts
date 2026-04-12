@@ -1,14 +1,28 @@
 import "server-only";
 import { cache } from "react";
-import { createCallerFactory, createTRPCContext } from "@bakery/api/trpc";
+import { createCallerFactory } from "@bakery/api/trpc";
 import { appRouter } from "@bakery/api";
+import { db } from "@bakery/db";
+import { createServerSupabase } from "@/lib/supabase/server";
+import type { Context } from "@bakery/api/trpc";
 
 /**
  * Server-side tRPC caller for React Server Components.
+ * The context is cached per React render (one Supabase auth call per request).
  *
  * Usage in an RSC:
  *   const recipes = await api.recipes.getAll()
  */
 const createCaller = createCallerFactory(appRouter);
 
-export const api = createCaller(cache(createTRPCContext));
+const createContext = cache(async (): Promise<Context> => {
+  const supabase = await createServerSupabase();
+  // Always use getUser() — it validates the token server-side
+  const { data: { user } } = await supabase.auth.getUser();
+  return {
+    db,
+    user: user ? { id: user.id, email: user.email ?? null } : null,
+  };
+});
+
+export const api = createCaller(createContext);

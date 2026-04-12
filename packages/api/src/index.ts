@@ -1,2 +1,2 @@
 export { appRouter, type AppRouter } from "./root";
-export { createTRPCContext, createCallerFactory } from "./trpc";
+export { createTRPCContext, createCallerFactory, type TRPCUser } from "./trpc";

@@ -3,6 +3,8 @@ import { ingredients } from "./ingredients";
 
 export const shoppingLists = pgTable("shopping_lists", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** Supabase auth.users(id) — owner of this shopping list */
+  ownerId: uuid("owner_id"),
   name: text("name").notNull(),
   description: text("description"),
   /** draft → in_progress → completed */

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { api } from "@/trpc/react";
 import { MenuIcon, XIcon } from "@/components/icons";
+import { SignOutButton } from "@/components/sign-out-button";
 
 const links = [
   { href: "/",                label: "Dashboard",       icon: "🏠" },
@@ -87,8 +88,9 @@ export function Nav() {
       </nav>
 
       {/* Footer */}
-      <div className="px-6 py-4 border-t border-gray-800">
-        <p className="text-xs text-gray-700">Supabase · PostgreSQL</p>
+      <div className="px-3 py-4 border-t border-gray-800 space-y-1">
+        <SignOutButton />
+        <p className="text-xs text-gray-700 px-4">Supabase · PostgreSQL</p>
       </div>
     </>
   );

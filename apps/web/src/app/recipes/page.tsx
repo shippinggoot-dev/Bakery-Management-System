@@ -34,8 +34,11 @@ export default async function RecipesPage() {
       {recipes.length === 0 ? (
         <div className="card p-12 text-center text-gray-600">
           <p className="text-4xl mb-3">📖</p>
-          <p className="font-medium">No recipes yet</p>
-          <p className="text-sm mt-1">Run <code className="bg-gray-800 px-1 rounded">pnpm db:seed</code> to add sample data</p>
+          <p className="font-medium text-gray-400">No recipes yet</p>
+          <p className="text-sm mt-2 text-gray-600">
+            Click <strong className="text-gray-400">New Recipe</strong> above to add your first one,
+            or use the AI import to paste in a recipe from anywhere.
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

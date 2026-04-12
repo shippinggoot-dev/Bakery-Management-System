@@ -3,7 +3,9 @@ import { ingredientCategories } from "./ingredient-categories";
 
 export const ingredients = pgTable("ingredients", {
   id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull().unique(),
+  /** Supabase auth.users(id) — owner of this ingredient */
+  ownerId: uuid("owner_id"),
+  name: text("name").notNull(),
   /** Canonical unit for this ingredient (g, ml, piece, kg, l, tsp, tbsp…) */
   unit: text("unit").notNull(),
   categoryId: uuid("category_id").references(() => ingredientCategories.id, {
