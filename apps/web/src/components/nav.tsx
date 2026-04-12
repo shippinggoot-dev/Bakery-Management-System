@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { api } from "@/trpc/react";
 import { MenuIcon, XIcon } from "@/components/icons";
-import { SignOutButton } from "@/components/sign-out-button";
+import { createClientSupabase } from "@/lib/supabase/client";
 
 const links = [
   { href: "/",                label: "Dashboard",       icon: "🏠" },
@@ -19,11 +19,30 @@ const links = [
 
 export function Nav() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  const router   = useRouter();
+  const [open, setOpen]           = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Detect auth state client-side to avoid SSR issues
+  useEffect(() => {
+    const supabase = createClientSupabase();
+    supabase.auth.getSession().then(({ data: { session } }) => setIsLoggedIn(!!session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setIsLoggedIn(!!session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const { data: alertCount = 0 } = api.priceSync.getAlertCount.useQuery(
     undefined,
     { refetchInterval: 60_000 }
   );
+
+  async function handleSignOut() {
+    const supabase = createClientSupabase();
+    await supabase.auth.signOut();
+    router.refresh();
+  }
 
   // Close sidebar when route changes (user tapped a link on mobile)
   useEffect(() => {
@@ -89,7 +108,23 @@ export function Nav() {
 
       {/* Footer */}
       <div className="px-3 py-4 border-t border-gray-800 space-y-1">
-        <SignOutButton />
+        {isLoggedIn ? (
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-800 hover:text-gray-300 border border-transparent transition-colors"
+          >
+            <span className="text-base leading-none">→</span>
+            Sign out
+          </button>
+        ) : (
+          <Link
+            href="/login"
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-800 hover:text-gray-200 border border-transparent transition-colors"
+          >
+            <span className="text-base leading-none">→</span>
+            Log in
+          </Link>
+        )}
         <p className="text-xs text-gray-700 px-4">Supabase · PostgreSQL</p>
       </div>
     </>
@@ -106,10 +141,18 @@ export function Nav() {
         >
           <MenuIcon />
         </button>
-        <div>
+        <div className="flex-1">
           <span className="text-xs font-semibold text-brand-500 uppercase tracking-widest mr-2">Bakery</span>
           <span className="text-sm font-bold text-gray-100">Management</span>
         </div>
+        {!isLoggedIn && (
+          <Link
+            href="/login"
+            className="px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 text-xs font-medium transition-colors"
+          >
+            Log in
+          </Link>
+        )}
       </header>
 
       {/* ── Dark backdrop (mobile only, shown when sidebar is open) ─── */}

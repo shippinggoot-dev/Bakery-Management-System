@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { shoppingLists, shoppingListItems, recipeIngredients } from "@bakery/db";
 
 const listStatusSchema = z.enum(["draft", "in_progress", "completed"]);
@@ -15,7 +15,7 @@ const listItemInputSchema = z.object({
 });
 
 export const shoppingListsRouter = createTRPCRouter({
-  getAll: protectedProcedure
+  getAll: publicProcedure
     .input(
       z.object({
         status: listStatusSchema.optional(),
@@ -24,6 +24,7 @@ export const shoppingListsRouter = createTRPCRouter({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
+      if (!ctx.user) return [];
       const { status, limit = 20, offset = 0 } = input ?? {};
       const conditions: ReturnType<typeof eq>[] = [
         eq(shoppingLists.ownerId, ctx.user.id),
@@ -37,9 +38,10 @@ export const shoppingListsRouter = createTRPCRouter({
       });
     }),
 
-  getById: protectedProcedure
+  getById: publicProcedure
     .input(z.string().uuid())
     .query(async ({ ctx, input }) => {
+      if (!ctx.user) return null;
       return ctx.db.query.shoppingLists.findFirst({
         where: and(eq(shoppingLists.id, input), eq(shoppingLists.ownerId, ctx.user.id)),
         with: {

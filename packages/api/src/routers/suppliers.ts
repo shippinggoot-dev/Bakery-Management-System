@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { suppliers, supplierPrices } from "@bakery/db";
 import { getLocalStores } from "../services/kassalapp";
 
@@ -27,7 +27,7 @@ const supplierPriceInputSchema = z.object({
 });
 
 export const suppliersRouter = createTRPCRouter({
-  getAll: protectedProcedure
+  getAll: publicProcedure
     .input(
       z.object({
         isActive: z.boolean().optional(),
@@ -36,6 +36,7 @@ export const suppliersRouter = createTRPCRouter({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
+      if (!ctx.user) return [];
       const { isActive, limit = 50, offset = 0 } = input ?? {};
       const conditions: ReturnType<typeof eq>[] = [
         eq(suppliers.ownerId, ctx.user.id),
@@ -49,9 +50,10 @@ export const suppliersRouter = createTRPCRouter({
       });
     }),
 
-  getById: protectedProcedure
+  getById: publicProcedure
     .input(z.string().uuid())
     .query(async ({ ctx, input }) => {
+      if (!ctx.user) return null;
       return ctx.db.query.suppliers.findFirst({
         where: and(eq(suppliers.id, input), eq(suppliers.ownerId, ctx.user.id)),
         with: { supplierPrices: { with: { ingredient: true }, orderBy: (sp, { asc }) => [asc(sp.unit)] } },
@@ -86,9 +88,10 @@ export const suppliersRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  getPrices: protectedProcedure
+  getPrices: publicProcedure
     .input(z.object({ supplierId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      if (!ctx.user) return [];
       // Verify supplier ownership first
       const supplier = await ctx.db.query.suppliers.findFirst({
         where: and(eq(suppliers.id, input.supplierId), eq(suppliers.ownerId, ctx.user.id)),

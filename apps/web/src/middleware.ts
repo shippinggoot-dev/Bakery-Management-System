@@ -29,24 +29,9 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // IMPORTANT: always call getUser() — not getSession().
-  // getUser() validates the JWT with Supabase's server; getSession() trusts
-  // the cookie blindly and can be spoofed.
-  const { data: { user } } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-  const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
-  const isApiRoute  = pathname.startsWith("/api");
-
-  // Redirect unauthenticated visitors to /login (except for auth pages and API)
-  if (!user && !isAuthRoute && !isApiRoute) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  // Redirect authenticated visitors away from /login
-  if (user && pathname === "/login") {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
+  // Refresh session so cookies stay valid. getUser() validates the JWT
+  // server-side rather than trusting the cookie blindly.
+  await supabase.auth.getUser();
 
   return response;
 }

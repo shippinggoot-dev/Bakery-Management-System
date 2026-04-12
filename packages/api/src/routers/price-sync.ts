@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and, isNull, isNotNull, inArray } from "drizzle-orm";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { ingredients, priceAlerts } from "@bakery/db";
 import { getLocalStoreGroups, getCheapestLocalPrice, searchKassalProducts } from "../services/kassalapp";
 
@@ -49,7 +49,8 @@ export const priceSyncRouter = createTRPCRouter({
     return { checked: linked.length, updated };
   }),
 
-  getAlerts: protectedProcedure.query(async ({ ctx }) => {
+  getAlerts: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) return [];
     // Alerts are joined through ingredient — filter by owner via subquery
     const userIngredientIds = await ctx.db.query.ingredients.findMany({
       where: eq(ingredients.ownerId, ctx.user.id),
@@ -65,7 +66,8 @@ export const priceSyncRouter = createTRPCRouter({
     });
   }),
 
-  getLinkedCount: protectedProcedure.query(async ({ ctx }) => {
+  getLinkedCount: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) return 0;
     const rows = await ctx.db.query.ingredients.findMany({
       where: and(eq(ingredients.ownerId, ctx.user.id), isNotNull(ingredients.kassalappEan)),
       columns: { id: true },
@@ -73,7 +75,8 @@ export const priceSyncRouter = createTRPCRouter({
     return rows.length;
   }),
 
-  getAlertCount: protectedProcedure.query(async ({ ctx }) => {
+  getAlertCount: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) return 0;
     const userIngredientIds = await ctx.db.query.ingredients.findMany({
       where: eq(ingredients.ownerId, ctx.user.id),
       columns: { id: true },

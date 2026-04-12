@@ -56,7 +56,7 @@ export const recipesRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  getAll: protectedProcedure
+  getAll: publicProcedure
     .input(
       z.object({
         limit: z.number().min(1).max(100).default(20),
@@ -66,6 +66,7 @@ export const recipesRouter = createTRPCRouter({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
+      if (!ctx.user) return [];
       const { limit = 20, offset = 0, categoryId, isActive } = input ?? {};
       const conditions: ReturnType<typeof eq>[] = [
         eq(recipes.ownerId, ctx.user.id),
@@ -81,9 +82,10 @@ export const recipesRouter = createTRPCRouter({
       });
     }),
 
-  getById: protectedProcedure
+  getById: publicProcedure
     .input(z.string().uuid())
     .query(async ({ ctx, input }) => {
+      if (!ctx.user) return null;
       return ctx.db.query.recipes.findFirst({
         where: and(eq(recipes.id, input), eq(recipes.ownerId, ctx.user.id)),
         with: {
@@ -174,9 +176,10 @@ export const recipesRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  calculateCost: protectedProcedure
+  calculateCost: publicProcedure
     .input(z.string().uuid())
     .query(async ({ ctx, input }) => {
+      if (!ctx.user) return null;
       const recipe = await ctx.db.query.recipes.findFirst({
         where: and(eq(recipes.id, input), eq(recipes.ownerId, ctx.user.id)),
         with: {
