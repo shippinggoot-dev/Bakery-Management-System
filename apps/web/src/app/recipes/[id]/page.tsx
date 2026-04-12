@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/trpc/server";
+import { DeleteRecipeButton } from "./delete-button";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +40,12 @@ export default async function RecipeDetailPage({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <Link href="/recipes" className="text-sm text-gray-500 hover:text-gray-300">
-        ← Back to Recipes
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/recipes" className="text-sm text-gray-500 hover:text-gray-300">
+          ← Back to Recipes
+        </Link>
+        <DeleteRecipeButton id={id} name={recipe.name} />
+      </div>
 
       {/* Header card */}
       <div className="card p-6 space-y-4">
