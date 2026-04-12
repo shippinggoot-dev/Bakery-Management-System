@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import { api } from "@/trpc/react";
+import { MenuIcon, XIcon } from "@/components/icons";
 
 const links = [
   { href: "/",                label: "Dashboard",       icon: "🏠" },
@@ -16,17 +18,43 @@ const links = [
 
 export function Nav() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
   const { data: alertCount = 0 } = api.priceSync.getAlertCount.useQuery(
     undefined,
-    { refetchInterval: 60_000 } // re-check every minute
+    { refetchInterval: 60_000 }
   );
 
-  return (
-    <aside className="fixed inset-y-0 left-0 w-60 bg-gray-900 border-r border-gray-800 flex flex-col z-10">
+  // Close sidebar when route changes (user tapped a link on mobile)
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // Prevent body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  const sidebarContent = (
+    <>
       {/* Logo */}
-      <div className="px-6 py-6 border-b border-gray-800">
-        <p className="text-xs font-semibold text-brand-500 uppercase tracking-widest mb-0.5">Bakery</p>
-        <h1 className="text-xl font-bold text-gray-100 leading-tight">Management</h1>
+      <div className="px-6 py-6 border-b border-gray-800 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold text-brand-500 uppercase tracking-widest mb-0.5">Bakery</p>
+          <h1 className="text-xl font-bold text-gray-100 leading-tight">Management</h1>
+        </div>
+        {/* Close button — mobile only */}
+        <button
+          onClick={() => setOpen(false)}
+          className="lg:hidden p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors"
+          aria-label="Close menu"
+        >
+          <XIcon />
+        </button>
       </div>
 
       {/* Links */}
@@ -60,8 +88,52 @@ export function Nav() {
 
       {/* Footer */}
       <div className="px-6 py-4 border-t border-gray-800">
-        <p className="text-xs text-gray-700">Local database · SQLite</p>
+        <p className="text-xs text-gray-700">Supabase · PostgreSQL</p>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* ── Mobile top bar (hidden on lg+) ─────────────────────────── */}
+      <header className="lg:hidden fixed inset-x-0 top-0 z-40 h-14 bg-gray-900 border-b border-gray-800 flex items-center gap-4 px-4">
+        <button
+          onClick={() => setOpen(true)}
+          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
+          aria-label="Open menu"
+        >
+          <MenuIcon />
+        </button>
+        <div>
+          <span className="text-xs font-semibold text-brand-500 uppercase tracking-widest mr-2">Bakery</span>
+          <span className="text-sm font-bold text-gray-100">Management</span>
+        </div>
+      </header>
+
+      {/* ── Dark backdrop (mobile only, shown when sidebar is open) ─── */}
+      {open && (
+        <div
+          className="lg:hidden fixed inset-0 z-20 bg-black/60 backdrop-blur-sm"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── Sidebar ────────────────────────────────────────────────── */}
+      {/* On mobile: absolutely positioned overlay, slides in from left */}
+      {/* On desktop: always visible fixed sidebar                      */}
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-30 w-60
+          bg-gray-900 border-r border-gray-800
+          flex flex-col
+          transition-transform duration-200 ease-in-out
+          ${open ? "translate-x-0" : "-translate-x-full"}
+          lg:translate-x-0
+        `}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   );
 }

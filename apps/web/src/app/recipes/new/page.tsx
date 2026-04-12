@@ -140,7 +140,7 @@ export default function NewRecipePage() {
         <div className="card p-6 space-y-4">
           <h3 className="section-title">Yield & timing</h3>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Yield amount *</label>
               <input
@@ -163,7 +163,7 @@ export default function NewRecipePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Prep time (min)</label>
               <input
@@ -194,7 +194,8 @@ export default function NewRecipePage() {
           <h3 className="section-title">Ingredients</h3>
 
           {rows.length > 0 && (
-            <div className="space-y-2">
+            <div className="overflow-x-auto">
+            <div className="space-y-2 min-w-[560px]">
               {rows.map((row, i) => (
                 <div key={i} className="grid grid-cols-[1fr_90px_80px_1fr_32px] gap-2 items-start">
                   <div>
@@ -248,6 +249,7 @@ export default function NewRecipePage() {
                   </div>
                 </div>
               ))}
+            </div>
             </div>
           )}
 

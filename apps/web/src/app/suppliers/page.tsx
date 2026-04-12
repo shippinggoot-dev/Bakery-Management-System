@@ -62,7 +62,7 @@ function AddSupplierForm({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} className="text-gray-600 hover:text-gray-400 text-xl leading-none">×</button>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="form-label">Supplier name *</label>
             <input className="form-input" placeholder="e.g. Bergen Mel AS" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
@@ -72,7 +72,7 @@ function AddSupplierForm({ onClose }: { onClose: () => void }) {
             <input className="form-input" placeholder="Full name" value={contactName} onChange={(e) => setContactName(e.target.value)} />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="form-label">Email</label>
             <input className="form-input" type="email" placeholder="orders@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />

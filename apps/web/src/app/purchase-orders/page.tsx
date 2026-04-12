@@ -53,7 +53,7 @@ function AddOrderForm({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} className="text-gray-600 hover:text-gray-400 text-xl leading-none">×</button>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="form-label">Supplier *</label>
             <select className="form-input" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} required>
@@ -117,6 +117,7 @@ export default function PurchaseOrdersPage() {
         </div>
       ) : (
         <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-800/50 border-b border-gray-800">
@@ -155,6 +156,7 @@ export default function PurchaseOrdersPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

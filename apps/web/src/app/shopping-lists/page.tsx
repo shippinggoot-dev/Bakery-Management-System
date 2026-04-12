@@ -48,7 +48,7 @@ function AddListForm({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} className="text-gray-600 hover:text-gray-400 text-xl leading-none">×</button>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="form-label">Name *</label>
             <input className="form-input" placeholder="e.g. Weekly Bake – Week 20" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
@@ -113,6 +113,7 @@ export default function ShoppingListsPage() {
         </div>
       ) : (
         <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-800/50 border-b border-gray-800">
@@ -144,6 +145,7 @@ export default function ShoppingListsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

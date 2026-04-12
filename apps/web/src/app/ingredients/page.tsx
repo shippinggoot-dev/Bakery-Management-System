@@ -137,7 +137,7 @@ function AddIngredientForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="form-label">Name *</label>
             <input className="form-input" placeholder="e.g. Almond Flour" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
@@ -158,7 +158,7 @@ function AddIngredientForm({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="form-label">Category</label>
             <select className="form-input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
@@ -248,6 +248,7 @@ export default function IngredientsPage() {
           <div className="px-6 py-3 bg-gray-800/50 border-b border-gray-800">
             <h3 className="text-sm font-semibold text-gray-400">{cat}</h3>
           </div>
+          <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-800">
@@ -313,6 +314,7 @@ export default function IngredientsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ))}
     </div>

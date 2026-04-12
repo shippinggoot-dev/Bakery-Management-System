@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <TRPCReactProvider>
           <Nav />
           {/* All pages sit to the right of the fixed sidebar */}
-          <main className="ml-60 min-h-screen p-8">
+          <main className="lg:ml-60 min-h-screen pt-14 lg:pt-0 p-4 sm:p-6 lg:p-8">
             {children}
           </main>
         </TRPCReactProvider>

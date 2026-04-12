@@ -110,6 +110,7 @@ export default async function RecipeDetailPage({
             </span>
           )}
         </div>
+        <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="bg-gray-800/50 border-b border-gray-800">
@@ -156,6 +157,7 @@ export default async function RecipeDetailPage({
             </tfoot>
           )}
         </table>
+        </div>
       </div>
 
       {/* Instructions */}
