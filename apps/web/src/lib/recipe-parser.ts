@@ -262,12 +262,17 @@ export function parseRecipeText(text: string): ParsedRecipe {
     : [];
   const notes = notesLines.length > 0 ? notesLines.join("\n") : null;
 
+  const yieldInfo = extractYield(text);
+  const times     = extractTimes(text);
+
   return {
     name,
     description,
     category: null,
-    ...extractYield(text),
-    ...extractTimes(text),
+    yieldAmount: yieldInfo.amount,
+    yieldUnit:   yieldInfo.unit,
+    prepTimeMinutes: times.prep,
+    bakeTimeMinutes: times.bake,
     ingredients,
     instructions,
     notes,
