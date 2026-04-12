@@ -5,8 +5,11 @@ import {
   ingredientCategories,
   ingredients,
   ingredientAllergens,
+  ingredientSuppliers,
   suppliers,
   supplierPrices,
+  priceHistory,
+  lots,
   recipeCategories,
   recipes,
   recipeIngredients,
@@ -28,6 +31,9 @@ async function seed() {
   await db.delete(recipeIngredients);
   await db.delete(recipes);
   await db.delete(supplierPrices);
+  await db.delete(priceHistory);
+  await db.delete(lots);
+  await db.delete(ingredientSuppliers);
   await db.delete(ingredientAllergens);
   await db.delete(ingredients);
   await db.delete(allergens);
@@ -455,14 +461,156 @@ BAKE & FROST:
     },
   ]);
 
+  // ─── 12. Wholesale Suppliers + ingredient_suppliers + price history ─────────
+  console.log("  Inserting wholesale suppliers + 6-month price history...");
+
+  const [ws1, ws2] = await db
+    .insert(suppliers)
+    .values([
+      {
+        name: "Bergen Grossist AS",
+        contactName: "Håkon Moen",
+        email: "ordre@bergengrossist.no",
+        phone: "+47 55 20 10 00",
+        address: "Nygårdsgaten 112, 5008 Bergen",
+        leadTimeDays: 2,
+        paymentTerms: "Net 30",
+        notes: "Primary wholesale supplier. Delivery Tue/Thu. Min order 500 NOK.",
+        isActive: true,
+      },
+      {
+        name: "Norsk Mel & Bakst",
+        contactName: "Silje Eriksen",
+        email: "salg@norskmel.no",
+        phone: "+47 55 31 44 00",
+        address: "Industrivegen 8, 5353 Straume",
+        leadTimeDays: 3,
+        paymentTerms: "Net 15",
+        notes: "Specialist flour and baking supply. Best prices on bread flours.",
+        isActive: true,
+      },
+    ])
+    .returning();
+
+  // 5 ingredients we want to track wholesale prices for
+  const trackedIngredients = [ingBreadFlour!, ingButter!, ingEggs!, ingGranSugar!, ingDarkChoc!];
+  const trackedSuppliers   = [ws1!, ws2!];
+
+  // Build ingredient_suppliers rows (2 per ingredient)
+  const isRows = [];
+  for (const ing of trackedIngredients) {
+    for (const [si, sup] of trackedSuppliers.entries()) {
+      isRows.push({
+        ingredientId: ing.id,
+        supplierId:   sup.id,
+        isPreferred:  si === 0,          // Bergen Grossist is preferred
+        sku:          `${sup.name.substring(0, 3).toUpperCase()}-${ing.name.substring(0, 4).toUpperCase().replace(/\s/g, "")}`,
+        moq:          si === 0 ? "5000" : "2000",  // g / pieces
+      });
+    }
+  }
+  const insertedIS = await db.insert(ingredientSuppliers).values(isRows).returning();
+
+  // ── 6 months of monthly price history (Oct 2025 → Mar 2026) ──────────────
+  // Base wholesale prices per kg/piece in NOK, with slight month-on-month drift
+  const basePrices: Record<string, [number, number]> = {
+    // [Bergen Grossist price/unit, Norsk Mel price/unit]
+    "Bread Flour":       [8.50,  7.80],
+    "Butter":           [130.00, 138.00],
+    "Eggs":               [3.80,   4.10],
+    "Granulated Sugar":  [11.20,  12.00],
+    "Dark Chocolate":    [92.00,  88.00],
+  };
+
+  // Monthly price drift (multiplier per month, simulates real market movement)
+  const monthlyDrift = [1.000, 1.012, 0.998, 1.021, 1.008, 0.995];
+  const months = [
+    new Date("2025-10-15"),
+    new Date("2025-11-15"),
+    new Date("2025-12-15"),
+    new Date("2026-01-15"),
+    new Date("2026-02-15"),
+    new Date("2026-03-15"),
+  ];
+  const sources: Array<"manual" | "csv" | "api"> = ["api", "api", "manual", "api", "csv", "api"];
+
+  const phRows = [];
+  for (const isRow of insertedIS) {
+    const ing  = trackedIngredients.find((i) => i.id === isRow.ingredientId)!;
+    const supIdx = trackedSuppliers.findIndex((s) => s.id === isRow.supplierId);
+    const base = basePrices[ing.name]?.[supIdx] ?? 10;
+    let price = base;
+    for (let m = 0; m < 6; m++) {
+      price = price * monthlyDrift[m]!;
+      phRows.push({
+        ingredientSupplierId: isRow.id,
+        pricePerUnit: price.toFixed(4),
+        currency: "NOK",
+        recordedAt: months[m]!,
+        source: sources[m]!,
+      });
+    }
+  }
+  await db.insert(priceHistory).values(phRows);
+
+  // ─── 13. Sample lots ────────────────────────────────────────────────────────
+  console.log("  Inserting sample lots...");
+  await db.insert(lots).values([
+    {
+      ingredientId: ingBreadFlour!.id,
+      supplierId:   ws1!.id,
+      lotNumber:    "BG-2026-0312",
+      quantity:     "25000",
+      unit:         "g",
+      expiryDate:   "2026-12-31",
+      receivedAt:   new Date("2026-03-12"),
+      status:       "available",
+      notes:        "25 kg bag, strong white bread flour",
+    },
+    {
+      ingredientId: ingButter!.id,
+      supplierId:   ws1!.id,
+      lotNumber:    "BG-2026-0318",
+      quantity:     "10000",
+      unit:         "g",
+      expiryDate:   "2026-05-01",
+      receivedAt:   new Date("2026-03-18"),
+      status:       "available",
+    },
+    {
+      ingredientId: ingEggs!.id,
+      supplierId:   ws2!.id,
+      lotNumber:    "NM-2026-0320",
+      quantity:     "180",
+      unit:         "piece",
+      expiryDate:   "2026-04-20",
+      receivedAt:   new Date("2026-03-20"),
+      status:       "available",
+      notes:        "15 dozen free-range",
+    },
+    {
+      ingredientId: ingDarkChoc!.id,
+      supplierId:   ws2!.id,
+      lotNumber:    "NM-2025-1205",
+      quantity:     "5000",
+      unit:         "g",
+      expiryDate:   "2027-06-30",
+      receivedAt:   new Date("2025-12-05"),
+      status:       "available",
+    },
+  ]);
+
   console.log("\n✅ Seeding complete!");
   console.log("   Allergens:         14");
   console.log("   Ingredient cats:    9");
   console.log("   Recipe cats:        5");
-  console.log("   Suppliers:          3");
+  console.log("   Suppliers:          5  (3 Kassal.app placeholder + 2 wholesale)");
   console.log("   Ingredients:       20");
   console.log("   Allergen links:     9");
-  console.log("   Supplier prices:   11");
+  console.log("   Supplier prices:   11  (Kassal.app-linked)");
+  console.log("   Ingredient suppl.: 10  (5 ingredients × 2 wholesale suppliers)");
+  console.log("   Price history:     60  (10 pairs × 6 months)");
+  console.log("   Lots:               4");
   console.log("   Recipes:            5");
   console.log("   Purchase orders:    1  (+ 2 line items)");
   console.log("   Shopping lists:     1  (+ 6 line items)");

@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, integer, index } from "drizzle-orm/pg-core";
 import { ingredientCategories } from "./ingredient-categories";
 
 export const ingredients = pgTable("ingredients", {
@@ -20,9 +20,18 @@ export const ingredients = pgTable("ingredients", {
   cheapestStore: text("cheapest_store"),
   /** When prices were last checked against Kassal.app */
   lastPriceCheck: timestamp("last_price_check"),
+  /** Target stock level — how much to keep on hand at all times (in canonical unit) */
+  parLevel: text("par_level"),
+  /** Stock level at which a new order should be placed (in canonical unit) */
+  reorderPoint: text("reorder_point"),
+  /** Current physical stock on hand (in canonical unit) */
+  currentStock: text("current_stock").default("0"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("idx_ingredients_category_id").on(t.categoryId),
+  index("idx_ingredients_name").on(t.name),
+]);
 
 export type Ingredient = typeof ingredients.$inferSelect;
 export type NewIngredient = typeof ingredients.$inferInsert;

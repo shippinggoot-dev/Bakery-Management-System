@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, integer, boolean, index } from "drizzle-orm/pg-core";
 import { suppliers } from "./suppliers";
 import { ingredients } from "./ingredients";
 
@@ -20,7 +20,11 @@ export const supplierPrices = pgTable("supplier_prices", {
   validTo: text("valid_to"),     // stored as YYYY-MM-DD
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("idx_supplier_prices_supplier_id").on(t.supplierId),
+  index("idx_supplier_prices_ingredient_id").on(t.ingredientId),
+  index("idx_supplier_prices_is_preferred").on(t.isPreferred),
+]);
 
 export type SupplierPrice = typeof supplierPrices.$inferSelect;
 export type NewSupplierPrice = typeof supplierPrices.$inferInsert;

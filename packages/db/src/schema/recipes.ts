@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, integer, boolean, index } from "drizzle-orm/pg-core";
 import { recipeCategories } from "./recipe-categories";
 import { ingredients } from "./ingredients";
 
@@ -19,7 +19,11 @@ export const recipes = pgTable("recipes", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("idx_recipes_category_id").on(t.categoryId),
+  index("idx_recipes_is_active").on(t.isActive),
+  index("idx_recipes_name").on(t.name),
+]);
 
 export const recipeIngredients = pgTable("recipe_ingredients", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -35,7 +39,15 @@ export const recipeIngredients = pgTable("recipe_ingredients", {
   unit: text("unit").notNull(),
   notes: text("notes"),
   sortOrder: integer("sort_order").notNull().default(0),
-});
+  /** Whether this ingredient can be omitted without ruining the recipe */
+  isOptional: boolean("is_optional").notNull().default(false),
+  /** A suggested substitute if this ingredient is unavailable */
+  substituteIngredientId: uuid("substitute_ingredient_id")
+    .references(() => ingredients.id, { onDelete: "set null" }),
+}, (t) => [
+  index("idx_recipe_ingredients_recipe_id").on(t.recipeId),
+  index("idx_recipe_ingredients_ingredient_id").on(t.ingredientId),
+]);
 
 export type Recipe = typeof recipes.$inferSelect;
 export type NewRecipe = typeof recipes.$inferInsert;

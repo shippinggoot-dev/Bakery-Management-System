@@ -3,8 +3,11 @@ export * from "./allergens";
 export * from "./ingredient-categories";
 export * from "./ingredients";
 export * from "./ingredient-allergens";
+export * from "./ingredient-suppliers";
 export * from "./suppliers";
 export * from "./supplier-prices";
+export * from "./price-history";
+export * from "./lots";
 export * from "./recipe-categories";
 export * from "./recipes";
 export * from "./purchase-orders";
@@ -19,8 +22,11 @@ import { allergens } from "./allergens";
 import { ingredientCategories } from "./ingredient-categories";
 import { ingredients } from "./ingredients";
 import { ingredientAllergens } from "./ingredient-allergens";
+import { ingredientSuppliers } from "./ingredient-suppliers";
 import { suppliers } from "./suppliers";
 import { supplierPrices } from "./supplier-prices";
+import { priceHistory } from "./price-history";
+import { lots } from "./lots";
 import { recipeCategories } from "./recipe-categories";
 import { recipes, recipeIngredients } from "./recipes";
 import { purchaseOrders, purchaseOrderItems } from "./purchase-orders";
@@ -43,6 +49,8 @@ export const ingredientsRelations = relations(ingredients, ({ one, many }) => ({
   }),
   allergens: many(ingredientAllergens),
   supplierPrices: many(supplierPrices),
+  ingredientSuppliers: many(ingredientSuppliers),
+  lots: many(lots),
   recipeIngredients: many(recipeIngredients),
   purchaseOrderItems: many(purchaseOrderItems),
   shoppingListItems: many(shoppingListItems),
@@ -64,6 +72,8 @@ export const ingredientAllergensRelations = relations(
 
 export const suppliersRelations = relations(suppliers, ({ many }) => ({
   supplierPrices: many(supplierPrices),
+  ingredientSuppliers: many(ingredientSuppliers),
+  lots: many(lots),
   purchaseOrders: many(purchaseOrders),
 }));
 
@@ -102,8 +112,46 @@ export const recipeIngredientsRelations = relations(
       fields: [recipeIngredients.ingredientId],
       references: [ingredients.id],
     }),
+    substituteIngredient: one(ingredients, {
+      fields: [recipeIngredients.substituteIngredientId],
+      references: [ingredients.id],
+      relationName: "substituteIngredient",
+    }),
   })
 );
+
+export const ingredientSuppliersRelations = relations(
+  ingredientSuppliers,
+  ({ one, many }) => ({
+    ingredient: one(ingredients, {
+      fields: [ingredientSuppliers.ingredientId],
+      references: [ingredients.id],
+    }),
+    supplier: one(suppliers, {
+      fields: [ingredientSuppliers.supplierId],
+      references: [suppliers.id],
+    }),
+    priceHistory: many(priceHistory),
+  })
+);
+
+export const priceHistoryRelations = relations(priceHistory, ({ one }) => ({
+  ingredientSupplier: one(ingredientSuppliers, {
+    fields: [priceHistory.ingredientSupplierId],
+    references: [ingredientSuppliers.id],
+  }),
+}));
+
+export const lotsRelations = relations(lots, ({ one }) => ({
+  ingredient: one(ingredients, {
+    fields: [lots.ingredientId],
+    references: [ingredients.id],
+  }),
+  supplier: one(suppliers, {
+    fields: [lots.supplierId],
+    references: [suppliers.id],
+  }),
+}));
 
 export const purchaseOrdersRelations = relations(
   purchaseOrders,
