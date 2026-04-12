@@ -21,7 +21,7 @@ const createContext = cache(async (): Promise<Context> => {
   const { data: { user } } = await supabase.auth.getUser();
   return {
     db,
-    user: user ? { id: user.id, email: user.email ?? null } : null,
+    user: user ? { id: user.id, email: user.email ?? null, isAnonymous: user.is_anonymous ?? false } : null,
   };
 });
 

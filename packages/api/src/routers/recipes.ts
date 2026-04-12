@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { eq, and, desc, asc } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {
@@ -40,6 +41,9 @@ export const recipesRouter = createTRPCRouter({
   createCategory: protectedProcedure
     .input(z.object({ name: z.string().min(1).max(100) }))
     .mutation(async ({ ctx, input }) => {
+      if (ctx.user.isAnonymous) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Create an account to manage categories." });
+      }
       const [category] = await ctx.db
         .insert(recipeCategories)
         .values({ name: input.name.trim() })
@@ -50,6 +54,9 @@ export const recipesRouter = createTRPCRouter({
   deleteCategory: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
+      if (ctx.user.isAnonymous) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Create an account to manage categories." });
+      }
       await ctx.db
         .delete(recipeCategories)
         .where(eq(recipeCategories.id, input));

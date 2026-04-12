@@ -20,15 +20,20 @@ const links = [
 export function Nav() {
   const pathname = usePathname();
   const router   = useRouter();
-  const [open, setOpen]           = useState(false);
+  const [open, setOpen]             = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   // Detect auth state client-side to avoid SSR issues
   useEffect(() => {
     const supabase = createClientSupabase();
-    supabase.auth.getSession().then(({ data: { session } }) => setIsLoggedIn(!!session));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+      setIsAnonymous(session?.user?.is_anonymous ?? false);
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setIsLoggedIn(!!session);
+      setIsAnonymous(session?.user?.is_anonymous ?? false);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -108,7 +113,7 @@ export function Nav() {
 
       {/* Footer */}
       <div className="px-3 py-4 border-t border-gray-800 space-y-1">
-        {isLoggedIn ? (
+        {isLoggedIn && !isAnonymous ? (
           <button
             onClick={handleSignOut}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-800 hover:text-gray-300 border border-transparent transition-colors"
@@ -121,7 +126,7 @@ export function Nav() {
             href="/login"
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-brand-500/20 text-brand-400 border border-brand-500/40 hover:bg-brand-500/30 hover:text-brand-300 transition-colors"
           >
-            Log in
+            {isAnonymous ? "Create account" : "Log in"}
           </Link>
         )}
         <p className="text-xs text-gray-700 px-4">Supabase · PostgreSQL</p>
@@ -144,12 +149,12 @@ export function Nav() {
           <span className="text-xs font-semibold text-brand-500 uppercase tracking-widest mr-2">Bakery</span>
           <span className="text-sm font-bold text-gray-100">Management</span>
         </div>
-        {!isLoggedIn && (
+        {(!isLoggedIn || isAnonymous) && (
           <Link
             href="/login"
             className="px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 text-xs font-medium transition-colors"
           >
-            Log in
+            {isAnonymous ? "Create account" : "Log in"}
           </Link>
         )}
       </header>

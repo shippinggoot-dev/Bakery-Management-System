@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { db } from "@bakery/db";
 
 /** Minimal user shape passed through tRPC context. */
-export type TRPCUser = { id: string; email: string | null };
+export type TRPCUser = { id: string; email: string | null; isAnonymous: boolean };
 
 export type Context = {
   db: typeof db;

@@ -29,9 +29,14 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session so cookies stay valid. getUser() validates the JWT
-  // server-side rather than trusting the cookie blindly.
-  await supabase.auth.getUser();
+  // Validate existing session (server-side JWT check).
+  // If there is no session, create an anonymous one so the visitor can use
+  // the site in demo mode — their data is isolated by owner_id and cleaned
+  // up automatically after 7 days.
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    await supabase.auth.signInAnonymously();
+  }
 
   return response;
 }
