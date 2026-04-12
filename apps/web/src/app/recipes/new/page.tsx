@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/trpc/react";
 import { TrashIcon, PlusIcon } from "@/components/icons";
+import { parseRecipeText } from "@/lib/recipe-parser";
 
 type IngredientRow = {
   ingredientId: string;
@@ -23,19 +24,21 @@ function ImportPanel({ onImport }: {
     instructions: string | null; notes: string | null;
   }) => void;
 }) {
-  const [open, setOpen]     = useState(false);
-  const [text, setText]     = useState("");
+  const [open, setOpen]           = useState(false);
+  const [text, setText]           = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
 
-  const parse = api.recipes.parseFromText.useMutation({
-    onSuccess: (data) => {
-      onImport(data);
+  function handleParse() {
+    setParseError(null);
+    try {
+      const result = parseRecipeText(text);
+      onImport(result);
       setOpen(false);
       setText("");
-      setParseError(null);
-    },
-    onError: (err) => setParseError(err.message),
-  });
+    } catch {
+      setParseError("Could not parse the recipe. Try tidying the text a little and try again.");
+    }
+  }
 
   if (!open) {
     return (
@@ -49,7 +52,7 @@ function ImportPanel({ onImport }: {
             Import from text
           </p>
           <p className="text-sm text-gray-600 mt-0.5">
-            Paste a recipe from a website, Word doc, PDF, or anywhere — AI will fill in the form
+            Paste a recipe from a website, Word doc, or anywhere — the form fills in automatically
           </p>
         </div>
         <span className="text-gray-600 group-hover:text-brand-400 transition-colors text-lg">→</span>
@@ -63,7 +66,8 @@ function ImportPanel({ onImport }: {
         <div>
           <h3 className="section-title">Import from text</h3>
           <p className="text-sm text-gray-500 mt-1">
-            Paste any recipe text below. AI will extract the name, ingredients, times, and instructions automatically.
+            Paste any recipe below — the parser will extract the name, ingredients, times, and instructions.
+            Review the result and correct anything it missed.
           </p>
         </div>
         <button onClick={() => { setOpen(false); setParseError(null); }}
@@ -73,7 +77,7 @@ function ImportPanel({ onImport }: {
       <textarea
         className="form-input resize-none text-sm"
         rows={10}
-        placeholder={"Paste the recipe here…\n\nExamples of what works:\n• Copy-paste from a recipe website\n• Text from a Word or Google Docs recipe\n• Text copied from a scanned cookbook (OCR)\n• A recipe written out in any format"}
+        placeholder={"Paste the recipe here…\n\nWorks best when the recipe has clear sections:\n  Ingredients:\n  250g flour\n  2 eggs\n\n  Instructions:\n  1. Mix the flour…"}
         value={text}
         onChange={(e) => setText(e.target.value)}
         autoFocus
@@ -87,19 +91,16 @@ function ImportPanel({ onImport }: {
 
       <div className="flex items-center gap-3">
         <button
-          onClick={() => { setParseError(null); parse.mutate({ text }); }}
-          disabled={text.trim().length < 10 || parse.isPending}
+          onClick={handleParse}
+          disabled={text.trim().length < 10}
           className="px-5 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 text-sm font-medium transition-colors disabled:opacity-50"
         >
-          {parse.isPending ? "Parsing…" : "✨ Parse with AI"}
+          Fill in form
         </button>
         <button onClick={() => { setOpen(false); setParseError(null); }}
           className="px-5 py-2 rounded-lg text-gray-500 hover:text-gray-300 text-sm transition-colors">
           Cancel
         </button>
-        {parse.isPending && (
-          <span className="text-xs text-gray-600">Usually takes 3–6 seconds…</span>
-        )}
       </div>
     </div>
   );
@@ -230,7 +231,7 @@ export default function NewRecipePage() {
 
       <div>
         <h2 className="page-title">New Recipe</h2>
-        <p className="text-gray-500 mt-1">Fill in the details below, or import an existing recipe with AI.</p>
+        <p className="text-gray-500 mt-1">Fill in the details below, or paste an existing recipe to import it.</p>
       </div>
 
       {/* AI Import panel */}
