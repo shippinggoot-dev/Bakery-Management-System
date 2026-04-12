@@ -49,7 +49,7 @@ function AddOrderForm({ onClose }: { onClose: () => void }) {
   return (
     <div className="card p-6 border-brand-500/30 bg-brand-500/5 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="section-title">New Purchase Order</h3>
+        <h3 className="section-title">New Order</h3>
         <button onClick={onClose} className="text-gray-600 hover:text-gray-400 text-xl leading-none">×</button>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -95,7 +95,7 @@ export default function PurchaseOrdersPage() {
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="page-title">Purchase Orders</h2>
+          <h2 className="page-title">Orders</h2>
           <p className="text-gray-500 mt-1">{orders.length} order{orders.length !== 1 ? "s" : ""}</p>
         </div>
         <button
@@ -112,7 +112,7 @@ export default function PurchaseOrdersPage() {
       {orders.length === 0 ? (
         <div className="card p-12 text-center text-gray-600">
           <p className="text-4xl mb-3">📦</p>
-          <p className="font-medium">No purchase orders yet</p>
+          <p className="font-medium">No orders yet</p>
           <p className="text-sm mt-1">Use the button above to create one.</p>
         </div>
       ) : (

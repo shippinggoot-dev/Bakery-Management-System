@@ -13,7 +13,7 @@ const links = [
   { href: "/ingredients",     label: "Ingredients",     icon: "🧂" },
   { href: "/suppliers",       label: "Suppliers",       icon: "🚚" },
   { href: "/shopping-lists",  label: "Shopping Lists",  icon: "🛒" },
-  { href: "/purchase-orders", label: "Purchase Orders", icon: "📦" },
+  { href: "/purchase-orders", label: "Orders", icon: "📦" },
   { href: "/price-alerts",    label: "Price Alerts",    icon: "🔔" },
 ];
 
