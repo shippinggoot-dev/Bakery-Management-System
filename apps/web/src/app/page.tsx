@@ -163,7 +163,7 @@ function ShoppingWidget() {
   const { data: lists = [], refetch } = api.shoppingLists.getAll.useQuery({ limit: 10 });
   const create = api.shoppingLists.create.useMutation({ onSuccess: () => { setNewName(""); refetch(); } });
 
-  const open = lists.filter((l) => l.status !== "completed").slice(0, 7);
+  const open = lists.filter((l) => l.status !== "completed").slice(0, 7); // draft | in_progress
 
   return (
     <div className="card overflow-hidden flex flex-col h-full">
@@ -210,7 +210,7 @@ function ShoppingWidget() {
               <span className="w-3.5 h-3.5 rounded-full border-2 border-brand-300 flex-shrink-0" />
               <span className="text-sm text-gray-800 flex-1 truncate">{l.name}</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                l.status === "active" ? "bg-rose-100 text-brand-500" : "bg-amber-100 text-amber-700"
+                l.status === "draft" ? "bg-rose-100 text-brand-500" : "bg-amber-100 text-amber-700"
               }`}>{l.status}</span>
             </Link>
           ))
