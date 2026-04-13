@@ -18,7 +18,7 @@ const NAV_LINKS = [
 
 // ── Personalisation panel (dropdown) ─────────────────────────────────────────
 
-function PersonalisePanel({ onClose }: { onClose: () => void }) {
+function PersonalisePanel({ onClose, isLoggedIn, isAnonymous }: { onClose: () => void; isLoggedIn: boolean; isAnonymous: boolean }) {
   const { theme, setTheme, bakeryName, setBakeryName, logoUrl, setLogoUrl } = usePersonalization();
   const [nameInput, setNameInput] = useState(bakeryName);
   const ref = useRef<HTMLDivElement>(null);
@@ -40,16 +40,12 @@ function PersonalisePanel({ onClose }: { onClose: () => void }) {
     reader.readAsDataURL(file);
   }
 
-  const categories: Array<{ label: string; ids: ThemeId[] }> = [
-    { label: "Current",  ids: ["rose"]                    },
-    { label: "Neutral",  ids: ["slate", "stone", "sage"]  },
-    { label: "Feminine", ids: ["lavender", "peach"]       },
-  ];
+  const allThemeIds = Object.keys(THEMES) as ThemeId[];
 
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl border border-rose-100 shadow-xl z-50 overflow-hidden"
+      className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl border border-rose-100 shadow-xl z-50 overflow-hidden"
     >
       <div className="px-4 py-3 border-b border-rose-100 flex items-center justify-between">
         <p className="font-semibold text-gray-900 text-sm">Personalise</p>
@@ -58,33 +54,35 @@ function PersonalisePanel({ onClose }: { onClose: () => void }) {
 
       <div className="px-4 py-4 space-y-5 max-h-[80vh] overflow-y-auto">
 
-        {/* Logo */}
-        <div>
-          <p className="form-label">Bakery logo</p>
-          <div className="flex items-center gap-3">
-            {logoUrl ? (
-              <div className="relative">
-                <img src={logoUrl} alt="Logo" className="h-14 w-14 rounded-xl object-contain border border-rose-100 bg-white" />
-                <button
-                  onClick={() => setLogoUrl(null)}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-100 text-red-500 text-xs flex items-center justify-center hover:bg-red-200 transition-colors"
-                  title="Remove logo"
-                >✕</button>
+        {/* Logo — logged-in users only */}
+        {isLoggedIn && !isAnonymous && (
+          <div>
+            <p className="form-label">Bakery logo</p>
+            <div className="flex items-center gap-3">
+              {logoUrl ? (
+                <div className="relative">
+                  <img src={logoUrl} alt="Logo" className="h-14 w-14 rounded-xl object-contain border border-rose-100 bg-white" />
+                  <button
+                    onClick={() => setLogoUrl(null)}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-100 text-red-500 text-xs flex items-center justify-center hover:bg-red-200 transition-colors"
+                    title="Remove logo"
+                  >✕</button>
+                </div>
+              ) : (
+                <div className="h-14 w-14 rounded-xl border-2 border-dashed border-rose-200 flex items-center justify-center text-brand-300 text-xl">
+                  🏪
+                </div>
+              )}
+              <div className="flex-1">
+                <label className="cursor-pointer block w-full text-center py-2 px-3 rounded-xl bg-brand-50 border border-brand-200 text-brand-600 text-xs font-semibold hover:bg-brand-100 transition-colors">
+                  {logoUrl ? "Change logo" : "Upload logo"}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                </label>
+                <p className="text-[10px] text-gray-400 mt-1 text-center">PNG, JPG, SVG · shown centre-top</p>
               </div>
-            ) : (
-              <div className="h-14 w-14 rounded-xl border-2 border-dashed border-rose-200 flex items-center justify-center text-brand-300 text-xl">
-                🏪
-              </div>
-            )}
-            <div className="flex-1">
-              <label className="cursor-pointer block w-full text-center py-2 px-3 rounded-xl bg-brand-50 border border-brand-200 text-brand-600 text-xs font-semibold hover:bg-brand-100 transition-colors">
-                {logoUrl ? "Change logo" : "Upload logo"}
-                <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-              </label>
-              <p className="text-[10px] text-gray-400 mt-1 text-center">PNG, JPG, SVG · shown centre-top</p>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Bakery name */}
         <div>
@@ -110,35 +108,28 @@ function PersonalisePanel({ onClose }: { onClose: () => void }) {
         {/* Colour scheme */}
         <div>
           <p className="form-label">Colour scheme</p>
-          <div className="space-y-3">
-            {categories.map(({ label, ids }) => (
-              <div key={label}>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{label}</p>
-                <div className="flex flex-wrap gap-2">
-                  {ids.map((tid) => {
-                    const t = THEMES[tid];
-                    const active = theme === tid;
-                    return (
-                      <button
-                        key={tid}
-                        onClick={() => setTheme(tid)}
-                        title={t.desc}
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border-2 transition-all text-left ${
-                          active ? "border-brand-600 bg-brand-50" : "border-rose-100 bg-white hover:border-brand-300"
-                        }`}
-                      >
-                        <span
-                          className="w-5 h-5 rounded-full flex-shrink-0 border border-black/10"
-                          style={{ background: `linear-gradient(135deg, ${t.bg} 40%, ${t.accent} 100%)` }}
-                        />
-                        <span className="text-xs font-medium text-gray-800">{t.label}</span>
-                        {active && <span className="text-brand-600 text-xs">✓</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {allThemeIds.map((tid) => {
+              const t = THEMES[tid];
+              const active = theme === tid;
+              return (
+                <button
+                  key={tid}
+                  onClick={() => setTheme(tid)}
+                  title={t.desc}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border-2 transition-all text-left ${
+                    active ? "border-brand-600 bg-brand-50" : "border-rose-100 bg-white hover:border-brand-300"
+                  }`}
+                >
+                  <span
+                    className="w-5 h-5 rounded-full flex-shrink-0 border border-black/10"
+                    style={{ background: `linear-gradient(135deg, ${t.bg} 40%, ${t.accent} 100%)` }}
+                  />
+                  <span className="text-xs font-medium text-gray-800">{t.label}</span>
+                  {active && <span className="text-brand-600 text-xs">✓</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -230,7 +221,7 @@ export function Nav() {
           </button>
 
           {/* Personalise dropdown */}
-          {panelOpen && <PersonalisePanel onClose={() => setPanelOpen(false)} />}
+          {panelOpen && <PersonalisePanel onClose={() => setPanelOpen(false)} isLoggedIn={isLoggedIn} isAnonymous={isAnonymous} />}
 
           {/* Settings (logged-in only) */}
           {isLoggedIn && !isAnonymous && (
