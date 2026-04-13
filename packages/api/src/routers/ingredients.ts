@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, like } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { ingredients, ingredientAllergens, ingredientCategories, allergens } from "@bakery/db";
+import { ingredients, ingredientAllergens, ingredientCategories, allergens, supplierPrices } from "@bakery/db";
 
 const ingredientInputSchema = z.object({
   name: z.string().min(1).max(255),
@@ -43,7 +43,15 @@ export const ingredientsRouter = createTRPCRouter({
       if (search)     conditions.push(like(ingredients.name, `%${search}%`));
       return ctx.db.query.ingredients.findMany({
         where: and(...conditions),
-        with: { category: true, allergens: { with: { allergen: true } } },
+        with: {
+          category: true,
+          allergens: { with: { allergen: true } },
+          supplierPrices: {
+            where: eq(supplierPrices.isPreferred, true),
+            with: { supplier: true },
+            limit: 1,
+          },
+        },
         limit,
         offset,
         orderBy: (ing, { asc }) => [asc(ing.name)],

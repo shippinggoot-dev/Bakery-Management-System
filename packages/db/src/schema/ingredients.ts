@@ -12,16 +12,6 @@ export const ingredients = pgTable("ingredients", {
     onDelete: "set null",
   }),
   notes: text("notes"),
-  /** EAN barcode linking this ingredient to a Kassal.app grocery product */
-  kassalappEan: text("kassalapp_ean"),
-  /** Current cheapest price in NOK across local Fana/Bergen stores */
-  currentPriceNok: text("current_price_nok"),
-  /** The package size this price applies to (e.g. "500g", "1L") */
-  currentPricePer: text("current_price_per"),
-  /** Name of the store with the cheapest current price */
-  cheapestStore: text("cheapest_store"),
-  /** When prices were last checked against Kassal.app */
-  lastPriceCheck: timestamp("last_price_check"),
   /** Target stock level — how much to keep on hand at all times (in canonical unit) */
   parLevel: text("par_level"),
   /** Stock level at which a new order should be placed (in canonical unit) */

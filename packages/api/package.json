@@ -4,10 +4,12 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./trpc": "./src/trpc.ts"
+    "./trpc": "./src/trpc.ts",
+    "./services/price-ingestion": "./src/services/price-ingestion.ts",
+    "./services/inventory": "./src/services/inventory.ts",
+    "./services/loyalty": "./src/services/loyalty.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.88.0",
     "@bakery/db": "workspace:*",
     "@trpc/server": "^11.0.0",
     "superjson": "^2.2.1",

@@ -4,7 +4,7 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "env": ["DATABASE_URL", "KASSALAPP_API_KEY"]
+      "env": ["DATABASE_URL"]
     },
     "dev": {
       "cache": false,

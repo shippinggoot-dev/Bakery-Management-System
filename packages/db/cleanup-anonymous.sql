@@ -48,6 +48,13 @@ BEGIN
   DELETE FROM lots
     WHERE ingredient_id IN (SELECT id FROM ingredients WHERE owner_id IN (SELECT id FROM _anon_ids));
 
+  -- ── Price ingestion module ──────────────────────────────────────────────────
+  -- Items cascade-delete when session is deleted, so only sessions need explicit deletion.
+
+  DELETE FROM price_ingestion_sessions WHERE owner_id IN (SELECT id FROM _anon_ids);
+  DELETE FROM margin_settings          WHERE owner_id IN (SELECT id FROM _anon_ids);
+  DELETE FROM notifications            WHERE owner_id IN (SELECT id FROM _anon_ids);
+
   -- ── Parent tables ───────────────────────────────────────────────────────────
 
   DELETE FROM recipes          WHERE owner_id IN (SELECT id FROM _anon_ids);

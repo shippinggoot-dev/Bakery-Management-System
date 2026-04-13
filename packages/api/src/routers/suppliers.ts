@@ -2,7 +2,6 @@ import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { suppliers, supplierPrices } from "@bakery/db";
-import { getLocalStores } from "../services/kassalapp";
 
 const supplierInputSchema = z.object({
   name: z.string().min(1).max(255),
@@ -130,40 +129,4 @@ export const suppliersRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  importLocalStores: protectedProcedure.mutation(async ({ ctx }) => {
-    const apiKey = process.env.KASSALAPP_API_KEY;
-    if (!apiKey) throw new Error("KASSALAPP_API_KEY is not configured");
-
-    const stores = await getLocalStores(apiKey);
-    let created = 0, updated = 0;
-
-    for (const store of stores) {
-      const existing = await ctx.db.query.suppliers.findFirst({
-        where: and(
-          eq(suppliers.kassalappStoreId, store.id),
-          eq(suppliers.ownerId, ctx.user.id)
-        ),
-      });
-
-      if (existing) {
-        await ctx.db
-          .update(suppliers)
-          .set({ name: store.name, address: store.address, updatedAt: new Date() })
-          .where(eq(suppliers.id, existing.id));
-        updated++;
-      } else {
-        await ctx.db.insert(suppliers).values({
-          name: store.name,
-          address: store.address,
-          kassalappStoreId: store.id,
-          kassalappGroup: store.group,
-          isActive: false,
-          ownerId: ctx.user.id,
-        });
-        created++;
-      }
-    }
-
-    return { created, updated, total: stores.length };
-  }),
 });

@@ -1,0 +1,17 @@
+{
+  "name": "@bakery/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "sync-prices": "tsx src/sync-prices.ts"
+  },
+  "dependencies": {
+    "@bakery/db": "workspace:*",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

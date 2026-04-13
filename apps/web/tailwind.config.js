@@ -5,7 +5,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Warm rose-tinted grays (replaces cold grays across all pages)
+        // Warm rose-tinted grays
         gray: {
           50:  "#f8f2f3",
           100: "#f0e8e9",
@@ -19,16 +19,26 @@ module.exports = {
           900: "#1c1012",
           950: "#100b0c",
         },
-        // Muted rose/mauve brand (inspired by sucre.no)
+        // Muted rose/mauve brand
         brand: {
           50:  "#fdf0f1",
           100: "#f8e2e4",
+          200: "#f0cdd1",
           300: "#dba8b0",
           400: "#c98f97",
           500: "#b67b7f",
           600: "#9d6569",
           700: "#7d4e52",
         },
+        // Light rose backgrounds
+        rose: {
+          50:  "#fdf0f0",
+          100: "#fce4e4",
+          200: "#f8cccc",
+        },
+      },
+      fontFamily: {
+        script: ['"Dancing Script"', 'cursive'],
       },
     },
   },

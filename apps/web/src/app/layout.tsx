@@ -1,26 +1,24 @@
 import type { Metadata } from "next";
 import { Nav } from "@/components/nav";
-import { DemoBanner } from "@/components/DemoBanner";
 import { TRPCReactProvider } from "@/trpc/client";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Bakery Management System",
+  title: "Sucré — Bakery Management",
   description: "Manage recipes, ingredients, suppliers, and orders for your bakery",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body>
         <TRPCReactProvider>
           <Nav />
-          {/* All pages sit to the right of the fixed sidebar */}
-          <main className="lg:ml-60 min-h-screen pt-14 lg:pt-0">
-          <DemoBanner />
-          <div className="p-4 sm:p-6 lg:p-8">
-            {children}
-          </div>
+          {/* Content sits below the fixed top nav (~108px tall) */}
+          <main className="pt-[108px] min-h-screen">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              {children}
+            </div>
           </main>
         </TRPCReactProvider>
       </body>

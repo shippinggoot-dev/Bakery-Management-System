@@ -13,6 +13,21 @@ export * from "./recipes";
 export * from "./purchase-orders";
 export * from "./shopping-lists";
 export * from "./price-alerts";
+export * from "./price-ingestion-sessions";
+export * from "./price-ingestion-items";
+export * from "./margin-settings";
+export * from "./notifications";
+export * from "./production-batches";
+export * from "./waste-logs";
+export * from "./stock-movements";
+export * from "./customers";
+export * from "./loyalty-tiers";
+export * from "./loyalty-transactions";
+export * from "./rewards";
+export * from "./customer-segments";
+export * from "./customer-sales";
+export * from "./shopify-settings";
+export * from "./todos";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.
@@ -32,6 +47,19 @@ import { recipes, recipeIngredients } from "./recipes";
 import { purchaseOrders, purchaseOrderItems } from "./purchase-orders";
 import { shoppingLists, shoppingListItems } from "./shopping-lists";
 import { priceAlerts } from "./price-alerts";
+import { priceIngestionSessions } from "./price-ingestion-sessions";
+import { priceIngestionItems } from "./price-ingestion-items";
+import { marginSettings } from "./margin-settings";
+import { notifications } from "./notifications";
+import { productionBatches } from "./production-batches";
+import { wasteLogs } from "./waste-logs";
+import { stockMovements } from "./stock-movements";
+import { customers } from "./customers";
+import { loyaltyTiers } from "./loyalty-tiers";
+import { loyaltyTransactions } from "./loyalty-transactions";
+import { rewards } from "./rewards";
+import { customerSegments, customerSegmentMembers } from "./customer-segments";
+import { customerSales } from "./customer-sales";
 
 export const allergensRelations = relations(allergens, ({ many }) => ({
   ingredientAllergens: many(ingredientAllergens),
@@ -202,3 +230,100 @@ export const priceAlertsRelations = relations(priceAlerts, ({ one }) => ({
     references: [ingredients.id],
   }),
 }));
+
+export const priceIngestionSessionsRelations = relations(priceIngestionSessions, ({ many }) => ({
+  items: many(priceIngestionItems),
+}));
+
+export const priceIngestionItemsRelations = relations(priceIngestionItems, ({ one }) => ({
+  session: one(priceIngestionSessions, {
+    fields: [priceIngestionItems.sessionId],
+    references: [priceIngestionSessions.id],
+  }),
+  ingredient: one(ingredients, {
+    fields: [priceIngestionItems.ingredientId],
+    references: [ingredients.id],
+  }),
+  supplier: one(suppliers, {
+    fields: [priceIngestionItems.supplierId],
+    references: [suppliers.id],
+  }),
+}));
+
+// marginSettings and notifications have no FK relations to wire up
+
+export const productionBatchesRelations = relations(productionBatches, ({ one }) => ({
+  recipe: one(recipes, {
+    fields: [productionBatches.recipeId],
+    references: [recipes.id],
+  }),
+}));
+
+export const wasteLogsRelations = relations(wasteLogs, ({ one }) => ({
+  ingredient: one(ingredients, {
+    fields: [wasteLogs.ingredientId],
+    references: [ingredients.id],
+  }),
+  lot: one(lots, {
+    fields: [wasteLogs.lotId],
+    references: [lots.id],
+  }),
+}));
+
+export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
+  ingredient: one(ingredients, {
+    fields: [stockMovements.ingredientId],
+    references: [ingredients.id],
+  }),
+  lot: one(lots, {
+    fields: [stockMovements.lotId],
+    references: [lots.id],
+  }),
+}));
+
+// ─── Loyalty / CRM relations ──────────────────────────────────────────────────
+
+export const customersRelations = relations(customers, ({ many }) => ({
+  loyaltyTransactions: many(loyaltyTransactions),
+  rewards:             many(rewards),
+  sales:               many(customerSales),
+  segmentMemberships:  many(customerSegmentMembers),
+}));
+
+export const loyaltyTransactionsRelations = relations(loyaltyTransactions, ({ one }) => ({
+  customer: one(customers, {
+    fields: [loyaltyTransactions.customerId],
+    references: [customers.id],
+  }),
+}));
+
+export const rewardsRelations = relations(rewards, ({ one }) => ({
+  customer: one(customers, {
+    fields: [rewards.customerId],
+    references: [customers.id],
+  }),
+}));
+
+export const customerSalesRelations = relations(customerSales, ({ one }) => ({
+  customer: one(customers, {
+    fields: [customerSales.customerId],
+    references: [customers.id],
+  }),
+}));
+
+export const customerSegmentsRelations = relations(customerSegments, ({ many }) => ({
+  members: many(customerSegmentMembers),
+}));
+
+export const customerSegmentMembersRelations = relations(customerSegmentMembers, ({ one }) => ({
+  segment: one(customerSegments, {
+    fields: [customerSegmentMembers.segmentId],
+    references: [customerSegments.id],
+  }),
+  customer: one(customers, {
+    fields: [customerSegmentMembers.customerId],
+    references: [customers.id],
+  }),
+}));
+
+// loyaltyTiers has no FK relations — standalone config table per owner

@@ -4,27 +4,24 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { api } from "@/trpc/react";
-import { MenuIcon, XIcon } from "@/components/icons";
 import { createClientSupabase } from "@/lib/supabase/client";
 
 const links = [
-  { href: "/",                label: "Dashboard",       icon: "🏠" },
-  { href: "/recipes",         label: "Recipes",         icon: "📖" },
-  { href: "/ingredients",     label: "Ingredients",     icon: "🧂" },
-  { href: "/suppliers",       label: "Suppliers",       icon: "🚚" },
-  { href: "/shopping-lists",  label: "Shopping Lists",  icon: "🛒" },
-  { href: "/purchase-orders", label: "Orders", icon: "📦" },
-  { href: "/price-alerts",    label: "Price Alerts",    icon: "🔔" },
+  { href: "/",                label: "Orders"         },
+  { href: "/recipes",         label: "Recipes"        },
+  { href: "/suppliers",       label: "Suppliers"      },
+  { href: "/shopping-lists",  label: "Shopping list"  },
+  { href: "/todos",           label: "To-Do"          },
+  { href: "/ingredients",     label: "Cost calculator"},
 ];
 
 export function Nav() {
   const pathname = usePathname();
   const router   = useRouter();
-  const [open, setOpen]             = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [menuOpen,    setMenuOpen]    = useState(false);
+  const [isLoggedIn,  setIsLoggedIn]  = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
 
-  // Detect auth state client-side to avoid SSR issues
   useEffect(() => {
     const supabase = createClientSupabase();
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -38,9 +35,9 @@ export function Nav() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const { data: alertCount = 0 } = api.priceSync.getAlertCount.useQuery(
-    undefined,
-    { refetchInterval: 60_000 }
+  const { data: orderCount = 0 } = api.purchaseOrders.getAll.useQuery(
+    { limit: 100 },
+    { select: (orders) => orders.filter((o) => o.status !== "received" && o.status !== "cancelled").length }
   );
 
   async function handleSignOut() {
@@ -49,140 +46,99 @@ export function Nav() {
     router.refresh();
   }
 
-  // Close sidebar when route changes (user tapped a link on mobile)
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
 
-  // Prevent body scroll when mobile sidebar is open
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => { document.body.style.overflow = ""; };
-  }, [open]);
-
-  const sidebarContent = (
-    <>
-      {/* Logo */}
-      <div className="px-6 py-6 border-b border-gray-800 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold text-brand-500 uppercase tracking-widest mb-0.5">Bakery</p>
-          <h1 className="text-xl font-bold text-gray-100 leading-tight">Management</h1>
-        </div>
-        {/* Close button — mobile only */}
+  return (
+    <header className="fixed inset-x-0 top-0 z-40 bg-rose-50 border-b border-rose-100">
+      {/* Row 1 — hamburger + order count */}
+      <div className="flex items-center justify-between px-4 sm:px-8 h-9">
         <button
-          onClick={() => setOpen(false)}
-          className="lg:hidden p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors"
-          aria-label="Close menu"
+          onClick={() => setMenuOpen((v) => !v)}
+          className="p-1.5 text-brand-600 hover:text-brand-800 transition-colors md:hidden"
+          aria-label="Menu"
         >
-          <XIcon />
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
         </button>
+        <div className="flex-1 text-center text-xs text-brand-500 font-medium tracking-wide">
+          {orderCount > 0 ? `${orderCount} order${orderCount !== 1 ? "s" : ""} this week` : ""}
+        </div>
+        <div className="flex items-center gap-3">
+          {isLoggedIn && !isAnonymous ? (
+            <>
+              <Link
+                href="/settings"
+                className="text-xs text-brand-500 hover:text-brand-700 transition-colors hidden sm:block"
+              >
+                Settings
+              </Link>
+              <button
+                onClick={handleSignOut}
+                className="text-xs text-brand-400 hover:text-brand-600 transition-colors"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <Link href="/login" className="text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors">
+              {isAnonymous ? "Create account" : "Log in"}
+            </Link>
+          )}
+        </div>
       </div>
 
-      {/* Links */}
-      <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
-        {links.map(({ href, label, icon }) => {
-          const isActive =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
-          const isAlerts = href === "/price-alerts";
+      {/* Row 2 — logo */}
+      <div className="text-center py-0.5">
+        <Link href="/" className="font-script text-4xl text-brand-700 leading-none tracking-wide hover:text-brand-900 transition-colors">
+          Sucré
+        </Link>
+      </div>
 
+      {/* Row 3 — nav links (desktop) */}
+      <nav className="hidden md:flex items-center justify-center gap-0 h-9 border-t border-rose-100">
+        {links.map(({ href, label }) => {
+          const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-5 h-full flex items-center text-sm font-medium transition-colors border-b-2 ${
                 isActive
-                  ? "bg-brand-500/20 text-brand-400 border border-brand-500/30"
-                  : "text-gray-500 hover:bg-gray-800 hover:text-gray-200 border border-transparent"
+                  ? "text-brand-700 border-brand-500"
+                  : "text-brand-400 border-transparent hover:text-brand-600 hover:border-brand-300"
               }`}
             >
-              <span className="text-base leading-none">{icon}</span>
-              <span className="flex-1">{label}</span>
-              {isAlerts && alertCount > 0 && (
-                <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center leading-none">
-                  {alertCount > 9 ? "9+" : alertCount}
-                </span>
-              )}
+              {label}
             </Link>
           );
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-3 py-4 border-t border-gray-800 space-y-1">
-        {isLoggedIn && !isAnonymous ? (
-          <button
-            onClick={handleSignOut}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-800 hover:text-gray-300 border border-transparent transition-colors"
-          >
-            <span className="text-base leading-none">→</span>
-            Sign out
-          </button>
-        ) : (
-          <Link
-            href="/login"
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-brand-500/20 text-brand-400 border border-brand-500/40 hover:bg-brand-500/30 hover:text-brand-300 transition-colors"
-          >
-            {isAnonymous ? "Create account" : "Log in"}
-          </Link>
-        )}
-        <p className="text-xs text-gray-700 px-4">Supabase · PostgreSQL</p>
-      </div>
-    </>
-  );
-
-  return (
-    <>
-      {/* ── Mobile top bar (hidden on lg+) ─────────────────────────── */}
-      <header className="lg:hidden fixed inset-x-0 top-0 z-40 h-14 bg-gray-900 border-b border-gray-800 flex items-center gap-4 px-4">
-        <button
-          onClick={() => setOpen(true)}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
-          aria-label="Open menu"
-        >
-          <MenuIcon />
-        </button>
-        <div className="flex-1">
-          <span className="text-xs font-semibold text-brand-500 uppercase tracking-widest mr-2">Bakery</span>
-          <span className="text-sm font-bold text-gray-100">Management</span>
-        </div>
-        {(!isLoggedIn || isAnonymous) && (
-          <Link
-            href="/login"
-            className="px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 text-xs font-medium transition-colors"
-          >
-            {isAnonymous ? "Create account" : "Log in"}
-          </Link>
-        )}
-      </header>
-
-      {/* ── Dark backdrop (mobile only, shown when sidebar is open) ─── */}
-      {open && (
-        <div
-          className="lg:hidden fixed inset-0 z-20 bg-black/60 backdrop-blur-sm"
-          onClick={() => setOpen(false)}
-          aria-hidden="true"
-        />
+      {/* Mobile dropdown */}
+      {menuOpen && (
+        <nav className="md:hidden border-t border-rose-100 bg-rose-50 divide-y divide-rose-100">
+          {links.map(({ href, label }) => {
+            const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`block px-6 py-3 text-sm font-medium ${
+                  isActive ? "text-brand-700 bg-rose-100" : "text-brand-500 hover:bg-rose-100"
+                }`}
+              >
+                {label}
+              </Link>
+            );
+          })}
+          {isLoggedIn && !isAnonymous && (
+            <Link href="/settings" className="block px-6 py-3 text-sm text-brand-500 hover:bg-rose-100">
+              Settings
+            </Link>
+          )}
+        </nav>
       )}
-
-      {/* ── Sidebar ────────────────────────────────────────────────── */}
-      {/* On mobile: absolutely positioned overlay, slides in from left */}
-      {/* On desktop: always visible fixed sidebar                      */}
-      <aside
-        className={`
-          fixed inset-y-0 left-0 z-30 w-60
-          bg-gray-900 border-r border-gray-800
-          flex flex-col
-          transition-transform duration-200 ease-in-out
-          ${open ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
-        `}
-      >
-        {sidebarContent}
-      </aside>
-    </>
+    </header>
   );
 }

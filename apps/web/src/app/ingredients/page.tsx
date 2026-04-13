@@ -16,81 +16,6 @@ const allergenColour: Record<string, string> = {
 
 const COMMON_UNITS = ["g", "kg", "ml", "L", "piece", "tsp", "tbsp"];
 
-function LinkPanel({
-  ingredientId,
-  currentEan,
-  onClose,
-}: {
-  ingredientId: string;
-  currentEan: string | null;
-  onClose: () => void;
-}) {
-  const utils = api.useUtils();
-  const [query, setQuery] = useState("");
-  const [submitted, setSubmitted] = useState("");
-
-  const { data: results = [], isFetching } = api.priceSync.searchProducts.useQuery(
-    submitted,
-    { enabled: submitted.length >= 2 }
-  );
-
-  const link = api.priceSync.linkProduct.useMutation({
-    onSuccess: () => { utils.ingredients.getAll.invalidate(); utils.priceSync.getLinkedCount.invalidate(); onClose(); },
-  });
-  const unlink = api.priceSync.unlinkProduct.useMutation({
-    onSuccess: () => { utils.ingredients.getAll.invalidate(); utils.priceSync.getLinkedCount.invalidate(); onClose(); },
-  });
-
-  return (
-    <div className="px-6 py-4 bg-gray-800/60 border-t border-gray-800 space-y-3">
-      <div className="flex items-center gap-2">
-        <input
-          autoFocus
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") setSubmitted(query); }}
-          placeholder="Search grocery product name…"
-          className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-brand-500"
-        />
-        <button onClick={() => setSubmitted(query)} disabled={query.length < 2} className="btn-primary text-xs px-3 py-2">Search</button>
-        {currentEan && (
-          <button onClick={() => unlink.mutate(ingredientId)} disabled={unlink.isPending} className="btn-ghost text-xs px-3 py-2 text-red-400 hover:text-red-300">Remove link</button>
-        )}
-        <button onClick={onClose} className="text-gray-600 hover:text-gray-400 text-lg leading-none px-1">×</button>
-      </div>
-      {isFetching && <p className="text-sm text-gray-500">Searching Kassal.app…</p>}
-      {!isFetching && submitted && results.length === 0 && (
-        <p className="text-sm text-gray-600">No results found. Try a different name.</p>
-      )}
-      {results.length > 0 && (
-        <ul className="space-y-1 max-h-56 overflow-y-auto">
-          {results.map((product) => (
-            <li key={product.id}>
-              <button
-                onClick={() => link.mutate({ ingredientId, ean: product.ean })}
-                disabled={link.isPending}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-700/60 transition-colors text-left gap-4"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm text-gray-200 truncate">{product.name}</p>
-                  <p className="text-xs text-gray-500">{product.brand} · {product.store?.name}</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  {product.current_price != null && (
-                    <p className="text-sm font-semibold text-brand-400">kr {product.current_price.toFixed(2)}</p>
-                  )}
-                  {product.weight && <p className="text-xs text-gray-600">{product.weight}{product.weight_unit}</p>}
-                </div>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 function AddIngredientForm({ onClose }: { onClose: () => void }) {
   const utils = api.useUtils();
   const [name, setName] = useState("");
@@ -205,7 +130,6 @@ function AddIngredientForm({ onClose }: { onClose: () => void }) {
 }
 
 export default function IngredientsPage() {
-  const [linkingId, setLinkingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
 
   const { data: ingredients = [], isLoading } = api.ingredients.getAll.useQuery({ limit: 200 });
@@ -255,62 +179,39 @@ export default function IngredientsPage() {
                 <th className="table-header px-6 py-3">Name</th>
                 <th className="table-header px-6 py-3">Unit</th>
                 <th className="table-header px-6 py-3">Allergens</th>
-                <th className="table-header px-6 py-3">Price</th>
-                <th className="table-header px-6 py-3"></th>
+                <th className="table-header px-6 py-3">Supplier price</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
               {grouped[cat]!.map((ing) => (
-                <>
-                  <tr key={ing.id} className="hover:bg-gray-800/40">
-                    <td className="px-6 py-3 font-medium text-gray-200">{ing.name}</td>
-                    <td className="px-6 py-3 text-gray-500 text-sm">{ing.unit}</td>
-                    <td className="px-6 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {ing.allergens.length === 0 ? (
-                          <span className="text-gray-700 text-sm">None</span>
-                        ) : (
-                          ing.allergens.map((ia) => {
-                            const aName = ia.allergen?.name ?? "";
-                            return (
-                              <span key={aName} className={`badge ${allergenColour[aName] ?? "bg-gray-800 text-gray-400"}`}>{aName}</span>
-                            );
-                          })
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-3 text-sm">
-                      {ing.currentPriceNok ? (
-                        <div>
-                          <span className="text-brand-400 font-medium">kr {parseFloat(ing.currentPriceNok).toFixed(2)}</span>
-                          {ing.currentPricePer && <span className="text-gray-600 ml-1">/ {ing.currentPricePer}</span>}
-                          {ing.cheapestStore && <p className="text-xs text-gray-600 mt-0.5">{ing.cheapestStore}</p>}
-                        </div>
+                <tr key={ing.id} className="hover:bg-gray-800/40">
+                  <td className="px-6 py-3 font-medium text-gray-200">{ing.name}</td>
+                  <td className="px-6 py-3 text-gray-500 text-sm">{ing.unit}</td>
+                  <td className="px-6 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {ing.allergens.length === 0 ? (
+                        <span className="text-gray-700 text-sm">None</span>
                       ) : (
-                        <span className="text-gray-700">—</span>
+                        ing.allergens.map((ia) => {
+                          const aName = ia.allergen?.name ?? "";
+                          return (
+                            <span key={aName} className={`badge ${allergenColour[aName] ?? "bg-gray-800 text-gray-400"}`}>{aName}</span>
+                          );
+                        })
                       )}
-                    </td>
-                    <td className="px-6 py-3 text-right">
-                      <button
-                        onClick={() => setLinkingId(linkingId === ing.id ? null : ing.id)}
-                        className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
-                          ing.kassalappEan
-                            ? "border-brand-500/40 text-brand-400 hover:bg-brand-500/10"
-                            : "border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600"
-                        }`}
-                      >
-                        {ing.kassalappEan ? "🔗 Linked" : "Link price"}
-                      </button>
-                    </td>
-                  </tr>
-                  {linkingId === ing.id && (
-                    <tr key={`${ing.id}-link`}>
-                      <td colSpan={5} className="p-0">
-                        <LinkPanel ingredientId={ing.id} currentEan={ing.kassalappEan ?? null} onClose={() => setLinkingId(null)} />
-                      </td>
-                    </tr>
-                  )}
-                </>
+                    </div>
+                  </td>
+                  <td className="px-6 py-3 text-sm">
+                    {ing.supplierPrices?.[0] ? (
+                      <div>
+                        <span className="text-brand-400 font-medium">{parseFloat(ing.supplierPrices[0].pricePerUnit).toFixed(2)} / {ing.supplierPrices[0].unit}</span>
+                        <p className="text-xs text-gray-600 mt-0.5">{ing.supplierPrices[0].supplier?.name}</p>
+                      </div>
+                    ) : (
+                      <span className="text-gray-700">—</span>
+                    )}
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>

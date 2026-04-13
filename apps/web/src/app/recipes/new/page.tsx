@@ -173,10 +173,12 @@ export default function NewRecipePage() {
     setRows(newRows);
 
     const unmatched = newRows.filter((r) => !r.ingredientId).length;
+    const isPlaceholderName = data.name === "Imported Recipe";
+    const nameNote = isPlaceholderName ? " Give the recipe a name above." : "";
     setImportBanner(
       unmatched === 0
-        ? `Imported "${data.name}" — all ${newRows.length} ingredients matched. Review and save.`
-        : `Imported "${data.name}". ${unmatched} ingredient${unmatched !== 1 ? "s" : ""} not found in your list — select them below.`
+        ? `Imported ${newRows.length} ingredient${newRows.length !== 1 ? "s" : ""}.${nameNote} Review and save.`
+        : `Imported ${newRows.length} ingredient${newRows.length !== 1 ? "s" : ""} — ${unmatched} not matched to your list yet, select them below.${nameNote}`
     );
   }
 

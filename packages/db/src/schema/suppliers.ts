@@ -14,10 +14,6 @@ export const suppliers = pgTable("suppliers", {
   /** Payment terms e.g. "Net 30", "Cash on delivery", "15 days EOM" */
   paymentTerms: text("payment_terms"),
   notes: text("notes"),
-  /** Kassal.app physical store ID — set for stores imported from Kassal.app */
-  kassalappStoreId: integer("kassalapp_store_id").unique(),
-  /** Store chain group code from Kassal.app e.g. MENY_NO, KIWI, REMA_1000 */
-  kassalappGroup: text("kassalapp_group"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
