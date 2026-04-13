@@ -5,7 +5,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Warm rose-tinted grays
+        // Warm rose-tinted grays — used for body text across all themes
         gray: {
           50:  "#f8f2f3",
           100: "#f0e8e9",
@@ -19,26 +19,26 @@ module.exports = {
           900: "#1c1012",
           950: "#100b0c",
         },
-        // Muted rose/mauve brand
+        // Brand accent — driven by CSS variables, supports opacity modifiers
         brand: {
-          50:  "#fdf0f1",
-          100: "#f8e2e4",
-          200: "#f0cdd1",
-          300: "#dba8b0",
-          400: "#c98f97",
-          500: "#b67b7f",
-          600: "#9d6569",
-          700: "#7d4e52",
+          50:  "rgb(var(--brand-50)  / <alpha-value>)",
+          100: "rgb(var(--brand-100) / <alpha-value>)",
+          200: "rgb(var(--brand-200) / <alpha-value>)",
+          300: "rgb(var(--brand-300) / <alpha-value>)",
+          400: "rgb(var(--brand-400) / <alpha-value>)",
+          500: "rgb(var(--brand-500) / <alpha-value>)",
+          600: "rgb(var(--brand-600) / <alpha-value>)",
+          700: "rgb(var(--brand-700) / <alpha-value>)",
         },
-        // Light rose backgrounds
+        // Rose background tones — driven by CSS variables
         rose: {
-          50:  "#fdf0f0",
-          100: "#fce4e4",
-          200: "#f8cccc",
+          50:  "rgb(var(--rose-50)  / <alpha-value>)",
+          100: "rgb(var(--rose-100) / <alpha-value>)",
+          200: "rgb(var(--rose-200) / <alpha-value>)",
         },
       },
       fontFamily: {
-        script: ['"Dancing Script"', 'cursive'],
+        script: ['"Dancing Script"', "cursive"],
       },
     },
   },

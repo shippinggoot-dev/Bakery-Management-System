@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { api } from "@/trpc/react";
 import { createClientSupabase } from "@/lib/supabase/client";
-import { useEffect } from "react";
+import { usePersonalization, THEMES, type ThemeId } from "@/components/ThemeProvider";
 
 // ── Shopify setup guide steps ─────────────────────────────────────────────────
 
@@ -446,6 +446,98 @@ function ConnectedPanel({
 
 // ── Main settings page ────────────────────────────────────────────────────────
 
+// ── Personalization section ───────────────────────────────────────────────────
+
+function PersonalizationSection() {
+  const { theme, setTheme, bakeryName, setBakeryName } = usePersonalization();
+  const [nameInput, setNameInput] = useState(bakeryName);
+
+  // Keep input in sync if bakeryName loads from localStorage after mount
+  useEffect(() => { setNameInput(bakeryName); }, [bakeryName]);
+
+  const categories: Array<{ id: string; label: string; ids: ThemeId[] }> = [
+    { id: "current",  label: "Current",  ids: ["rose"]               },
+    { id: "neutral",  label: "Neutral",  ids: ["slate", "stone", "sage"] },
+    { id: "feminine", label: "Feminine", ids: ["lavender", "peach"]  },
+  ];
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="px-6 py-4 border-b border-rose-100 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-brand-100 border border-brand-200 flex items-center justify-center text-base flex-shrink-0">🎨</div>
+        <div>
+          <p className="font-semibold text-gray-900 text-sm">Personalisation</p>
+          <p className="text-xs text-gray-500">Bakery name and colour scheme</p>
+        </div>
+      </div>
+
+      <div className="px-6 py-5 space-y-6">
+        {/* Bakery name */}
+        <div>
+          <label className="form-label">Bakery name</label>
+          <div className="flex gap-2">
+            <input
+              className="form-input flex-1"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              placeholder="My Bakery"
+              maxLength={40}
+            />
+            <button
+              onClick={() => setBakeryName(nameInput.trim() || "My Bakery")}
+              className="px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors"
+            >
+              Save
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">Shown in the navigation bar. Saved locally to this browser.</p>
+        </div>
+
+        {/* Colour scheme */}
+        <div>
+          <p className="form-label">Colour scheme</p>
+          <div className="space-y-4">
+            {categories.map(({ id, label, ids }) => (
+              <div key={id}>
+                <p className="text-xs text-gray-500 mb-2">{label}</p>
+                <div className="flex flex-wrap gap-3">
+                  {ids.map((tid) => {
+                    const t = THEMES[tid];
+                    const active = theme === tid;
+                    return (
+                      <button
+                        key={tid}
+                        onClick={() => setTheme(tid)}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border-2 text-left transition-all ${
+                          active ? "border-brand-600 bg-brand-50" : "border-rose-100 bg-white hover:border-brand-300"
+                        }`}
+                      >
+                        {/* Colour swatch */}
+                        <span
+                          className="w-8 h-8 rounded-lg flex-shrink-0 border border-black/5"
+                          style={{ background: `linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 100%)` }}
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-gray-900">{t.label}</span>
+                          <span className="block text-xs text-gray-500">{t.desc}</span>
+                        </span>
+                        {active && <span className="ml-1 text-brand-600 text-base leading-none">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-3">Saved locally to this browser — each device can have its own scheme.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main settings page ────────────────────────────────────────────────────────
+
 export default function SettingsPage() {
   const [isLoggedIn,   setIsLoggedIn]   = useState(false);
   const [isAnonymous,  setIsAnonymous]  = useState(false);
@@ -467,6 +559,9 @@ export default function SettingsPage() {
         <h2 className="page-title">Settings</h2>
         <p className="text-gray-500 mt-1">Manage integrations and account preferences.</p>
       </div>
+
+      {/* Personalisation — available to everyone */}
+      <PersonalizationSection />
 
       {/* Must be signed in */}
       {isAnonymous && (
