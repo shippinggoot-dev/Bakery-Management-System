@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/trpc/react";
 
@@ -17,6 +17,14 @@ const WASTE_REASONS = [
 type WasteReason = (typeof WASTE_REASONS)[number]["value"];
 
 export default function WastePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading…</div>}>
+      <WastePageInner />
+    </Suspense>
+  );
+}
+
+function WastePageInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/trpc/react";
 
@@ -13,6 +13,14 @@ interface Ingredient {
 }
 
 export default function ReceivePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading…</div>}>
+      <ReceivePageInner />
+    </Suspense>
+  );
+}
+
+function ReceivePageInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
 
