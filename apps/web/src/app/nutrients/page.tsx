@@ -198,7 +198,8 @@ function FoodLabel({
       }
     : null;
 
-  const rows: Array<{ label: string; indent?: boolean; unit: string; key: keyof typeof per100 }> = [
+  type LabelKey = "calories" | "fatTotal" | "fatSaturated" | "carbsTotal" | "carbsSugars" | "fiber" | "protein" | "salt";
+  const rows: Array<{ label: string; indent?: boolean; unit: string; key: LabelKey }> = [
     { label: "Energy",                    unit: "kcal", key: "calories"     },
     { label: "Fat",                        unit: "g",    key: "fatTotal"     },
     { label: "of which saturates",  indent: true, unit: "g", key: "fatSaturated" },
