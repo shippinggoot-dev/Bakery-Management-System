@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <TRPCReactProvider>
           <ThemeProvider>
             <Nav />
-            <main className="pt-[56px] min-h-screen">
+            <main className="pt-[88px] min-h-screen">
               <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 {children}
               </div>

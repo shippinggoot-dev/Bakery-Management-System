@@ -11,12 +11,12 @@ export const THEMES: Record<ThemeId, {
   accent: string;
   category: "current" | "neutral" | "feminine";
 }> = {
-  rose:     { label: "Rose",     desc: "Warm & inviting",       bg: "#fdf0f0", accent: "#9d6569", category: "current"  },
-  slate:    { label: "Slate",    desc: "Clean & professional",  bg: "#f8fafc", accent: "#334155", category: "neutral"  },
-  stone:    { label: "Stone",    desc: "Earthy & minimal",      bg: "#fafaf9", accent: "#44403c", category: "neutral"  },
-  sage:     { label: "Sage",     desc: "Natural & calm",        bg: "#f4f8f4", accent: "#3a6b3a", category: "neutral"  },
-  lavender: { label: "Lavender", desc: "Creative & soft",       bg: "#faf5ff", accent: "#9333ea", category: "feminine" },
-  peach:    { label: "Peach",    desc: "Bright & cheerful",     bg: "#fff8f3", accent: "#c2622a", category: "feminine" },
+  rose:     { label: "Rose",     desc: "Warm & inviting",      bg: "#fdf0f0", accent: "#9d6569", category: "current"  },
+  slate:    { label: "Slate",    desc: "Clean & professional", bg: "#f8fafc", accent: "#334155", category: "neutral"  },
+  stone:    { label: "Stone",    desc: "Earthy & minimal",     bg: "#fafaf9", accent: "#44403c", category: "neutral"  },
+  sage:     { label: "Sage",     desc: "Natural & calm",       bg: "#f4f8f4", accent: "#3a6b3a", category: "neutral"  },
+  lavender: { label: "Lavender", desc: "Creative & soft",      bg: "#faf5ff", accent: "#9333ea", category: "feminine" },
+  peach:    { label: "Peach",    desc: "Bright & cheerful",    bg: "#fff8f3", accent: "#c2622a", category: "feminine" },
 };
 
 interface Ctx {
@@ -24,40 +24,52 @@ interface Ctx {
   setTheme: (t: ThemeId) => void;
   bakeryName: string;
   setBakeryName: (n: string) => void;
+  logoUrl: string | null;
+  setLogoUrl: (url: string | null) => void;
 }
 
 const PersonalizationCtx = createContext<Ctx>({
-  theme: "rose", setTheme: () => {},
+  theme: "rose",      setTheme: () => {},
   bakeryName: "My Bakery", setBakeryName: () => {},
+  logoUrl: null,      setLogoUrl: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme,      setThemeState]     = useState<ThemeId>("rose");
   const [bakeryName, setBakeryNameState] = useState("My Bakery");
+  const [logoUrl,    setLogoUrlState]   = useState<string | null>(null);
 
   useEffect(() => {
     const t = localStorage.getItem("bms-theme") as ThemeId | null;
     const n = localStorage.getItem("bms-bakery-name");
+    const l = localStorage.getItem("bms-logo");
     if (t && t in THEMES) {
       setThemeState(t);
       document.documentElement.setAttribute("data-theme", t);
     }
     if (n) setBakeryNameState(n);
+    if (l) setLogoUrlState(l);
   }, []);
 
-  function setTheme(t: ThemeId) {
+  const setTheme = (t: ThemeId) => {
     setThemeState(t);
     localStorage.setItem("bms-theme", t);
     document.documentElement.setAttribute("data-theme", t);
-  }
+  };
 
-  function setBakeryName(n: string) {
+  const setBakeryName = (n: string) => {
     setBakeryNameState(n);
     localStorage.setItem("bms-bakery-name", n);
-  }
+  };
+
+  const setLogoUrl = (url: string | null) => {
+    setLogoUrlState(url);
+    if (url) localStorage.setItem("bms-logo", url);
+    else     localStorage.removeItem("bms-logo");
+  };
 
   return (
-    <PersonalizationCtx.Provider value={{ theme, setTheme, bakeryName, setBakeryName }}>
+    <PersonalizationCtx.Provider value={{ theme, setTheme, bakeryName, setBakeryName, logoUrl, setLogoUrl }}>
       {children}
     </PersonalizationCtx.Provider>
   );
