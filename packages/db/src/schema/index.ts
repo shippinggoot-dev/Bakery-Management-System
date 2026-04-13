@@ -28,6 +28,7 @@ export * from "./customer-segments";
 export * from "./customer-sales";
 export * from "./shopify-settings";
 export * from "./todos";
+export * from "./cake-orders";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.
@@ -327,3 +328,13 @@ export const customerSegmentMembersRelations = relations(customerSegmentMembers,
 }));
 
 // loyaltyTiers has no FK relations — standalone config table per owner
+
+// ─── Cake orders ─────────────────────────────────────────────────────────────
+import { cakeOrders } from "./cake-orders";
+
+export const cakeOrdersRelations = relations(cakeOrders, ({ one }) => ({
+  recipe: one(recipes, {
+    fields: [cakeOrders.recipeId],
+    references: [recipes.id],
+  }),
+}));

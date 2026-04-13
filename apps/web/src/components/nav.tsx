@@ -9,6 +9,7 @@ import { usePersonalization, THEMES, type ThemeId } from "@/components/ThemeProv
 
 const NAV_LINKS = [
   { href: "/",               label: "Orders"          },
+  { href: "/planner",        label: "Planner"         },
   { href: "/recipes",        label: "Recipes"         },
   { href: "/nutrients",      label: "Nutrients"       },
   { href: "/library",        label: "Library"         },
