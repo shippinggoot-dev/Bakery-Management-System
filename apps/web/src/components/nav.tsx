@@ -37,7 +37,7 @@ export function Nav() {
 
   const { data: orderCount = 0 } = api.purchaseOrders.getAll.useQuery(
     { limit: 100 },
-    { select: (orders) => orders.filter((o) => o.status !== "received" && o.status !== "cancelled").length }
+    { select: (orders) => orders.filter((o) => o.status !== "delivered" && o.status !== "cancelled").length }
   );
 
   async function handleSignOut() {

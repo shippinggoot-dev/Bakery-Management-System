@@ -138,7 +138,7 @@ function ThisWeekWidget() {
               <p className="text-sm text-gray-800 truncate">{o.supplier?.name ?? "—"}</p>
               <p className="text-sm">
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                  o.status === "received"  ? "bg-green-100 text-green-700" :
+                  o.status === "delivered" ? "bg-green-100 text-green-700" :
                   o.status === "sent"      ? "bg-blue-100 text-blue-700" :
                   o.status === "confirmed" ? "bg-amber-100 text-amber-700" :
                   o.status === "cancelled" ? "bg-red-100 text-red-600" :
