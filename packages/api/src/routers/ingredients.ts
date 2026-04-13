@@ -8,6 +8,16 @@ const ingredientInputSchema = z.object({
   unit: z.string().min(1),
   categoryId: z.string().uuid().optional().nullable(),
   notes: z.string().optional().nullable(),
+  // Nutrition — per 100 g (all optional)
+  caloriesKcal:  z.string().optional().nullable(),
+  proteinG:      z.string().optional().nullable(),
+  fatTotalG:     z.string().optional().nullable(),
+  fatSaturatedG: z.string().optional().nullable(),
+  carbsTotalG:   z.string().optional().nullable(),
+  carbsSugarsG:  z.string().optional().nullable(),
+  fiberG:        z.string().optional().nullable(),
+  sodiumMg:      z.string().optional().nullable(),
+  gramsPerUnit:  z.string().optional().nullable(),
 });
 
 export const ingredientsRouter = createTRPCRouter({

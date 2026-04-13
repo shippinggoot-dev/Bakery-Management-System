@@ -183,6 +183,107 @@ export const recipesRouter = createTRPCRouter({
       return { success: true };
     }),
 
+  calculateNutrition: publicProcedure
+    .input(z.string().uuid())
+    .query(async ({ ctx, input }) => {
+      if (!ctx.user) return null;
+      const recipe = await ctx.db.query.recipes.findFirst({
+        where: and(eq(recipes.id, input), eq(recipes.ownerId, ctx.user.id)),
+        with: {
+          ingredients: {
+            with: { ingredient: true },
+            orderBy: (ri, { asc }) => [asc(ri.sortOrder)],
+          },
+        },
+      });
+      if (!recipe) return null;
+
+      // Convert a recipe-ingredient quantity + unit to grams
+      function toGrams(quantity: string, unit: string, gramsPerUnit: string | null): number | null {
+        const q = parseFloat(quantity);
+        if (isNaN(q)) return null;
+        const u = unit.toLowerCase().trim();
+        const FACTORS: Record<string, number> = {
+          g: 1, gram: 1, grams: 1,
+          kg: 1000,
+          ml: 1, milliliter: 1, millilitre: 1,
+          l: 1000, liter: 1000, litre: 1000,
+          tsp: 5, tbsp: 15, cup: 240,
+          oz: 28.35, lb: 453.6,
+        };
+        if (u in FACTORS) return q * FACTORS[u]!;
+        const gpu = gramsPerUnit ? parseFloat(gramsPerUnit) : null;
+        if (gpu !== null && !isNaN(gpu)) return q * gpu;
+        return null;
+      }
+
+      function n(v: string | null | undefined): number | null {
+        if (v == null) return null;
+        const p = parseFloat(v);
+        return isNaN(p) ? null : p;
+      }
+
+      let totalCal = 0, totalPro = 0, totalFat = 0, totalSat = 0;
+      let totalCarb = 0, totalSug = 0, totalFib = 0, totalSod = 0;
+      let totalGrams = 0;
+
+      const lineItems = recipe.ingredients.map((ri) => {
+        const ing = ri.ingredient;
+        const grams = toGrams(ri.quantity, ri.unit, ing.gramsPerUnit);
+        const hasNutrition = ing.caloriesKcal != null;
+
+        if (grams !== null && hasNutrition) {
+          const factor = grams / 100;
+          totalCal  += (n(ing.caloriesKcal)  ?? 0) * factor;
+          totalPro  += (n(ing.proteinG)      ?? 0) * factor;
+          totalFat  += (n(ing.fatTotalG)     ?? 0) * factor;
+          totalSat  += (n(ing.fatSaturatedG) ?? 0) * factor;
+          totalCarb += (n(ing.carbsTotalG)   ?? 0) * factor;
+          totalSug  += (n(ing.carbsSugarsG)  ?? 0) * factor;
+          totalFib  += (n(ing.fiberG)        ?? 0) * factor;
+          totalSod  += (n(ing.sodiumMg)      ?? 0) * factor;
+        }
+        if (grams !== null) totalGrams += grams;
+
+        return {
+          ingredientId:   ing.id,
+          ingredientName: ing.name,
+          ingredientUnit: ing.unit,
+          quantity:       ri.quantity,
+          unit:           ri.unit,
+          grams,
+          hasNutrition,
+          gramsPerUnit:   ing.gramsPerUnit,
+        };
+      });
+
+      const withNutrition = lineItems.filter((l) => l.hasNutrition && l.grams !== null).length;
+
+      return {
+        recipeId:    input,
+        recipeName:  recipe.name,
+        yieldAmount: recipe.yieldAmount,
+        yieldUnit:   recipe.yieldUnit,
+        totalGrams:  totalGrams > 0 ? totalGrams : null,
+        totals: {
+          calories:     parseFloat(totalCal.toFixed(1)),
+          protein:      parseFloat(totalPro.toFixed(2)),
+          fatTotal:     parseFloat(totalFat.toFixed(2)),
+          fatSaturated: parseFloat(totalSat.toFixed(2)),
+          carbsTotal:   parseFloat(totalCarb.toFixed(2)),
+          carbsSugars:  parseFloat(totalSug.toFixed(2)),
+          fiber:        parseFloat(totalFib.toFixed(2)),
+          sodium:       parseFloat(totalSod.toFixed(1)),
+          salt:         parseFloat((totalSod * 0.00254).toFixed(3)),
+        },
+        coverage: {
+          total:        lineItems.length,
+          withNutrition,
+        },
+        lineItems,
+      };
+    }),
+
   calculateCost: publicProcedure
     .input(z.string().uuid())
     .query(async ({ ctx, input }) => {

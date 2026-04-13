@@ -18,6 +18,17 @@ export const ingredients = pgTable("ingredients", {
   reorderPoint: text("reorder_point"),
   /** Current physical stock on hand (in canonical unit) */
   currentStock: text("current_stock").default("0"),
+  // ── Nutrition (per 100 g of this ingredient) ──────────────────────────────
+  caloriesKcal:  text("calories_kcal"),
+  proteinG:      text("protein_g"),
+  fatTotalG:     text("fat_total_g"),
+  fatSaturatedG: text("fat_saturated_g"),
+  carbsTotalG:   text("carbs_total_g"),
+  carbsSugarsG:  text("carbs_sugars_g"),
+  fiberG:        text("fiber_g"),
+  sodiumMg:      text("sodium_mg"),
+  /** How many grams is 1 of this ingredient's canonical unit (for piece / non-mass units) */
+  gramsPerUnit:  text("grams_per_unit"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
