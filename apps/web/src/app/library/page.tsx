@@ -1,60 +1,102 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { LIBRARY, CATEGORY_LABELS, type Category, type LibraryItem } from "@/lib/cake-library";
+import { useState, useRef, useEffect } from "react";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface NutritionPer100g {
+  calories: number;
+  fat: number;
+  saturates: number;
+  carbs: number;
+  sugars: number;
+  fibre: number;
+  protein: number;
+  salt: number;
+}
+
+interface LibraryEntry {
+  id: string;
+  name: string;
+  description: string;
+  servingSizeG: number;
+  per100g: NutritionPer100g;
+  createdAt: string;
+}
+
+const STORAGE_KEY = "bms-library-entries";
+
+function loadEntries(): LibraryEntry[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as LibraryEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveEntries(entries: LibraryEntry[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(n: number, dec = 1) { return n.toFixed(dec); }
 
-const ALLERGEN_COLOURS: Record<string, string> = {
-  Gluten:      "bg-yellow-100 text-yellow-800",
-  Milk:        "bg-blue-100 text-blue-800",
-  Eggs:        "bg-orange-100 text-orange-800",
-  "Tree Nuts": "bg-emerald-100 text-emerald-800",
-  Peanuts:     "bg-red-100 text-red-800",
-  Soy:         "bg-purple-100 text-purple-800",
-  Sesame:      "bg-stone-200 text-stone-700",
-};
+function buildCopyText(entry: LibraryEntry) {
+  const p = entry.per100g;
+  const f = entry.servingSizeG / 100;
 
-const CATEGORY_COLOURS: Record<Category, string> = {
-  cake:    "bg-rose-100 text-rose-700",
-  pastry:  "bg-amber-100 text-amber-700",
-  bread:   "bg-orange-100 text-orange-700",
-  cookie:  "bg-yellow-100 text-yellow-800",
-  dessert: "bg-purple-100 text-purple-700",
-};
+  function row(label: string, per100: number, perServing: number, unit: string) {
+    const isKcal = unit === "kcal";
+    return `${label.padEnd(26)}${fmt(per100, isKcal ? 0 : 1)} ${unit.padEnd(5)}  ${fmt(perServing, isKcal ? 0 : 1)} ${unit}`;
+  }
 
-// ── Nutrition label (inline) ──────────────────────────────────────────────────
+  return [
+    `NUTRITIONAL VALUES — ${entry.name.toUpperCase()}`,
+    "",
+    `${"".padEnd(26)}Per 100 g       Per ${entry.servingSizeG} g`,
+    "─".repeat(56),
+    row("Energy",               p.calories,  p.calories  * f, "kcal"),
+    row("Fat",                  p.fat,       p.fat       * f, "g"),
+    row("  of which saturates", p.saturates, p.saturates * f, "g"),
+    row("Carbohydrates",        p.carbs,     p.carbs     * f, "g"),
+    row("  of which sugars",    p.sugars,    p.sugars    * f, "g"),
+    row("Fibre",                p.fibre,     p.fibre     * f, "g"),
+    row("Protein",              p.protein,   p.protein   * f, "g"),
+    row("Salt",                 p.salt,      p.salt      * f, "g"),
+    "─".repeat(56),
+  ].join("\n");
+}
 
-function NutritionLabel({ item, servingGrams }: { item: LibraryItem; servingGrams: number }) {
-  const p = item.per100g;
-  const factor = servingGrams / 100;
+// ── Nutrition label ───────────────────────────────────────────────────────────
+
+function NutritionLabel({ entry, servingGrams }: { entry: LibraryEntry; servingGrams: number }) {
+  const p = entry.per100g;
+  const f = servingGrams / 100;
 
   const rows: Array<{ label: string; indent?: boolean; per100: number; perServing: number; unit: string }> = [
-    { label: "Energy",             per100: p.calories,  perServing: p.calories  * factor, unit: "kcal" },
-    { label: "Fat",                per100: p.fat,       perServing: p.fat       * factor, unit: "g"    },
-    { label: "of which saturates", per100: p.saturates, perServing: p.saturates * factor, unit: "g", indent: true },
-    { label: "Carbohydrates",      per100: p.carbs,     perServing: p.carbs     * factor, unit: "g"    },
-    { label: "of which sugars",    per100: p.sugars,    perServing: p.sugars    * factor, unit: "g", indent: true },
-    { label: "Fibre",              per100: p.fibre,     perServing: p.fibre     * factor, unit: "g"    },
-    { label: "Protein",            per100: p.protein,   perServing: p.protein   * factor, unit: "g"    },
-    { label: "Salt",               per100: p.salt,      perServing: p.salt      * factor, unit: "g"    },
+    { label: "Energy",             per100: p.calories,  perServing: p.calories  * f, unit: "kcal" },
+    { label: "Fat",                per100: p.fat,       perServing: p.fat       * f, unit: "g"    },
+    { label: "of which saturates", per100: p.saturates, perServing: p.saturates * f, unit: "g", indent: true },
+    { label: "Carbohydrates",      per100: p.carbs,     perServing: p.carbs     * f, unit: "g"    },
+    { label: "of which sugars",    per100: p.sugars,    perServing: p.sugars    * f, unit: "g", indent: true },
+    { label: "Fibre",              per100: p.fibre,     perServing: p.fibre     * f, unit: "g"    },
+    { label: "Protein",            per100: p.protein,   perServing: p.protein   * f, unit: "g"    },
+    { label: "Salt",               per100: p.salt,      perServing: p.salt      * f, unit: "g"    },
   ];
 
   return (
     <div className="border-2 border-gray-900 font-mono text-sm w-full max-w-sm">
       <div className="bg-gray-900 text-white px-3 py-2">
         <p className="text-lg font-black tracking-tight">Nutrition Facts</p>
-        <p className="text-xs text-gray-300 font-sans mt-0.5">{item.name}</p>
+        <p className="text-xs text-gray-300 font-sans mt-0.5">{entry.name}</p>
       </div>
-
       <div className="flex border-b-4 border-gray-900 px-3 py-1 bg-white">
         <div className="flex-1" />
         <div className="w-24 text-center text-[10px] font-bold text-gray-500 uppercase">Per 100 g</div>
         <div className="w-24 text-center text-[10px] font-bold text-gray-500 uppercase">Per {servingGrams} g</div>
       </div>
-
       <div className="bg-white divide-y divide-gray-100">
         {rows.map((row) => (
           <div key={row.label} className="flex items-center px-3 py-1">
@@ -70,286 +112,359 @@ function NutritionLabel({ item, servingGrams }: { item: LibraryItem; servingGram
           </div>
         ))}
       </div>
-
       <div className="border-t-4 border-gray-900 px-3 py-1 bg-white">
-        <p className="text-[9px] text-gray-400 font-sans">Values are per 100 g of finished product. Serving size: {servingGrams} g.</p>
+        <p className="text-[9px] text-gray-400 font-sans">Serving size: {servingGrams} g</p>
       </div>
     </div>
   );
 }
 
-// ── Copy helper ───────────────────────────────────────────────────────────────
+// ── Add / edit form ───────────────────────────────────────────────────────────
 
-function buildCopyText(item: LibraryItem, servingGrams: number) {
-  const p = item.per100g;
-  const f = servingGrams / 100;
+const BLANK: Omit<LibraryEntry, "id" | "createdAt"> = {
+  name: "",
+  description: "",
+  servingSizeG: 100,
+  per100g: { calories: 0, fat: 0, saturates: 0, carbs: 0, sugars: 0, fibre: 0, protein: 0, salt: 0 },
+};
 
-  function row(label: string, per100: number, perServing: number, unit: string) {
-    const isKcal = unit === "kcal";
-    return `${label.padEnd(26)}${fmt(per100, isKcal ? 0 : 1)} ${unit.padEnd(5)}  ${fmt(perServing, isKcal ? 0 : 1)} ${unit}`;
+function AddForm({
+  initial,
+  onSave,
+  onClose,
+}: {
+  initial?: LibraryEntry;
+  onSave: (entry: LibraryEntry) => void;
+  onClose: () => void;
+}) {
+  const [name,        setName]        = useState(initial?.name         ?? "");
+  const [description, setDescription] = useState(initial?.description  ?? "");
+  const [serving,     setServing]     = useState(String(initial?.servingSizeG ?? 100));
+  const [fields, setFields] = useState<NutritionPer100g>(
+    initial?.per100g ?? { ...BLANK.per100g }
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  function setN(key: keyof NutritionPer100g, val: string) {
+    setFields((prev) => ({ ...prev, [key]: parseFloat(val) || 0 }));
   }
 
-  return [
-    `NUTRITIONAL VALUES — ${item.name.toUpperCase()}`,
-    "",
-    `${"".padEnd(26)}Per 100 g       Per ${servingGrams} g`,
-    "─".repeat(56),
-    row("Energy",               p.calories,  p.calories  * f, "kcal"),
-    row("Fat",                  p.fat,       p.fat       * f, "g"),
-    row("  of which saturates", p.saturates, p.saturates * f, "g"),
-    row("Carbohydrates",        p.carbs,     p.carbs     * f, "g"),
-    row("  of which sugars",    p.sugars,    p.sugars    * f, "g"),
-    row("Fibre",                p.fibre,     p.fibre     * f, "g"),
-    row("Protein",              p.protein,   p.protein   * f, "g"),
-    row("Salt",                 p.salt,      p.salt      * f, "g"),
-    "─".repeat(56),
-    `Allergens: ${item.allergens.join(", ")}`,
-  ].join("\n");
+  function handleSave() {
+    if (!name.trim()) return setError("Name is required.");
+    setError(null);
+    onSave({
+      id:          initial?.id ?? crypto.randomUUID(),
+      name:        name.trim(),
+      description: description.trim(),
+      servingSizeG: parseFloat(serving) || 100,
+      per100g:     fields,
+      createdAt:   initial?.createdAt ?? new Date().toISOString(),
+    });
+  }
+
+  const nutrientRows: Array<[keyof NutritionPer100g, string, string]> = [
+    ["calories",  "Calories",        "kcal"],
+    ["fat",       "Fat",             "g"],
+    ["saturates", "Saturates",       "g"],
+    ["carbs",     "Carbohydrates",   "g"],
+    ["sugars",    "Sugars",          "g"],
+    ["fibre",     "Fibre",           "g"],
+    ["protein",   "Protein",         "g"],
+    ["salt",      "Salt",            "g"],
+  ];
+
+  return (
+    <div className="card p-6 border-brand-200 bg-brand-50 space-y-5">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-gray-900">{initial ? "Edit recipe" : "Add recipe to library"}</h3>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="sm:col-span-2">
+          <label className="form-label">Recipe name *</label>
+          <input
+            className="form-input"
+            placeholder="e.g. Chocolate Layer Cake"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="form-label">Serving size (g)</label>
+          <input
+            className="form-input"
+            type="number"
+            min="1"
+            placeholder="100"
+            value={serving}
+            onChange={(e) => setServing(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="form-label">Description (optional)</label>
+        <input
+          className="form-input"
+          placeholder="Brief description of the recipe…"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <p className="form-label mb-3">Nutrition per 100 g</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {nutrientRows.map(([key, label, unit]) => (
+            <div key={key}>
+              <label className="form-label">{label} ({unit})</label>
+              <input
+                className="form-input text-sm"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="0"
+                value={fields[key] || ""}
+                onChange={(e) => setN(key, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-red-500">{error}</p>}
+
+      <div className="flex gap-3">
+        <button onClick={handleSave} className="btn-primary">
+          {initial ? "Save changes" : "Add to library"}
+        </button>
+        <button onClick={onClose} className="btn-ghost">Cancel</button>
+      </div>
+    </div>
+  );
 }
 
-// ── Expanded card ─────────────────────────────────────────────────────────────
+// ── Entry card ────────────────────────────────────────────────────────────────
 
-function ExpandedCard({ item, onClose }: { item: LibraryItem; onClose: () => void }) {
-  const [servingGrams, setServingGrams] = useState(item.servingSizeG);
-  const [copied, setCopied]             = useState(false);
+function EntryCard({
+  entry,
+  onEdit,
+  onDelete,
+}: {
+  entry: LibraryEntry;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [expanded,     setExpanded]     = useState(false);
+  const [servingGrams, setServingGrams] = useState(entry.servingSizeG);
+  const [copied,       setCopied]       = useState(false);
   const timerRef                        = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleCopy() {
-    navigator.clipboard.writeText(buildCopyText(item, servingGrams)).then(() => {
+    const text = buildCopyText({ ...entry, servingSizeG: servingGrams });
+    navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setCopied(false), 2000);
     });
   }
 
-  return (
-    <div className="card p-5 border-brand-300 space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`badge text-xs ${CATEGORY_COLOURS[item.category]}`}>
-              {CATEGORY_LABELS[item.category]}
-            </span>
-          </div>
-          <h3 className="text-lg font-bold text-gray-900">{item.name}</h3>
-          <p className="text-sm text-gray-500 mt-1">{item.description}</p>
-        </div>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none flex-shrink-0 mt-0.5"
-        >
-          ×
-        </button>
-      </div>
+  const p = entry.per100g;
 
-      {/* Serving size */}
-      <div className="flex items-center gap-3">
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
-          Serving size
-        </label>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min="1"
-            max="2000"
-            className="form-input w-24 text-sm"
-            value={servingGrams}
-            onChange={(e) => setServingGrams(Number(e.target.value) || item.servingSizeG)}
-          />
-          <span className="text-sm text-gray-500">g</span>
-          {servingGrams !== item.servingSizeG && (
-            <button
-              onClick={() => setServingGrams(item.servingSizeG)}
-              className="text-xs text-brand-500 hover:text-brand-700 transition-colors"
-            >
-              Reset to {item.servingSizeG} g
-            </button>
+  return (
+    <div className={`card transition-all ${expanded ? "border-brand-300" : ""}`}>
+      {/* Summary row */}
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full p-4 text-left flex items-start justify-between gap-3"
+      >
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-gray-900 text-sm">{entry.name}</p>
+          {entry.description && (
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{entry.description}</p>
           )}
+          <div className="flex gap-3 mt-2 text-xs text-gray-500">
+            <span>{p.calories} kcal</span>
+            <span>Fat {p.fat}g</span>
+            <span>Carbs {p.carbs}g</span>
+            <span>Protein {p.protein}g</span>
+          </div>
         </div>
-      </div>
+        <span className="text-brand-400 text-xs mt-0.5 flex-shrink-0">{expanded ? "▲" : "▼"}</span>
+      </button>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
-        {/* Label */}
-        <NutritionLabel item={item} servingGrams={servingGrams} />
-
-        {/* Right column */}
-        <div className="space-y-4">
-          {/* Allergens */}
-          <div>
-            <p className="form-label mb-2">Allergens</p>
-            <div className="flex flex-wrap gap-1.5">
-              {item.allergens.map((a) => (
-                <span key={a} className={`badge text-xs ${ALLERGEN_COLOURS[a] ?? "bg-gray-100 text-gray-700"}`}>
-                  {a}
-                </span>
-              ))}
-            </div>
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="border-t border-rose-100 p-4 space-y-4">
+          {/* Serving size adjuster */}
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Serving</label>
+            <input
+              type="number"
+              min="1"
+              className="form-input w-24 text-sm"
+              value={servingGrams}
+              onChange={(e) => setServingGrams(Number(e.target.value) || entry.servingSizeG)}
+            />
+            <span className="text-sm text-gray-400">g</span>
+            {servingGrams !== entry.servingSizeG && (
+              <button
+                onClick={() => setServingGrams(entry.servingSizeG)}
+                className="text-xs text-brand-500 hover:text-brand-700"
+              >
+                Reset
+              </button>
+            )}
           </div>
 
-          {/* Macro summary */}
-          <div>
-            <p className="form-label mb-2">Per 100 g at a glance</p>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                ["Calories",  `${item.per100g.calories} kcal`],
-                ["Fat",       `${item.per100g.fat} g`],
-                ["Carbs",     `${item.per100g.carbs} g`],
-                ["Protein",   `${item.per100g.protein} g`],
-                ["Sugars",    `${item.per100g.sugars} g`],
-                ["Salt",      `${item.per100g.salt} g`],
-              ].map(([label, value]) => (
-                <div key={label} className="bg-gray-50 rounded-lg px-3 py-2">
-                  <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">{label}</p>
-                  <p className="text-sm font-bold text-gray-900 mt-0.5">{value}</p>
-                </div>
-              ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+            <NutritionLabel entry={entry} servingGrams={servingGrams} />
+
+            <div className="space-y-3">
+              <button
+                onClick={handleCopy}
+                className="w-full btn-primary text-sm"
+              >
+                {copied ? "Copied!" : "Copy label text"}
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={onEdit}
+                  className="flex-1 px-3 py-1.5 rounded-lg border border-brand-200 text-brand-600 text-xs font-semibold hover:bg-brand-50 transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={onDelete}
+                  className="flex-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-500 text-xs font-semibold hover:bg-red-50 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
-
-          {/* Copy button */}
-          <button
-            onClick={handleCopy}
-            className="w-full px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors"
-          >
-            {copied ? "Copied!" : "Copy label text"}
-          </button>
         </div>
-      </div>
+      )}
     </div>
-  );
-}
-
-// ── Summary card ──────────────────────────────────────────────────────────────
-
-function SummaryCard({ item, onClick }: { item: LibraryItem; onClick: () => void }) {
-  const p = item.per100g;
-  return (
-    <button
-      onClick={onClick}
-      className="card p-4 text-left hover:border-brand-300 hover:shadow-md transition-all space-y-3 w-full"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <span className={`badge text-[10px] mb-1.5 ${CATEGORY_COLOURS[item.category]}`}>
-            {CATEGORY_LABELS[item.category]}
-          </span>
-          <h3 className="font-semibold text-gray-900 text-sm leading-snug">{item.name}</h3>
-        </div>
-        <span className="text-lg font-black text-brand-600 whitespace-nowrap">{p.calories}<span className="text-xs font-normal text-gray-400 ml-0.5">kcal</span></span>
-      </div>
-
-      <p className="text-xs text-gray-500 line-clamp-2">{item.description}</p>
-
-      {/* Mini macro bar */}
-      <div className="grid grid-cols-3 gap-1 pt-1 border-t border-rose-100">
-        {[
-          ["Fat",    `${p.fat}g`],
-          ["Carbs",  `${p.carbs}g`],
-          ["Protein",`${p.protein}g`],
-        ].map(([label, value]) => (
-          <div key={label} className="text-center">
-            <p className="text-xs font-bold text-gray-800">{value}</p>
-            <p className="text-[10px] text-gray-400">{label}</p>
-          </div>
-        ))}
-      </div>
-
-      <p className="text-[10px] text-brand-400 font-medium">Tap to open label →</p>
-    </button>
   );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-const CATEGORIES: Array<{ id: "all" | Category; label: string }> = [
-  { id: "all",     label: "All" },
-  { id: "cake",    label: "Cakes" },
-  { id: "pastry",  label: "Pastries" },
-  { id: "bread",   label: "Breads" },
-  { id: "cookie",  label: "Cookies" },
-  { id: "dessert", label: "Desserts" },
-];
-
 export default function LibraryPage() {
+  const [entries,  setEntries]  = useState<LibraryEntry[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editing,  setEditing]  = useState<LibraryEntry | null>(null);
   const [search,   setSearch]   = useState("");
-  const [category, setCategory] = useState<"all" | Category>("all");
-  const [expanded, setExpanded] = useState<string | null>(null);
 
-  const filtered = LIBRARY.filter((item) => {
-    const matchesCategory = category === "all" || item.category === category;
-    const matchesSearch   = search === "" ||
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.description.toLowerCase().includes(search.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  // Load from localStorage on mount
+  useEffect(() => {
+    setEntries(loadEntries());
+  }, []);
 
-  const expandedItem = expanded ? LIBRARY.find((i) => i.id === expanded) : null;
+  function handleSave(entry: LibraryEntry) {
+    setEntries((prev) => {
+      const exists = prev.find((e) => e.id === entry.id);
+      const next   = exists
+        ? prev.map((e) => (e.id === entry.id ? entry : e))
+        : [...prev, entry];
+      saveEntries(next);
+      return next;
+    });
+    setShowForm(false);
+    setEditing(null);
+  }
+
+  function handleDelete(id: string) {
+    if (!confirm("Remove this recipe from the library?")) return;
+    setEntries((prev) => {
+      const next = prev.filter((e) => e.id !== id);
+      saveEntries(next);
+      return next;
+    });
+  }
+
+  const filtered = entries.filter((e) =>
+    search === "" ||
+    e.name.toLowerCase().includes(search.toLowerCase()) ||
+    e.description.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="page-title">Recipe Library</h2>
-        <p className="text-gray-500 mt-1 text-sm">
-          {LIBRARY.length} pre-calculated bakery recipes — tap any card to open the nutrition label.
-        </p>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="page-title">Recipe Library</h2>
+          <p className="text-gray-500 mt-1 text-sm">
+            Save your own recipes with nutrition data for quick label copying.
+          </p>
+        </div>
+        <button
+          onClick={() => { setShowForm((v) => !v); setEditing(null); }}
+          className="btn-primary text-sm flex-shrink-0"
+        >
+          + Add recipe
+        </button>
       </div>
 
-      {/* Expanded detail */}
-      {expandedItem && (
-        <ExpandedCard
-          item={expandedItem}
-          onClose={() => setExpanded(null)}
+      {/* Add / edit form */}
+      {(showForm || editing) && (
+        <AddForm
+          initial={editing ?? undefined}
+          onSave={handleSave}
+          onClose={() => { setShowForm(false); setEditing(null); }}
         />
       )}
 
-      {/* Search + filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      {/* Search */}
+      {entries.length > 0 && (
         <input
-          className="form-input flex-1"
-          placeholder="Search cakes, pastries…"
+          className="form-input"
+          placeholder="Search your library…"
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setExpanded(null); }}
+          onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="flex flex-wrap gap-1.5">
-          {CATEGORIES.map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => { setCategory(id); setExpanded(null); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                category === id
-                  ? "bg-brand-600 text-white border-brand-600"
-                  : "bg-white text-brand-600 border-brand-200 hover:border-brand-400"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
 
-      {/* Grid */}
-      {filtered.length === 0 ? (
-        <div className="card p-12 text-center text-gray-400 text-sm">
-          No items match your search.
+      {/* Empty state */}
+      {entries.length === 0 && !showForm && (
+        <div className="card p-16 text-center space-y-4">
+          <p className="text-4xl">📋</p>
+          <p className="font-semibold text-gray-700">Your library is empty</p>
+          <p className="text-sm text-gray-500 max-w-sm mx-auto">
+            Add recipes with their nutrition values and you can copy a ready-made
+            label any time.
+          </p>
+          <button
+            onClick={() => setShowForm(true)}
+            className="btn-primary mx-auto"
+          >
+            Add your first recipe
+          </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((item) => (
-            <SummaryCard
-              key={item.id}
-              item={item}
-              onClick={() => setExpanded(expanded === item.id ? null : item.id)}
+      )}
+
+      {/* List */}
+      {filtered.length > 0 && (
+        <div className="space-y-3">
+          {filtered.map((entry) => (
+            <EntryCard
+              key={entry.id}
+              entry={entry}
+              onEdit={() => { setEditing(entry); setShowForm(false); }}
+              onDelete={() => handleDelete(entry.id)}
             />
           ))}
         </div>
       )}
 
-      <p className="text-xs text-gray-400 text-center pb-4">
-        Nutritional values are standard reference figures per 100 g of finished product.
-        Actual values depend on your specific recipe and ingredients.
-      </p>
+      {filtered.length === 0 && entries.length > 0 && (
+        <div className="card p-10 text-center text-gray-400 text-sm">
+          No recipes match your search.
+        </div>
+      )}
     </div>
   );
 }
