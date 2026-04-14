@@ -38,6 +38,22 @@ export async function middleware(request: NextRequest) {
     await supabase.auth.signInAnonymously();
   }
 
+  // Consent gate — real (non-anonymous) users must accept terms before
+  // accessing the app. Skip the check on the consent, login, and auth pages.
+  const { pathname } = request.nextUrl;
+  const isExempt = pathname === "/consent" ||
+    pathname === "/login" ||
+    pathname.startsWith("/auth");
+
+  if (!isExempt && user && !user.is_anonymous) {
+    const consented = user.user_metadata?.consent_accepted === true;
+    if (!consented) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/consent";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return response;
 }
 
