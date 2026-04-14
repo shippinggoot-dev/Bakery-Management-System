@@ -61,6 +61,7 @@ import { loyaltyTransactions } from "./loyalty-transactions";
 import { rewards } from "./rewards";
 import { customerSegments, customerSegmentMembers } from "./customer-segments";
 import { customerSales } from "./customer-sales";
+import { cakeOrders } from "./cake-orders";
 
 export const allergensRelations = relations(allergens, ({ many }) => ({
   ingredientAllergens: many(ingredientAllergens),
@@ -330,7 +331,6 @@ export const customerSegmentMembersRelations = relations(customerSegmentMembers,
 // loyaltyTiers has no FK relations — standalone config table per owner
 
 // ─── Cake orders ─────────────────────────────────────────────────────────────
-import { cakeOrders } from "./cake-orders";
 
 export const cakeOrdersRelations = relations(cakeOrders, ({ one }) => ({
   recipe: one(recipes, {
