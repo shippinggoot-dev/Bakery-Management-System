@@ -13,7 +13,6 @@ const MENU_GROUPS = [
   {
     label: "Supply",
     items: [
-      { href: "/planner",         label: "Customer Orders"  },
       { href: "/purchase-orders", label: "Purchasing"       },
       { href: "/shopping-lists",  label: "Shopping Lists"   },
       { href: "/ingredients",     label: "Cost Calculator"  },
@@ -22,6 +21,7 @@ const MENU_GROUPS = [
   {
     label: "Kitchen",
     items: [
+      { href: "/planner", label: "Customer Orders"  },
       { href: "/recipes",   label: "Recipes"          },
       { href: "/nutrients", label: "Nutrition Labels"  },
       { href: "/library",   label: "My Library"       },
