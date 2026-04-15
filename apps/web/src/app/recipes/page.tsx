@@ -17,10 +17,26 @@ const categoryColour: Record<string, string> = {
 };
 
 export default async function RecipesPage() {
-  const [recipes, categories] = await Promise.all([
-    api.recipes.getAll({ limit: 100, isActive: true }),
-    api.recipes.getCategories(),
-  ]);
+  let recipes: Awaited<ReturnType<typeof api.recipes.getAll>> = [];
+  let categories: Awaited<ReturnType<typeof api.recipes.getCategories>> = [];
+
+  try {
+    [recipes, categories] = await Promise.all([
+      api.recipes.getAll({ limit: 100, isActive: true }),
+      api.recipes.getCategories(),
+    ]);
+  } catch (err) {
+    console.error("[RecipesPage] Failed to load data:", err);
+    return (
+      <div className="max-w-5xl mx-auto py-16 text-center">
+        <p className="text-4xl mb-3">⚠️</p>
+        <p className="font-semibold text-gray-400 text-lg">Could not load recipes</p>
+        <p className="text-sm text-gray-600 mt-2">
+          {err instanceof Error ? err.message : "An unexpected error occurred. Check server logs for details."}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
