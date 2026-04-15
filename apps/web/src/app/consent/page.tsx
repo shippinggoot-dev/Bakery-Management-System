@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { createClientSupabase } from "@/lib/supabase/client";
 
 export default function ConsentPage() {
+  const t = useTranslations("consent");
   const router  = useRouter();
   const [agreed,   setAgreed]   = useState(false);
   const [loading,  setLoading]  = useState(false);
@@ -47,10 +49,8 @@ export default function ConsentPage() {
         {/* Header */}
         <div className="text-center">
           <p className="text-3xl mb-2">📋</p>
-          <h1 className="text-2xl font-bold text-gray-900">Before you continue</h1>
-          <p className="text-gray-500 mt-2 text-sm">
-            Please read and accept the following to use the Bakery Management System.
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">{t("title")}</h1>
+          <p className="text-gray-500 mt-2 text-sm">{t("intro")}</p>
         </div>
 
         {/* Consent card */}
@@ -58,31 +58,20 @@ export default function ConsentPage() {
 
           {/* Data usage */}
           <div className="px-6 py-5 space-y-1">
-            <p className="font-semibold text-gray-900 text-sm">Data storage</p>
-            <p className="text-sm text-gray-500">
-              Your recipes, ingredients, orders, and shopping lists are stored securely
-              in our database and are only accessible with your account. We do not share
-              your data with third parties.
-            </p>
+            <p className="font-semibold text-gray-900 text-sm">{t("dataStorageTitle")}</p>
+            <p className="text-sm text-gray-500">{t("dataStorageText")}</p>
           </div>
 
           {/* Personal data */}
           <div className="px-6 py-5 space-y-1">
-            <p className="font-semibold text-gray-900 text-sm">Personal data</p>
-            <p className="text-sm text-gray-500">
-              We store your email address to identify your account. You can request
-              deletion of your account and all associated data at any time by contacting
-              the account owner.
-            </p>
+            <p className="font-semibold text-gray-900 text-sm">{t("personalDataTitle")}</p>
+            <p className="text-sm text-gray-500">{t("personalDataText")}</p>
           </div>
 
           {/* Cookies */}
           <div className="px-6 py-5 space-y-1">
-            <p className="font-semibold text-gray-900 text-sm">Session cookies</p>
-            <p className="text-sm text-gray-500">
-              We use a session cookie to keep you signed in. No tracking or advertising
-              cookies are used.
-            </p>
+            <p className="font-semibold text-gray-900 text-sm">{t("cookiesTitle")}</p>
+            <p className="text-sm text-gray-500">{t("cookiesText")}</p>
           </div>
 
           {/* Checkbox */}
@@ -94,10 +83,7 @@ export default function ConsentPage() {
                 checked={agreed}
                 onChange={(e) => setAgreed(e.target.checked)}
               />
-              <span className="text-sm text-gray-700">
-                I have read and agree to the above. I understand how my data is stored
-                and used within this system.
-              </span>
+              <span className="text-sm text-gray-700">{t("checkboxLabel")}</span>
             </label>
           </div>
         </div>
@@ -115,19 +101,17 @@ export default function ConsentPage() {
             disabled={!agreed || loading}
             className="flex-1 py-3 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition-colors disabled:opacity-40"
           >
-            {loading ? "Saving…" : "Accept and continue"}
+            {loading ? "…" : t("acceptBtn")}
           </button>
           <button
             onClick={handleDecline}
             className="flex-1 py-3 rounded-xl border border-rose-200 text-gray-500 font-medium text-sm hover:bg-rose-50 transition-colors"
           >
-            Decline and sign out
+            {t("declineBtn")}
           </button>
         </div>
 
-        <p className="text-xs text-center text-gray-400">
-          You only need to accept once. This will not be shown again.
-        </p>
+        <p className="text-xs text-center text-gray-400">{t("footer")}</p>
       </div>
     </div>
   );

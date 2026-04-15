@@ -1,14 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 
 type Priority = "low" | "medium" | "high";
 
-const PRIORITY_META: Record<Priority, { label: string; dot: string; badge: string }> = {
-  high:   { label: "High",   dot: "bg-red-500",    badge: "bg-red-950/40 text-red-400 border-red-800/50" },
-  medium: { label: "Medium", dot: "bg-amber-400",  badge: "bg-amber-950/30 text-amber-400 border-amber-800/40" },
-  low:    { label: "Low",    dot: "bg-gray-600",   badge: "bg-gray-800 text-gray-500 border-gray-700" },
+const PRIORITY_DOT: Record<Priority, string> = {
+  high:   "bg-red-500",
+  medium: "bg-amber-400",
+  low:    "bg-gray-600",
+};
+
+const PRIORITY_BADGE: Record<Priority, string> = {
+  high:   "bg-red-950/40 text-red-400 border-red-800/50",
+  medium: "bg-amber-950/30 text-amber-400 border-amber-800/40",
+  low:    "bg-gray-800 text-gray-500 border-gray-700",
 };
 
 function isOverdue(dueDate: string | null | undefined) {
@@ -19,6 +26,7 @@ function isOverdue(dueDate: string | null | undefined) {
 // ── Add form ──────────────────────────────────────────────────────────────────
 
 function AddForm({ onAdd }: { onAdd: () => void }) {
+  const t = useTranslations("todos");
   const [title,       setTitle]       = useState("");
   const [description, setDescription] = useState("");
   const [dueDate,     setDueDate]     = useState("");
@@ -48,7 +56,7 @@ function AddForm({ onAdd }: { onAdd: () => void }) {
       <div className="flex gap-2">
         <input
           className="form-input flex-1"
-          placeholder="Add a new task…"
+          placeholder={t("addPlaceholder")}
           value={title}
           onChange={(e) => { setTitle(e.target.value); if (e.target.value) setExpanded(true); }}
           onFocus={() => setExpanded(true)}
@@ -58,7 +66,7 @@ function AddForm({ onAdd }: { onAdd: () => void }) {
           disabled={!title.trim() || create.isPending}
           className="px-4 py-2 rounded-xl bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 text-sm font-semibold transition-colors disabled:opacity-40"
         >
-          Add
+          {t("addBtn")}
         </button>
       </div>
 
@@ -66,14 +74,14 @@ function AddForm({ onAdd }: { onAdd: () => void }) {
         <div className="space-y-3 pt-1 border-t border-gray-800">
           <textarea
             className="form-input text-sm resize-none"
-            placeholder="Description (optional)"
+            placeholder={t("descriptionPlaceholder")}
             rows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="form-label">Due date</label>
+              <label className="form-label">{t("dueDate")}</label>
               <input
                 type="date"
                 className="form-input text-sm"
@@ -82,15 +90,15 @@ function AddForm({ onAdd }: { onAdd: () => void }) {
               />
             </div>
             <div className="flex-1">
-              <label className="form-label">Priority</label>
+              <label className="form-label">{t("priority")}</label>
               <select
                 className="form-input text-sm"
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Priority)}
               >
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
+                <option value="high">{t("priorityHigh")}</option>
+                <option value="medium">{t("priorityMedium")}</option>
+                <option value="low">{t("priorityLow")}</option>
               </select>
             </div>
           </div>
@@ -113,6 +121,7 @@ function TodoRow({ todo, onMutate }: {
   };
   onMutate: () => void;
 }) {
+  const t = useTranslations("todos");
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(todo.title);
 
@@ -122,10 +131,16 @@ function TodoRow({ todo, onMutate }: {
     onSuccess: () => { setEditing(false); onMutate(); },
   });
 
-  const priority = (todo.priority as Priority) in PRIORITY_META
+  const priority = (todo.priority as Priority) in PRIORITY_DOT
     ? (todo.priority as Priority)
     : "medium";
-  const meta    = PRIORITY_META[priority];
+
+  const priorityLabels: Record<Priority, string> = {
+    high:   t("priorityHigh"),
+    medium: t("priorityMedium"),
+    low:    t("priorityLow"),
+  };
+
   const overdue = !todo.completed && isOverdue(todo.dueDate);
 
   function saveEdit() {
@@ -147,7 +162,7 @@ function TodoRow({ todo, onMutate }: {
             ? "bg-brand-500/30 border-brand-500/50"
             : "border-gray-600 hover:border-brand-500/60"
         }`}
-        aria-label={todo.completed ? "Mark incomplete" : "Mark complete"}
+        aria-label={todo.completed ? t("markIncomplete") : t("markComplete")}
       >
         {todo.completed && <span className="text-brand-400 text-xs leading-none">✓</span>}
       </button>
@@ -175,13 +190,13 @@ function TodoRow({ todo, onMutate }: {
           <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{todo.description}</p>
         )}
         <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${meta.badge}`}>
-            <span className={`inline-block w-1.5 h-1.5 rounded-full ${meta.dot} mr-1`} />
-            {meta.label}
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${PRIORITY_BADGE[priority]}`}>
+            <span className={`inline-block w-1.5 h-1.5 rounded-full ${PRIORITY_DOT[priority]} mr-1`} />
+            {priorityLabels[priority]}
           </span>
           {todo.dueDate && (
             <span className={`text-[10px] ${overdue ? "text-red-400 font-semibold" : "text-gray-600"}`}>
-              {overdue ? "Overdue · " : "Due "}{todo.dueDate}
+              {overdue ? t("overdue") : t("due")}{todo.dueDate}
             </span>
           )}
         </div>
@@ -192,7 +207,7 @@ function TodoRow({ todo, onMutate }: {
         onClick={() => del.mutate({ id: todo.id })}
         disabled={del.isPending}
         className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-700 hover:text-red-400 hover:bg-red-950/30 transition-all"
-        aria-label="Delete task"
+        aria-label={t("deleteTask")}
       >
         ✕
       </button>
@@ -205,29 +220,40 @@ function TodoRow({ todo, onMutate }: {
 type Filter = "all" | "active" | "completed";
 
 export default function TodosPage() {
+  const t = useTranslations("todos");
   const [filter, setFilter] = useState<Filter>("all");
   const { data: allTodos = [], refetch, isLoading } = api.todos.list.useQuery();
 
-  const visible = allTodos.filter((t) =>
+  const visible = allTodos.filter((todo) =>
     filter === "all"       ? true :
-    filter === "active"    ? !t.completed :
-                             t.completed
+    filter === "active"    ? !todo.completed :
+                              todo.completed
   );
 
-  const activeCount    = allTodos.filter((t) => !t.completed).length;
-  const completedCount = allTodos.filter((t) => t.completed).length;
+  const activeCount    = allTodos.filter((td) => !td.completed).length;
+  const completedCount = allTodos.filter((td) => td.completed).length;
+
+  const filterLabels: Record<Filter, string> = {
+    all:       t("filterAll"),
+    active:    t("filterActive"),
+    completed: t("filterCompleted"),
+  };
+
+  const remainingText = activeCount === 1
+    ? t("remaining").replace("{count}", "1")
+    : t("remainingPlural").replace("{count}", String(activeCount));
 
   return (
     <div className="max-w-2xl mx-auto space-y-5 pb-10">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h2 className="page-title">To-Do</h2>
-          <p className="text-gray-500 mt-1">
-            {activeCount} task{activeCount !== 1 ? "s" : ""} remaining
-          </p>
+          <h2 className="page-title">{t("title")}</h2>
+          <p className="text-gray-500 mt-1">{remainingText}</p>
         </div>
         {completedCount > 0 && (
-          <span className="text-xs text-gray-700">{completedCount} completed</span>
+          <span className="text-xs text-gray-700">
+            {t("completed").replace("{count}", String(completedCount))}
+          </span>
         )}
       </div>
 
@@ -239,13 +265,13 @@ export default function TodosPage() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               filter === f
                 ? "bg-brand-500/20 text-brand-400 border border-brand-500/30"
                 : "text-gray-600 hover:text-gray-400"
             }`}
           >
-            {f}
+            {filterLabels[f]}
           </button>
         ))}
       </div>
@@ -253,12 +279,12 @@ export default function TodosPage() {
       {/* List */}
       <div className="card overflow-hidden">
         {isLoading ? (
-          <p className="px-5 py-8 text-sm text-gray-600 text-center animate-pulse">Loading…</p>
+          <p className="px-5 py-8 text-sm text-gray-600 text-center animate-pulse">{t("loading")}</p>
         ) : visible.length === 0 ? (
           <p className="px-5 py-8 text-sm text-gray-600 text-center">
-            {filter === "completed" ? "No completed tasks yet." :
-             filter === "active"    ? "No active tasks — all done!" :
-                                      "No tasks yet. Add one above."}
+            {filter === "completed" ? t("noCompleted") :
+             filter === "active"    ? t("noActive") :
+                                      t("noTasks")}
           </p>
         ) : (
           visible.map((todo) => (

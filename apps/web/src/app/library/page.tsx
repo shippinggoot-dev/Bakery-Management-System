@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useTranslations } from "next-intl";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ function buildCopyText(entry: LibraryEntry) {
 // ── Nutrition label ───────────────────────────────────────────────────────────
 
 function NutritionLabel({ entry, servingGrams }: { entry: LibraryEntry; servingGrams: number }) {
+  const t = useTranslations("library");
   const p = entry.per100g;
   const f = servingGrams / 100;
 
@@ -89,13 +91,13 @@ function NutritionLabel({ entry, servingGrams }: { entry: LibraryEntry; servingG
   return (
     <div className="border-2 border-gray-900 font-mono text-sm w-full max-w-sm">
       <div className="bg-gray-900 text-white px-3 py-2">
-        <p className="text-lg font-black tracking-tight">Nutrition Facts</p>
+        <p className="text-lg font-black tracking-tight">{t("nutritionFacts")}</p>
         <p className="text-xs text-gray-300 font-sans mt-0.5">{entry.name}</p>
       </div>
       <div className="flex border-b-4 border-gray-900 px-3 py-1 bg-white">
         <div className="flex-1" />
-        <div className="w-24 text-center text-[10px] font-bold text-gray-500 uppercase">Per 100 g</div>
-        <div className="w-24 text-center text-[10px] font-bold text-gray-500 uppercase">Per {servingGrams} g</div>
+        <div className="w-24 text-center text-[10px] font-bold text-gray-500 uppercase">{t("per100g")}</div>
+        <div className="w-24 text-center text-[10px] font-bold text-gray-500 uppercase">{t("perNg").replace("{n}", String(servingGrams))}</div>
       </div>
       <div className="bg-white divide-y divide-gray-100">
         {rows.map((row) => (
@@ -137,6 +139,8 @@ function AddForm({
   onSave: (entry: LibraryEntry) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("library");
+  const tc = useTranslations("common");
   const [name,        setName]        = useState(initial?.name         ?? "");
   const [description, setDescription] = useState(initial?.description  ?? "");
   const [serving,     setServing]     = useState(String(initial?.servingSizeG ?? 100));
@@ -150,7 +154,7 @@ function AddForm({
   }
 
   function handleSave() {
-    if (!name.trim()) return setError("Name is required.");
+    if (!name.trim()) return setError(t("recipeNameLabel") + " required");
     setError(null);
     onSave({
       id:          initial?.id ?? crypto.randomUUID(),
@@ -162,27 +166,27 @@ function AddForm({
     });
   }
 
-  const nutrientRows: Array<[keyof NutritionPer100g, string, string]> = [
-    ["calories",  "Calories",        "kcal"],
-    ["fat",       "Fat",             "g"],
-    ["saturates", "Saturates",       "g"],
-    ["carbs",     "Carbohydrates",   "g"],
-    ["sugars",    "Sugars",          "g"],
-    ["fibre",     "Fibre",           "g"],
-    ["protein",   "Protein",         "g"],
-    ["salt",      "Salt",            "g"],
+  const nutrientRows: Array<[keyof NutritionPer100g, string]> = [
+    ["calories",  t("calories")],
+    ["fat",       t("fat")],
+    ["saturates", t("saturates")],
+    ["carbs",     t("carbs")],
+    ["sugars",    t("sugars")],
+    ["fibre",     t("fibre")],
+    ["protein",   t("protein")],
+    ["salt",      t("salt")],
   ];
 
   return (
     <div className="card p-6 border-brand-200 bg-brand-50 space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-gray-900">{initial ? "Edit recipe" : "Add recipe to library"}</h3>
+        <h3 className="font-semibold text-gray-900">{initial ? t("editRecipeTitle") : t("addRecipeTitle")}</h3>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="sm:col-span-2">
-          <label className="form-label">Recipe name *</label>
+          <label className="form-label">{t("recipeNameLabel")}</label>
           <input
             className="form-input"
             placeholder="e.g. Chocolate Layer Cake"
@@ -192,7 +196,7 @@ function AddForm({
           />
         </div>
         <div>
-          <label className="form-label">Serving size (g)</label>
+          <label className="form-label">{t("servingSize")}</label>
           <input
             className="form-input"
             type="number"
@@ -205,7 +209,7 @@ function AddForm({
       </div>
 
       <div>
-        <label className="form-label">Description (optional)</label>
+        <label className="form-label">{t("descriptionOpt")}</label>
         <input
           className="form-input"
           placeholder="Brief description of the recipe…"
@@ -215,11 +219,11 @@ function AddForm({
       </div>
 
       <div>
-        <p className="form-label mb-3">Nutrition per 100 g</p>
+        <p className="form-label mb-3">{t("nutritionHeader")}</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {nutrientRows.map(([key, label, unit]) => (
+          {nutrientRows.map(([key, label]) => (
             <div key={key}>
-              <label className="form-label">{label} ({unit})</label>
+              <label className="form-label">{label}</label>
               <input
                 className="form-input text-sm"
                 type="number"
@@ -238,9 +242,9 @@ function AddForm({
 
       <div className="flex gap-3">
         <button onClick={handleSave} className="btn-primary">
-          {initial ? "Save changes" : "Add to library"}
+          {initial ? t("saveChanges") : t("addToLibrary")}
         </button>
-        <button onClick={onClose} className="btn-ghost">Cancel</button>
+        <button onClick={onClose} className="btn-ghost">{tc("cancel")}</button>
       </div>
     </div>
   );
@@ -257,6 +261,8 @@ function EntryCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useTranslations("library");
+  const tc = useTranslations("common");
   const [expanded,     setExpanded]     = useState(false);
   const [servingGrams, setServingGrams] = useState(entry.servingSizeG);
   const [copied,       setCopied]       = useState(false);
@@ -327,20 +333,20 @@ function EntryCard({
                 onClick={handleCopy}
                 className="w-full btn-primary text-sm"
               >
-                {copied ? "Copied!" : "Copy label text"}
+                {copied ? "Copied!" : t("copyLabel")}
               </button>
               <div className="flex gap-2">
                 <button
                   onClick={onEdit}
                   className="flex-1 px-3 py-1.5 rounded-lg border border-brand-200 text-brand-600 text-xs font-semibold hover:bg-brand-50 transition-colors"
                 >
-                  Edit
+                  {tc("edit")}
                 </button>
                 <button
                   onClick={onDelete}
                   className="flex-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-500 text-xs font-semibold hover:bg-red-50 transition-colors"
                 >
-                  Delete
+                  {tc("delete")}
                 </button>
               </div>
             </div>
@@ -354,6 +360,7 @@ function EntryCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LibraryPage() {
+  const t = useTranslations("library");
   const [entries,  setEntries]  = useState<LibraryEntry[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing,  setEditing]  = useState<LibraryEntry | null>(null);
@@ -396,16 +403,14 @@ export default function LibraryPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="page-title">Recipe Library</h2>
-          <p className="text-gray-500 mt-1 text-sm">
-            Save your own recipes with nutrition data for quick label copying.
-          </p>
+          <h2 className="page-title">{t("title")}</h2>
+          <p className="text-gray-500 mt-1 text-sm">{t("subtitle")}</p>
         </div>
         <button
           onClick={() => { setShowForm((v) => !v); setEditing(null); }}
           className="btn-primary text-sm flex-shrink-0"
         >
-          + Add recipe
+          {t("addRecipe")}
         </button>
       </div>
 
@@ -432,16 +437,13 @@ export default function LibraryPage() {
       {entries.length === 0 && !showForm && (
         <div className="card p-16 text-center space-y-4">
           <p className="text-4xl">📋</p>
-          <p className="font-semibold text-gray-700">Your library is empty</p>
-          <p className="text-sm text-gray-500 max-w-sm mx-auto">
-            Add recipes with their nutrition values and you can copy a ready-made
-            label any time.
-          </p>
+          <p className="font-semibold text-gray-700">{t("emptyTitle")}</p>
+          <p className="text-sm text-gray-500 max-w-sm mx-auto">{t("emptyDesc")}</p>
           <button
             onClick={() => setShowForm(true)}
             className="btn-primary mx-auto"
           >
-            Add your first recipe
+            {t("addFirst")}
           </button>
         </div>
       )}

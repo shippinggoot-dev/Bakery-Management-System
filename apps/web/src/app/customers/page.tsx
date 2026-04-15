@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 
 const TIER_BADGE: Record<string, string> = {
@@ -14,7 +15,7 @@ type SortKey = "name" | "points" | "lastVisit" | "spend";
 type TierFilter = "bronze" | "silver" | "gold" | "";
 
 export default function CustomersPage() {
-  const utils = api.useUtils();
+  const t = useTranslations("customers");
   const [search,    setSearch]    = useState("");
   const [tier,      setTier]      = useState<TierFilter>("");
   const [sort,      setSort]      = useState<SortKey>("name");
@@ -37,9 +38,9 @@ export default function CustomersPage() {
       <div className="sticky top-0 z-10 bg-gray-950/95 backdrop-blur border-b border-gray-800 px-4 pt-4 pb-3 lg:px-8">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-xl font-bold">Customers</h1>
+            <h1 className="text-xl font-bold">{t("title")}</h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              {customers.length} total · {loyalty} loyalty members
+              {customers.length} {t("total")} · {loyalty} {t("loyaltyMembers")}
             </p>
           </div>
           <div className="flex gap-2">
@@ -47,13 +48,13 @@ export default function CustomersPage() {
               href="/customers/lookup"
               className="px-3 py-2 rounded-lg bg-gray-800 text-gray-300 border border-gray-700 text-sm font-medium hover:bg-gray-700 transition-colors"
             >
-              POS lookup
+              {t("posLookup")}
             </Link>
             <Link
               href="/customers/register"
               className="px-3 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 text-sm font-medium hover:bg-brand-500/30 transition-colors"
             >
-              + Register
+              {t("register")}
             </Link>
           </div>
         </div>
@@ -86,14 +87,14 @@ export default function CustomersPage() {
         />
         <div className="flex gap-2 flex-wrap">
           {/* Tier filter */}
-          {(["", "bronze", "silver", "gold"] as TierFilter[]).map((t) => (
-            <button key={t || "all"} onClick={() => setTier(t)}
+          {(["", "bronze", "silver", "gold"] as TierFilter[]).map((tv) => (
+            <button key={tv || "all"} onClick={() => setTier(tv)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                tier === t
+                tier === tv
                   ? "bg-brand-500/20 text-brand-300 border-brand-500/40"
                   : "bg-transparent text-gray-500 border-gray-800 hover:border-gray-600"
               }`}>
-              {t ? t.charAt(0).toUpperCase() + t.slice(1) : "All tiers"}
+              {tv ? tv.charAt(0).toUpperCase() + tv.slice(1) : t("allTiers")}
             </button>
           ))}
           {/* Dietary */}
@@ -104,16 +105,16 @@ export default function CustomersPage() {
                   ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
                   : "bg-transparent text-gray-600 border-gray-800 hover:border-gray-600"
               }`}>
-              {d ? d.replace(/_/g, " ") : "Any dietary"}
+              {d ? d.replace(/_/g, " ") : t("anyDietary")}
             </button>
           ))}
           {/* Sort */}
           <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}
             className="ml-auto px-3 py-1.5 rounded-full bg-gray-900 border border-gray-700 text-xs text-gray-400 focus:outline-none">
-            <option value="name">Sort: Name</option>
-            <option value="points">Sort: Points</option>
-            <option value="lastVisit">Sort: Last visit</option>
-            <option value="spend">Sort: Spend</option>
+            <option value="name">{t("sortName")}</option>
+            <option value="points">{t("sortPoints")}</option>
+            <option value="lastVisit">{t("sortLastVisit")}</option>
+            <option value="spend">{t("sortSpend")}</option>
           </select>
         </div>
       </div>
@@ -121,13 +122,13 @@ export default function CustomersPage() {
       {/* List */}
       <div className="px-4 pt-3 lg:px-8 space-y-2">
         {isLoading && (
-          <div className="text-center text-gray-600 py-12 text-sm animate-pulse">Loading customers…</div>
+          <div className="text-center text-gray-600 py-12 text-sm animate-pulse">{t("loading")}</div>
         )}
         {!isLoading && customers.length === 0 && (
           <div className="text-center py-16">
-            <p className="text-gray-500 mb-4">No customers yet.</p>
+            <p className="text-gray-500 mb-4">{t("noCustomers")}</p>
             <Link href="/customers/register" className="px-4 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 text-sm font-medium">
-              Register first customer
+              {t("registerFirst")}
             </Link>
           </div>
         )}
@@ -168,7 +169,7 @@ export default function CustomersPage() {
                 <div className="text-right flex-shrink-0">
                   <div className="font-mono text-sm font-bold text-gray-200">{c.points.toLocaleString()} pts</div>
                   <div className="text-[10px] text-gray-600 mt-0.5">
-                    {daysSince !== null ? (daysSince === 0 ? "Today" : `${daysSince}d ago`) : "Never visited"}
+                    {daysSince !== null ? (daysSince === 0 ? "Today" : `${daysSince}d ago`) : t("never")}
                   </div>
                 </div>
               </div>
@@ -180,10 +181,10 @@ export default function CustomersPage() {
       {/* Footer links */}
       <div className="px-4 pt-6 lg:px-8 flex gap-3">
         <Link href="/customers/segments" className="flex-1 text-center py-2.5 rounded-xl bg-gray-900 border border-gray-800 text-sm text-gray-400 hover:border-gray-600 transition-colors">
-          Segments
+          {t("segments")}
         </Link>
         <Link href="/customers/tiers" className="flex-1 text-center py-2.5 rounded-xl bg-gray-900 border border-gray-800 text-sm text-gray-400 hover:border-gray-600 transition-colors">
-          Tier config
+          {t("tierConfig")}
         </Link>
       </div>
     </div>

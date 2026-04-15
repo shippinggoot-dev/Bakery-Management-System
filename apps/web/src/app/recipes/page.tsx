@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { api } from "@/trpc/server";
 import { PlusIcon } from "@/components/icons";
 import { CategoryManager } from "./CategoryManager";
@@ -17,6 +18,8 @@ const categoryColour: Record<string, string> = {
 };
 
 export default async function RecipesPage() {
+  const t = await getTranslations("recipes");
+
   let recipes: Awaited<ReturnType<typeof api.recipes.getAll>> = [];
   let categories: Awaited<ReturnType<typeof api.recipes.getCategories>> = [];
 
@@ -30,27 +33,31 @@ export default async function RecipesPage() {
     return (
       <div className="max-w-5xl mx-auto py-16 text-center">
         <p className="text-4xl mb-3">⚠️</p>
-        <p className="font-semibold text-gray-400 text-lg">Could not load recipes</p>
+        <p className="font-semibold text-gray-400 text-lg">{t("errorTitle")}</p>
         <p className="text-sm text-gray-600 mt-2">
-          {err instanceof Error ? err.message : "An unexpected error occurred. Check server logs for details."}
+          {err instanceof Error ? err.message : t("errorHint")}
         </p>
       </div>
     );
   }
 
+  const subtitleText = recipes.length === 1
+    ? t("subtitle").replace("{count}", "1")
+    : t("subtitlePlural").replace("{count}", String(recipes.length));
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="page-title">Recipes</h2>
-          <p className="text-gray-500 mt-1">{recipes.length} active recipe{recipes.length !== 1 ? "s" : ""}</p>
+          <h2 className="page-title">{t("title")}</h2>
+          <p className="text-gray-500 mt-1">{subtitleText}</p>
         </div>
         <Link
           href="/recipes/new"
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 hover:text-brand-300 transition-colors text-sm font-medium"
         >
           <PlusIcon />
-          New Recipe
+          {t("newRecipe")}
         </Link>
       </div>
 
@@ -59,11 +66,8 @@ export default async function RecipesPage() {
       {recipes.length === 0 ? (
         <div className="card p-12 text-center text-gray-600">
           <p className="text-4xl mb-3">📖</p>
-          <p className="font-medium text-gray-400">No recipes yet</p>
-          <p className="text-sm mt-2 text-gray-600">
-            Click <strong className="text-gray-400">New Recipe</strong> above to add your first one,
-            or use the AI import to paste in a recipe from anywhere.
-          </p>
+          <p className="font-medium text-gray-400">{t("noRecipesTitle")}</p>
+          <p className="text-sm mt-2 text-gray-600">{t("noRecipesHint")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

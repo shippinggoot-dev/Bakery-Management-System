@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 
 function formatPrice(nok: string) {
@@ -13,6 +14,7 @@ function priceDiff(oldP: string, newP: string) {
 }
 
 export default function PriceAlertsPage() {
+  const t = useTranslations("priceAlerts");
   const utils = api.useUtils();
 
   const { data: alerts = [], isLoading } = api.priceSync.getAlerts.useQuery();
@@ -26,11 +28,11 @@ export default function PriceAlertsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="page-title">Price Alerts</h2>
+          <h2 className="page-title">{t("title")}</h2>
           <p className="text-gray-500 mt-1">
             {alerts.length === 0
-              ? "No unread price changes"
-              : `${alerts.length} unread change${alerts.length !== 1 ? "s" : ""}`}
+              ? t("noUnread")
+              : t("unreadCount").replace("{count}", String(alerts.length))}
           </p>
         </div>
         {alerts.length > 0 && (
@@ -39,7 +41,7 @@ export default function PriceAlertsPage() {
             disabled={dismissAll.isPending}
             className="btn-ghost text-sm"
           >
-            Dismiss all
+            {t("dismissAll")}
           </button>
         )}
       </div>
@@ -50,10 +52,8 @@ export default function PriceAlertsPage() {
       ) : alerts.length === 0 ? (
         <div className="card p-10 text-center text-gray-600">
           <p className="text-4xl mb-3">🔔</p>
-          <p className="font-medium">All clear</p>
-          <p className="text-sm mt-1">
-            Price changes recorded via the CSV import script will appear here.
-          </p>
+          <p className="font-medium">{t("allClear")}</p>
+          <p className="text-sm mt-1">{t("allClearDesc")}</p>
         </div>
       ) : (
         <div className="card overflow-hidden">
@@ -94,7 +94,7 @@ export default function PriceAlertsPage() {
                   <button
                     onClick={() => dismiss.mutate(alert.id)}
                     className="text-gray-700 hover:text-gray-400 transition-colors text-lg leading-none shrink-0"
-                    title="Dismiss"
+                    title={t("dismissAll")}
                   >
                     ×
                   </button>

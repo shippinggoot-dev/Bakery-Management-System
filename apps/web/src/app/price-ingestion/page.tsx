@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 
 function statusBadge(status: string) {
@@ -23,6 +24,7 @@ function sourceBadge(source: string) {
 }
 
 export default function PriceIngestionPage() {
+  const t = useTranslations("priceIngestion");
   const { data: sessions = [], isLoading } = api.priceIngestion.getSessions.useQuery();
   const { data: cogsResults = [] }         = api.priceIngestion.recalculateCOGS.useQuery();
 
@@ -31,10 +33,8 @@ export default function PriceIngestionPage() {
 
       {/* Header */}
       <div>
-        <h2 className="page-title">Supplier Price Sync</h2>
-        <p className="text-gray-500 mt-1">
-          Import supplier invoices or CSV price lists, review matches, and apply prices to your ingredients.
-        </p>
+        <h2 className="page-title">{t("title")}</h2>
+        <p className="text-gray-500 mt-1">{t("subtitle")}</p>
       </div>
 
       {/* Import options */}
@@ -46,13 +46,11 @@ export default function PriceIngestionPage() {
           <span className="text-3xl">📄</span>
           <div>
             <h3 className="font-semibold text-gray-100 group-hover:text-brand-300 transition-colors">
-              Invoice OCR
+              {t("invoiceOcr")}
             </h3>
-            <p className="text-sm text-gray-500 mt-1">
-              Upload a PDF or photo of a supplier invoice. Claude AI extracts the line items for you.
-            </p>
+            <p className="text-sm text-gray-500 mt-1">{t("invoiceOcrDesc")}</p>
           </div>
-          <span className="text-xs text-gray-600 mt-auto">Requires Anthropic API key</span>
+          <span className="text-xs text-gray-600 mt-auto">{t("requiresApiKey")}</span>
         </Link>
 
         <Link
@@ -62,20 +60,18 @@ export default function PriceIngestionPage() {
           <span className="text-3xl">📊</span>
           <div>
             <h3 className="font-semibold text-gray-100 group-hover:text-brand-300 transition-colors">
-              CSV Import
+              {t("csvImport")}
             </h3>
-            <p className="text-sm text-gray-500 mt-1">
-              Upload a CSV price list from your supplier. Map columns, preview matches, confirm prices.
-            </p>
+            <p className="text-sm text-gray-500 mt-1">{t("csvImportDesc")}</p>
           </div>
-          <span className="text-xs text-gray-600 mt-auto">Accepts any CSV format</span>
+          <span className="text-xs text-gray-600 mt-auto">{t("acceptsAnyFormat")}</span>
         </Link>
       </div>
 
       {/* COGS summary */}
       {cogsResults.length > 0 && (
         <div>
-          <h3 className="section-title mb-3">Recipe Cost Overview</h3>
+          <h3 className="section-title mb-3">{t("costOverview")}</h3>
           <div className="card divide-y divide-gray-800">
             {cogsResults.map((r) => (
               <div key={r.recipeId} className="flex items-center justify-between px-5 py-3 text-sm">
@@ -99,14 +95,14 @@ export default function PriceIngestionPage() {
 
       {/* Recent sessions */}
       <div>
-        <h3 className="section-title mb-3">Import History</h3>
+        <h3 className="section-title mb-3">{t("importHistory")}</h3>
         {isLoading ? (
           <div className="card p-10 text-center text-gray-600">Loading…</div>
         ) : sessions.length === 0 ? (
           <div className="card p-12 text-center text-gray-600">
             <p className="text-3xl mb-3">📥</p>
-            <p className="font-medium">No imports yet</p>
-            <p className="text-sm mt-1">Use the options above to import your first price list.</p>
+            <p className="font-medium">{t("noImports")}</p>
+            <p className="text-sm mt-1">{t("noImportsHint")}</p>
           </div>
         ) : (
           <div className="card divide-y divide-gray-800">

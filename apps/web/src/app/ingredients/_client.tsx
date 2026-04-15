@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 import { PlusIcon } from "@/components/icons";
 import type { AppRouter } from "@bakery/api";
@@ -32,6 +33,8 @@ function AddIngredientForm({
   initialCategories: CategoriesData;
   initialAllergens: AllergensData;
 }) {
+  const t  = useTranslations("ingredients");
+  const tc = useTranslations("common");
   const utils = api.useUtils();
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("g");
@@ -62,7 +65,7 @@ function AddIngredientForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return setError("Name is required.");
+    if (!name.trim()) return setError(t("nameLabel") + " required");
     setError(null);
     create.mutate({
       ingredient: {
@@ -78,18 +81,18 @@ function AddIngredientForm({
   return (
     <div className="card p-6 border-brand-500/30 bg-brand-500/5 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="section-title">New Ingredient</h3>
+        <h3 className="section-title">{t("newIngredientTitle")}</h3>
         <button onClick={onClose} className="text-gray-600 hover:text-gray-400 text-xl leading-none">×</button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="form-label">Name *</label>
-            <input className="form-input" placeholder="e.g. Almond Flour" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
+            <label className="form-label">{t("nameLabel")}</label>
+            <input className="form-input" placeholder={t("namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
           </div>
           <div>
-            <label className="form-label">Unit *</label>
+            <label className="form-label">{t("unitLabel")}</label>
             <div className="flex gap-2">
               <input className="form-input" placeholder="g" value={unit} onChange={(e) => setUnit(e.target.value)} required />
               <div className="flex gap-1 flex-wrap">
@@ -106,21 +109,21 @@ function AddIngredientForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="form-label">Category</label>
+            <label className="form-label">{t("categoryLabel")}</label>
             <select className="form-input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">— None —</option>
+              <option value="">{t("noCategory")}</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="form-label">Notes</label>
-            <input className="form-input" placeholder="Optional notes…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <label className="form-label">{t("notesLabel")}</label>
+            <input className="form-input" placeholder={t("notesPlaceholder")} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
         </div>
 
         {allAllergens.length > 0 && (
           <div>
-            <label className="form-label">Allergens</label>
+            <label className="form-label">{t("allergens")}</label>
             <div className="flex flex-wrap gap-2">
               {allAllergens.map((a) => (
                 <button key={a.id} type="button" onClick={() => toggleAllergen(a.id)}
@@ -141,9 +144,9 @@ function AddIngredientForm({
         <div className="flex gap-3 pt-1">
           <button type="submit" disabled={create.isPending}
             className="px-5 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 text-sm font-medium transition-colors disabled:opacity-50">
-            {create.isPending ? "Saving…" : "Add Ingredient"}
+            {create.isPending ? t("saving") : t("addIngredient")}
           </button>
-          <button type="button" onClick={onClose} className="px-5 py-2 rounded-lg text-gray-500 hover:text-gray-300 text-sm transition-colors">Cancel</button>
+          <button type="button" onClick={onClose} className="px-5 py-2 rounded-lg text-gray-500 hover:text-gray-300 text-sm transition-colors">{tc("cancel")}</button>
         </div>
       </form>
     </div>
@@ -159,6 +162,7 @@ export default function IngredientsClient({
   initialCategories: CategoriesData;
   initialAllergens: AllergensData;
 }) {
+  const t = useTranslations("ingredients");
   const [showAdd, setShowAdd] = useState(false);
 
   const { data: ingredients = [] } = api.ingredients.getAll.useQuery(
@@ -168,7 +172,7 @@ export default function IngredientsClient({
 
   const grouped = ingredients.reduce<Record<string, typeof ingredients>>(
     (acc, ing) => {
-      const cat = ing.category?.name ?? "Uncategorised";
+      const cat = ing.category?.name ?? t("uncategorised");
       if (!acc[cat]) acc[cat] = [];
       acc[cat]!.push(ing);
       return acc;
@@ -177,19 +181,23 @@ export default function IngredientsClient({
   );
   const categories = Object.keys(grouped).sort();
 
+  const subtitle = t("subtitle")
+    .replace("{count}", String(ingredients.length))
+    .replace("{categories}", String(categories.length));
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="page-title">Ingredients</h2>
-          <p className="text-gray-500 mt-1">{ingredients.length} ingredients across {categories.length} categories</p>
+          <h2 className="page-title">{t("title")}</h2>
+          <p className="text-gray-500 mt-1">{subtitle}</p>
         </div>
         <button
           onClick={() => setShowAdd((v) => !v)}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 hover:text-brand-300 transition-colors text-sm font-medium"
         >
           <PlusIcon />
-          New Ingredient
+          {t("newIngredient")}
         </button>
       </div>
 
@@ -210,10 +218,10 @@ export default function IngredientsClient({
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-800">
-                <th className="table-header px-6 py-3">Name</th>
-                <th className="table-header px-6 py-3">Unit</th>
-                <th className="table-header px-6 py-3">Allergens</th>
-                <th className="table-header px-6 py-3">Supplier price</th>
+                <th className="table-header px-6 py-3">{t("nameCol")}</th>
+                <th className="table-header px-6 py-3">{t("unitCol")}</th>
+                <th className="table-header px-6 py-3">{t("allergensCol")}</th>
+                <th className="table-header px-6 py-3">{t("supplierPriceCol")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
@@ -224,7 +232,7 @@ export default function IngredientsClient({
                   <td className="px-6 py-3">
                     <div className="flex flex-wrap gap-1">
                       {ing.allergens.length === 0 ? (
-                        <span className="text-gray-700 text-sm">None</span>
+                        <span className="text-gray-700 text-sm">{t("noneAllergens")}</span>
                       ) : (
                         ing.allergens.map((ia) => {
                           const aName = ia.allergen?.name ?? "";
