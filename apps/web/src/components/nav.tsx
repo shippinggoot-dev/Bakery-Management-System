@@ -11,10 +11,10 @@ import { usePersonalization, THEMES, type ThemeId } from "@/components/ThemeProv
 
 const MENU_GROUPS = [
   {
-    label: "Orders",
+    label: "Supply",
     items: [
-      { href: "/planner",         label: "Cake Planner"     },
-      { href: "/purchase-orders", label: "Purchase Orders"  },
+      { href: "/planner",         label: "Customer Orders"  },
+      { href: "/purchase-orders", label: "Purchasing"       },
       { href: "/shopping-lists",  label: "Shopping Lists"   },
       { href: "/ingredients",     label: "Cost Calculator"  },
     ],
