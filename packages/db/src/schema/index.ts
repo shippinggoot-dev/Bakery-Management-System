@@ -29,6 +29,7 @@ export * from "./customer-sales";
 export * from "./shopify-settings";
 export * from "./todos";
 export * from "./cake-orders";
+export * from "./email-settings";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.

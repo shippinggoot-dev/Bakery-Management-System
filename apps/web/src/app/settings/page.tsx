@@ -199,6 +199,18 @@ function ConnectedPanel({
   const [customerResult,   setCustomerResult]   = useState<{ count: number; total: number; skipped: number; errors: string[] } | null>(null);
   const [orderResult,      setOrderResult]      = useState<{ count: number; total: number; errors: string[] } | null>(null);
   const [ordersOpen,       setOrdersOpen]       = useState(false);
+  const [webhookSecret,    setWebhookSecret]    = useState("");
+  const [webhookSaved,     setWebhookSaved]     = useState(false);
+  const [showWebhookGuide, setShowWebhookGuide] = useState(false);
+  const [showSecret,       setShowSecret]       = useState(false);
+
+  const webhookUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/api/webhooks/shopify`
+    : "/api/webhooks/shopify";
+
+  const saveWebhookSecret = api.shopify.updateWebhookSecret.useMutation({
+    onSuccess: () => { setWebhookSaved(true); setTimeout(() => setWebhookSaved(false), 3000); },
+  });
 
   const syncRecipes = api.shopify.syncRecipes.useMutation({
     onSuccess: (data) => {
@@ -440,6 +452,277 @@ function ConnectedPanel({
           )}
         </div>
       )}
+
+      {/* Webhook setup */}
+      <div className="rounded-xl bg-gray-900 border border-gray-800 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-800 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Automatic order intake (Webhook)
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <p className="text-sm text-gray-400">
+            Set up a webhook in Shopify so every new order automatically appears in your Planner — no manual importing needed.
+          </p>
+
+          {/* Collapsible guide */}
+          <div className="rounded-xl bg-gray-800/60 border border-gray-700 overflow-hidden">
+            <button
+              onClick={() => setShowWebhookGuide((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-300 hover:text-gray-100 transition-colors"
+            >
+              <span>Step-by-step setup guide</span>
+              <span className={`text-gray-500 transition-transform duration-200 ${showWebhookGuide ? "rotate-180" : ""}`}>▼</span>
+            </button>
+            {showWebhookGuide && (
+              <div className="px-4 pb-4 border-t border-gray-700">
+                <ol className="mt-3 space-y-3">
+                  {[
+                    { n: 1, text: "In your Shopify admin, go to Settings → Notifications." },
+                    { n: 2, text: "Scroll to the bottom and click \"Create webhook\"." },
+                    { n: 3, text: "Set Event to \"Order creation\", Format to JSON." },
+                    { n: 4, text: "Paste the URL below into the URL field and save." },
+                    { n: 5, text: "Shopify will show you a signing secret. Copy it and paste it into the field below." },
+                  ].map((s) => (
+                    <li key={s.n} className="flex gap-3 text-sm text-gray-400">
+                      <span className="w-5 h-5 rounded-full bg-[#96bf48]/20 text-[#96bf48] text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {s.n}
+                      </span>
+                      <span>{s.text}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+          </div>
+
+          {/* Webhook URL (copy) */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1.5">Your webhook URL</p>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={webhookUrl}
+                className="flex-1 form-input font-mono text-xs bg-gray-950 text-gray-300 cursor-text select-all"
+              />
+              <button
+                onClick={() => navigator.clipboard.writeText(webhookUrl)}
+                className="px-3 py-1.5 rounded-xl bg-gray-700 text-gray-300 text-xs hover:bg-gray-600 transition-colors"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+
+          {/* Webhook secret */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1.5">Shopify signing secret</p>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 form-input font-mono text-sm"
+                type={showSecret ? "text" : "password"}
+                placeholder="whsec_••••••••••••••••"
+                value={webhookSecret}
+                onChange={(e) => setWebhookSecret(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowSecret((v) => !v)}
+                className="px-3 rounded-xl bg-gray-800 border border-gray-700 text-gray-500 hover:text-gray-300 text-xs transition-colors"
+              >
+                {showSecret ? "Hide" : "Show"}
+              </button>
+            </div>
+            <p className="text-xs text-gray-600 mt-1">Found in Shopify under Settings → Notifications → Webhooks after creating the webhook.</p>
+          </div>
+
+          <button
+            onClick={() => { if (webhookSecret.trim()) saveWebhookSecret.mutate({ webhookSecret: webhookSecret.trim() }); }}
+            disabled={!webhookSecret.trim() || saveWebhookSecret.isPending}
+            className="w-full py-2.5 rounded-xl bg-[#96bf48]/15 text-[#96bf48] border border-[#96bf48]/25 hover:bg-[#96bf48]/25 text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {saveWebhookSecret.isPending ? "Saving…" : webhookSaved ? "Saved ✓" : "Save signing secret"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Email settings section ────────────────────────────────────────────────────
+
+const RESEND_STEPS = [
+  { n: 1, text: "Go to resend.com and create a free account (3,000 emails/month free)." },
+  { n: 2, text: "Add your domain (e.g. sucrekaker.com) under Domains and verify the DNS records they give you. This usually takes a few minutes." },
+  { n: 3, text: "Go to API Keys → Create API Key. Copy the key — it's shown only once." },
+  { n: 4, text: "Paste the key below along with the email address you want orders to be sent from." },
+];
+
+function EmailSettingsSection() {
+  const utils = api.useUtils();
+  const { data: emailCfg, isLoading } = api.emailSettings.getSettings.useQuery();
+
+  const [fromName,     setFromName]     = useState("");
+  const [fromEmail,    setFromEmail]    = useState("");
+  const [apiKey,       setApiKey]       = useState("");
+  const [showKey,      setShowKey]      = useState(false);
+  const [showGuide,    setShowGuide]    = useState(false);
+  const [confirmations, setConfirmations] = useState(false);
+  const [statusUpdates, setStatusUpdates] = useState(false);
+  const [saved,        setSaved]        = useState(false);
+
+  useEffect(() => {
+    if (emailCfg) {
+      setFromName(emailCfg.fromName ?? "");
+      setFromEmail(emailCfg.fromEmail ?? "");
+      setApiKey(emailCfg.keyPreview ?? "");
+      setConfirmations(emailCfg.sendConfirmations);
+      setStatusUpdates(emailCfg.sendStatusUpdates);
+    }
+  }, [emailCfg]);
+
+  const upsert = api.emailSettings.upsert.useMutation({
+    onSuccess: () => {
+      utils.emailSettings.getSettings.invalidate();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    },
+  });
+
+  const removeKey = api.emailSettings.removeKey.useMutation({
+    onSuccess: () => { utils.emailSettings.getSettings.invalidate(); setApiKey(""); },
+  });
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="px-6 py-4 border-b border-rose-100 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-brand-100 border border-brand-200 flex items-center justify-center text-base flex-shrink-0">📧</div>
+        <div className="flex-1">
+          <p className="font-semibold text-gray-900 text-sm">Email notifications</p>
+          <p className="text-xs text-gray-500">Send order confirmations and status updates to customers</p>
+        </div>
+        {!isLoading && emailCfg?.hasKey && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200">
+            Active
+          </span>
+        )}
+      </div>
+
+      <div className="px-6 py-5 space-y-5">
+        {/* Setup guide */}
+        <div className="rounded-xl bg-rose-50 border border-rose-100 overflow-hidden">
+          <button
+            onClick={() => setShowGuide((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+          >
+            <span>How to set up email sending (Resend)</span>
+            <span className={`text-gray-400 transition-transform duration-200 ${showGuide ? "rotate-180" : ""}`}>▼</span>
+          </button>
+          {showGuide && (
+            <div className="px-4 pb-4 border-t border-rose-100">
+              <ol className="mt-3 space-y-3">
+                {RESEND_STEPS.map((s) => (
+                  <li key={s.n} className="flex gap-3 text-sm text-gray-500">
+                    <span className="w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                      {s.n}
+                    </span>
+                    <span>{s.text}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-3 text-xs text-gray-400">
+                Need to send from a Gmail or other address? You can use Resend with any domain you own.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* From name */}
+        <div>
+          <label className="form-label">From name</label>
+          <input
+            className="form-input"
+            placeholder="Sucre Kaker"
+            value={fromName}
+            onChange={(e) => setFromName(e.target.value)}
+          />
+        </div>
+
+        {/* From email */}
+        <div>
+          <label className="form-label">From email address</label>
+          <input
+            className="form-input"
+            type="email"
+            placeholder="orders@yourbakery.com"
+            value={fromEmail}
+            onChange={(e) => setFromEmail(e.target.value)}
+          />
+          <p className="text-xs text-gray-500 mt-1">Must be on a domain you&apos;ve verified in Resend.</p>
+        </div>
+
+        {/* Resend API key */}
+        <div>
+          <label className="form-label">Resend API key</label>
+          <div className="flex gap-2">
+            <input
+              className="flex-1 form-input font-mono text-sm"
+              type={showKey ? "text" : "password"}
+              placeholder="re_••••••••••••••••••••••••"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey((v) => !v)}
+              className="px-3 rounded-xl bg-gray-100 border border-rose-200 text-gray-500 hover:text-gray-700 text-xs transition-colors"
+            >
+              {showKey ? "Hide" : "Show"}
+            </button>
+            {emailCfg?.hasKey && (
+              <button
+                type="button"
+                onClick={() => { if (confirm("Remove your Resend API key?")) removeKey.mutate(); }}
+                className="px-3 rounded-xl bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 text-xs transition-colors"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">Stored securely — never shown in full after saving.</p>
+        </div>
+
+        {/* Toggles */}
+        <div className="rounded-xl bg-rose-50 border border-rose-100 px-4 py-4 space-y-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">When to send emails</p>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={confirmations} onChange={(e) => setConfirmations(e.target.checked)}
+              className="w-4 h-4 accent-brand-600" />
+            <div>
+              <p className="text-sm text-gray-700">Order confirmations</p>
+              <p className="text-xs text-gray-500">Sent automatically when a new Shopify order arrives</p>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={statusUpdates} onChange={(e) => setStatusUpdates(e.target.checked)}
+              className="w-4 h-4 accent-brand-600" />
+            <div>
+              <p className="text-sm text-gray-700">Status updates</p>
+              <p className="text-xs text-gray-500">Sent when you mark an order as &quot;In progress&quot;, &quot;Ready&quot;, or &quot;Cancelled&quot;</p>
+            </div>
+          </label>
+        </div>
+
+        {upsert.error && (
+          <p className="text-sm text-red-500">{upsert.error.message}</p>
+        )}
+
+        <button
+          onClick={() => upsert.mutate({ fromName, fromEmail, resendApiKey: apiKey, sendConfirmations: confirmations, sendStatusUpdates: statusUpdates })}
+          disabled={upsert.isPending}
+          className="w-full py-3 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition-colors disabled:opacity-40"
+        >
+          {upsert.isPending ? "Saving…" : saved ? "Saved ✓" : "Save email settings"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -617,16 +900,8 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Placeholder for future integrations */}
-      <div className="card px-6 py-5 opacity-40 pointer-events-none">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center text-base">📧</div>
-          <div>
-            <p className="font-semibold text-gray-400 text-sm">Email / SMS notifications</p>
-            <p className="text-xs text-gray-600">Coming soon</p>
-          </div>
-        </div>
-      </div>
+      {/* Email notifications */}
+      {!isAnonymous && <EmailSettingsSection />}
     </div>
   );
 }

@@ -360,6 +360,17 @@ export const shopifyRouter = createTRPCRouter({
     return { imported, total: shopifyOrders.length, errors };
   }),
 
+  /** Save the Shopify webhook signing secret for this store. */
+  updateWebhookSecret: protectedProcedure
+    .input(z.object({ webhookSecret: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .update(shopifySettings)
+        .set({ webhookSecret: input.webhookSecret, updatedAt: new Date() })
+        .where(eq(shopifySettings.ownerId, ctx.user.id));
+      return { ok: true };
+    }),
+
   /**
    * Fetch the last 60 days of Shopify orders for review.
    * Returns a lightweight summary — does not write anything to the database.

@@ -1,9 +1,12 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+/** Build a Resend client — use user's key if provided, else fall back to platform key. */
+function getResend(apiKey?: string | null) {
+  return new Resend(apiKey ?? process.env.RESEND_API_KEY);
+}
 
-/** The "from" address — must be a verified domain in your Resend account. */
-const FROM = process.env.RESEND_FROM_EMAIL ?? "orders@sucrekaker.com";
+/** Default "from" address — overridden by per-user fromEmail if set. */
+const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL ?? "orders@sucrekaker.com";
 
 // ── Order confirmation ────────────────────────────────────────────────────────
 
@@ -14,6 +17,10 @@ export interface OrderConfirmationData {
   items:               { title: string; quantity: number }[];
   dueDate:             string | null;
   notes:               string | null;
+  /** Per-user overrides — if omitted, platform defaults are used */
+  fromName?:           string | null;
+  fromEmail?:          string | null;
+  resendApiKey?:       string | null;
 }
 
 export async function sendOrderConfirmation(data: OrderConfirmationData) {
@@ -47,10 +54,13 @@ export async function sendOrderConfirmation(data: OrderConfirmationData) {
     </div>
   `;
 
-  return resend.emails.send({
-    from:    FROM,
+  const from = data.fromEmail ?? DEFAULT_FROM;
+  const fromLabel = data.fromName ? `${data.fromName} <${from}>` : from;
+
+  return getResend(data.resendApiKey).emails.send({
+    from:    fromLabel,
     to:      data.customerEmail,
-    subject: `Order confirmed${orderRef} — Sucre Kaker`,
+    subject: `Order confirmed${orderRef} — ${data.fromName ?? "Sucre Kaker"}`,
     html,
   });
 }
@@ -62,6 +72,9 @@ export interface StatusUpdateData {
   customerEmail:      string;
   shopifyOrderNumber: string | null;
   newStatus:          string;
+  fromName?:          string | null;
+  fromEmail?:         string | null;
+  resendApiKey?:      string | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -87,10 +100,13 @@ export async function sendStatusUpdate(data: StatusUpdateData) {
     </div>
   `;
 
-  return resend.emails.send({
-    from:    FROM,
+  const from = data.fromEmail ?? DEFAULT_FROM;
+  const fromLabel = data.fromName ? `${data.fromName} <${from}>` : from;
+
+  return getResend(data.resendApiKey).emails.send({
+    from:    fromLabel,
     to:      data.customerEmail,
-    subject: `${label}${orderRef} — Sucre Kaker`,
+    subject: `${label}${orderRef} — ${data.fromName ?? "Sucre Kaker"}`,
     html,
   });
 }

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@bakery/db";
-import { shopifySettings, cakeOrders, recipes } from "@bakery/db";
-import { eq, ilike } from "drizzle-orm";
+import { shopifySettings, cakeOrders, recipes, emailSettings } from "@bakery/db";
+import { eq } from "drizzle-orm";
+import { sendOrderConfirmation } from "@/lib/email";
 
 // ── Types for Shopify order webhook payload ───────────────────────────────────
 
@@ -186,6 +187,32 @@ export async function POST(request: NextRequest) {
   }
 
   console.log(`[shopify-webhook] Created ${ordersToInsert.length} order(s) from ${shopifyOrderNumber} (shop: ${shopDomain})`);
+
+  // Send order confirmation email if the owner has email notifications enabled
+  if (customerEmail && ordersToInsert.length > 0) {
+    const emailCfg = await db.query.emailSettings.findFirst({
+      where: eq(emailSettings.ownerId, ownerId),
+    });
+
+    if (emailCfg?.sendConfirmations && emailCfg.resendApiKey) {
+      try {
+        await sendOrderConfirmation({
+          customerName:       customerName,
+          customerEmail,
+          shopifyOrderNumber,
+          items: order.line_items.map((i) => ({ title: i.title, quantity: i.quantity })),
+          dueDate,
+          notes:              order.note ?? null,
+          fromName:           emailCfg.fromName,
+          fromEmail:          emailCfg.fromEmail,
+          resendApiKey:       emailCfg.resendApiKey,
+        });
+      } catch (err) {
+        // Log but don't fail the webhook — order was already saved
+        console.error("[shopify-webhook] Failed to send confirmation email:", err);
+      }
+    }
+  }
 
   return NextResponse.json({ ok: true, created: ordersToInsert.length });
 }
