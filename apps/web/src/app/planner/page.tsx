@@ -412,7 +412,12 @@ export default function PlannerPage() {
                 {displayed.map((order) => (
                   <tr key={order.id} className="hover:bg-rose-50/40 transition-colors">
                     <td className="px-5 py-3">
-                      <p className="text-sm font-medium text-gray-900">{order.recipe.name}</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {order.recipe?.name ?? <span className="text-amber-500 italic">Unlinked item</span>}
+                      </p>
+                      {order.shopifyOrderNumber && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">{order.shopifyOrderNumber}</p>
+                      )}
                       {order.notes && <p className="text-xs text-gray-400 mt-0.5 max-w-xs truncate">{order.notes}</p>}
                     </td>
 
@@ -421,7 +426,7 @@ export default function PlannerPage() {
                     </td>
 
                     <td className="px-5 py-3 text-sm text-gray-700 whitespace-nowrap">
-                      {order.quantity} {order.recipe.yieldUnit}
+                      {order.quantity}{order.recipe ? ` ${order.recipe.yieldUnit}` : ""}
                     </td>
 
                     <td className="px-5 py-3 text-sm text-gray-500 whitespace-nowrap">
