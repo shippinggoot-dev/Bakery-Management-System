@@ -30,11 +30,12 @@ export const cakeOrdersRouter = createTRPCRouter({
   create: protectedProcedure
     .input(
       z.object({
-        customerName: z.string().optional().nullable(),
-        recipeId:     z.string().uuid(),
-        quantity:     z.string().min(1),
-        dueDate:      z.string().optional().nullable(),
-        notes:        z.string().optional().nullable(),
+        customerName:  z.string().optional().nullable(),
+        customerEmail: z.string().email().optional().nullable(),
+        recipeId:      z.string().uuid().optional().nullable(),
+        quantity:      z.string().min(1),
+        dueDate:       z.string().optional().nullable(),
+        notes:         z.string().optional().nullable(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -48,12 +49,15 @@ export const cakeOrdersRouter = createTRPCRouter({
   update: protectedProcedure
     .input(
       z.object({
-        id:     z.string().uuid(),
-        status: statusSchema.optional(),
-        notes:  z.string().optional().nullable(),
-        dueDate: z.string().optional().nullable(),
-        quantity: z.string().optional(),
-        customerName: z.string().optional().nullable(),
+        id:            z.string().uuid(),
+        status:        statusSchema.optional(),
+        paymentStatus: z.enum(["pending", "paid", "unpaid", "refunded"]).optional(),
+        notes:         z.string().optional().nullable(),
+        dueDate:       z.string().optional().nullable(),
+        quantity:      z.string().optional(),
+        customerName:  z.string().optional().nullable(),
+        customerEmail: z.string().email().optional().nullable(),
+        recipeId:      z.string().uuid().optional().nullable(),
       })
     )
     .mutation(async ({ ctx, input }) => {

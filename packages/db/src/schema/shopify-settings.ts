@@ -16,6 +16,8 @@ export const shopifySettings = pgTable("shopify_settings", {
   syncProducts: boolean("sync_products").notNull().default(true),
   /** Whether to pull Shopify orders → customer sales on sync */
   syncOrders: boolean("sync_orders").notNull().default(false),
+  /** Webhook signing secret from Shopify — used to validate incoming payloads */
+  webhookSecret:         text("webhook_secret"),
   lastSyncAt:            timestamp("last_sync_at"),
   lastCustomerImportAt:  timestamp("last_customer_import_at"),
   lastOrderImportAt:     timestamp("last_order_import_at"),
