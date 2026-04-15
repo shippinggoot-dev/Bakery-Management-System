@@ -15,6 +15,14 @@ CREATE TABLE IF NOT EXISTS email_settings (
 -- RLS: owners can only see and modify their own row
 ALTER TABLE email_settings ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS owner_all ON email_settings
-  USING (owner_id = auth.uid())
-  WITH CHECK (owner_id = auth.uid());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'email_settings' AND policyname = 'owner_all'
+  ) THEN
+    CREATE POLICY owner_all ON email_settings
+      USING (owner_id = auth.uid())
+      WITH CHECK (owner_id = auth.uid());
+  END IF;
+END $$;
