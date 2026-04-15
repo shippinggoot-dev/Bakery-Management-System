@@ -3,12 +3,18 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  // If Supabase env vars are missing, skip all auth logic and let the request through.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    console.error("[middleware] NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is not set");
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   // Build a Supabase client that can read/write cookies on this response
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
@@ -30,12 +36,25 @@ export async function middleware(request: NextRequest) {
   );
 
   // Validate existing session (server-side JWT check).
-  // If there is no session, create an anonymous one so the visitor can use
-  // the site in demo mode — their data is isolated by owner_id and cleaned
-  // up automatically after 7 days.
-  const { data: { user } } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch (err) {
+    console.error("[middleware] supabase.auth.getUser() failed:", err);
+    return response;
+  }
+
+  // If there is no session, try creating an anonymous one so the visitor can
+  // use the site in demo mode. If anonymous sign-in is disabled or fails,
+  // just let the request through without a session.
   if (!user) {
-    await supabase.auth.signInAnonymously();
+    try {
+      await supabase.auth.signInAnonymously();
+    } catch (err) {
+      console.error("[middleware] supabase.auth.signInAnonymously() failed:", err);
+    }
+    return response;
   }
 
   // Consent gate — real (non-anonymous) users must accept terms before
@@ -45,7 +64,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/login" ||
     pathname.startsWith("/auth");
 
-  if (!isExempt && user && !user.is_anonymous) {
+  if (!isExempt && !user.is_anonymous) {
     const consented = user.user_metadata?.consent_accepted === true;
     if (!consented) {
       const url = request.nextUrl.clone();
