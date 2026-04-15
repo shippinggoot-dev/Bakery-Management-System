@@ -26,7 +26,7 @@ export default function CustomersPage() {
     dietaryReq: dietaryReq || undefined,
     sort,
     limit: 100,
-  }, { refetchInterval: 60_000 });
+  });
 
   const totalPoints = customers.reduce((s, c) => s + c.points, 0);
   const loyalty     = customers.filter((c) => c.loyaltyOptIn).length;

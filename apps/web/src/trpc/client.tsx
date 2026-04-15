@@ -10,7 +10,10 @@ function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 60 * 1000,
+        // Cache data for 5 minutes before marking it stale.
+        // Most bakery data changes infrequently, so aggressive refetching
+        // only adds unnecessary latency.
+        staleTime: 5 * 60 * 1000,
       },
     },
   });

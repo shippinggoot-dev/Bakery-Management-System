@@ -35,13 +35,14 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Validate existing session (server-side JWT check).
+  // Read the session from the cookie — no network round-trip needed here.
+  // The API route handler validates the JWT server-side for actual data access.
   let user = null;
   try {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
+    const { data } = await supabase.auth.getSession();
+    user = data.session?.user ?? null;
   } catch (err) {
-    console.error("[middleware] supabase.auth.getUser() failed:", err);
+    console.error("[middleware] supabase.auth.getSession() failed:", err);
     return response;
   }
 

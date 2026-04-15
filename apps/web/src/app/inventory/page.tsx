@@ -53,9 +53,7 @@ function daysUntil(dateStr: string): number {
 
 export default function InventoryPage() {
   const utils = api.useUtils();
-  const { data: levels = [], isLoading } = api.inventory.getStockLevels.useQuery(undefined, {
-    refetchInterval: 60_000,
-  });
+  const { data: levels = [], isLoading } = api.inventory.getStockLevels.useQuery(undefined);
 
   const [filter, setFilter] = useState<StockStatus | "all">("all");
   const [search, setSearch] = useState("");
