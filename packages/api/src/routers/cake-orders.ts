@@ -112,6 +112,9 @@ export const cakeOrdersRouter = createTRPCRouter({
       const ingredientMap = new Map<string, { unit: string; quantityNeeded: number }>();
 
       for (const order of orders) {
+        // Skip orders that haven't been linked to a recipe yet (e.g. unmatched Shopify orders)
+        if (!order.recipe) continue;
+
         const recipeYield  = parseFloat(order.recipe.yieldAmount) || 1;
         const orderQty     = parseFloat(order.quantity) || 1;
         // How many times to run this recipe to fulfil the order
@@ -132,7 +135,7 @@ export const cakeOrdersRouter = createTRPCRouter({
 
       // Build order summary for list name / notes
       const summary = orders
-        .map((o) => `${o.quantity} × ${o.recipe.yieldAmount ? `(×${(parseFloat(o.quantity) / parseFloat(o.recipe.yieldAmount)).toFixed(2)} batch) ` : ""}${o.customerName ? `for ${o.customerName}` : ""}`)
+        .map((o) => `${o.quantity} × ${o.recipe?.yieldAmount ? `(×${(parseFloat(o.quantity) / parseFloat(o.recipe.yieldAmount)).toFixed(2)} batch) ` : ""}${o.customerName ? `for ${o.customerName}` : ""}`)
         .join(", ");
 
       return ctx.db.transaction(async (tx) => {
