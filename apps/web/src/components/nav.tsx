@@ -7,14 +7,40 @@ import { useTranslations, useLocale } from "next-intl";
 import { api } from "@/trpc/react";
 import { createClientSupabase } from "@/lib/supabase/client";
 import { usePersonalization, THEMES, type ThemeId } from "@/components/ThemeProvider";
+import { GlobalSearchTrigger } from "@/components/GlobalSearch";
 
 // ── Menu structure (labels resolved from translations below) ─────────────────
+
+const GROUP_ICONS: Record<string, string> = {
+  supply:    "🛒",
+  kitchen:   "🍳",
+  stock:     "📦",
+  customers: "👥",
+};
+
+const ITEM_ICONS: Record<string, string> = {
+  "/purchase-orders":    "📋",
+  "/shopping-lists":     "🛍️",
+  "/ingredients":        "💰",
+  "/planner":            "🎂",
+  "/recipes":            "📖",
+  "/nutrients":          "🏷️",
+  "/library":            "📚",
+  "/inventory":          "📊",
+  "/suppliers":          "🤝",
+  "/price-ingestion":    "💹",
+  "/price-alerts":       "🔔",
+  "/customers":          "👥",
+  "/customers/segments": "🎯",
+  "/customers/tiers":    "🥇",
+};
 
 function useMenuGroups() {
   const t = useTranslations("nav");
   return [
     {
       label: t("supply"),
+      iconKey: "supply",
       items: [
         { href: "/purchase-orders", label: t("purchasing")     },
         { href: "/shopping-lists",  label: t("shoppingLists")  },
@@ -23,6 +49,7 @@ function useMenuGroups() {
     },
     {
       label: t("kitchen"),
+      iconKey: "kitchen",
       items: [
         { href: "/planner",   label: t("customerOrders")  },
         { href: "/recipes",   label: t("recipes")         },
@@ -32,6 +59,7 @@ function useMenuGroups() {
     },
     {
       label: t("stock"),
+      iconKey: "stock",
       items: [
         { href: "/inventory",       label: t("inventory")     },
         { href: "/suppliers",       label: t("suppliers")     },
@@ -41,6 +69,7 @@ function useMenuGroups() {
     },
     {
       label: t("customers"),
+      iconKey: "customers",
       items: [
         { href: "/customers",          label: t("customerList") },
         { href: "/customers/segments", label: t("segments")     },
@@ -378,6 +407,11 @@ export function Nav() {
 
           <div className="flex-shrink-0 flex items-center gap-1 relative">
 
+            {/* Global search trigger */}
+            <GlobalSearchTrigger onClick={() => {
+              (window as typeof window & { __openGlobalSearch?: () => void }).__openGlobalSearch?.();
+            }} />
+
             {/* Language switcher */}
             <LanguageSwitcher />
 
@@ -492,6 +526,7 @@ export function Nav() {
                       : "text-brand-400 border-transparent hover:text-brand-600 hover:border-brand-300"
                   }`}
                 >
+                  <span>{GROUP_ICONS[group.iconKey]}</span>
                   {group.label}
                   <svg
                     className={`w-3 h-3 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
@@ -502,20 +537,20 @@ export function Nav() {
                 </button>
 
                 {isOpen && (
-                  <div className="absolute top-full left-0 mt-0 w-48 bg-white rounded-xl shadow-lg border border-rose-100 py-1.5 z-50 overflow-hidden">
+                  <div className="absolute top-full left-0 mt-0 w-52 bg-white rounded-xl shadow-lg border border-rose-100 py-1.5 z-50 overflow-hidden">
                     {group.items.map((item) => {
                       const active = isItemActive(item.href, pathname);
                       return (
                         <Link
                           key={item.href}
                           href={item.href}
-                          className={`flex items-center px-4 py-2 text-sm transition-colors ${
+                          className={`flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
                             active
                               ? "bg-brand-50 text-brand-700 font-medium"
                               : "text-gray-600 hover:bg-rose-50 hover:text-brand-700"
                           }`}
                         >
-                          {active && <span className="w-1.5 h-1.5 rounded-full bg-brand-600 mr-2 flex-shrink-0" />}
+                          <span className="text-base w-5 text-center flex-shrink-0">{ITEM_ICONS[item.href]}</span>
                           {item.label}
                         </Link>
                       );
@@ -551,7 +586,10 @@ export function Nav() {
                       groupActive ? "text-brand-700 bg-brand-50" : "text-brand-500 hover:bg-brand-100"
                     }`}
                   >
-                    {group.label}
+                    <span className="flex items-center gap-2">
+                      <span>{GROUP_ICONS[group.iconKey]}</span>
+                      {group.label}
+                    </span>
                     <svg
                       className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
                       fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"
@@ -568,10 +606,11 @@ export function Nav() {
                           <Link
                             key={item.href}
                             href={item.href}
-                            className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                               active ? "bg-brand-600 text-white font-medium" : "text-brand-500 hover:bg-brand-100"
                             }`}
                           >
+                            <span>{ITEM_ICONS[item.href]}</span>
                             {item.label}
                           </Link>
                         );

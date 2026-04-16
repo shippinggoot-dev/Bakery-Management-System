@@ -4,6 +4,8 @@ import { getLocale, getMessages } from "next-intl/server";
 import { Nav } from "@/components/nav";
 import { TRPCReactProvider } from "@/trpc/client";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { Breadcrumb } from "@/components/Breadcrumb";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,8 +28,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <TRPCReactProvider>
             <ThemeProvider>
               <Nav />
+              <GlobalSearch />
               <main className="pt-[88px] min-h-screen">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                  <Breadcrumb />
                   {children}
                 </div>
               </main>

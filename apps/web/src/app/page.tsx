@@ -17,11 +17,14 @@ function startOf(unit: "week" | "month") {
 
 function StatCard({ label, value, href, unit }: { label: string; value: number | string; href: string; unit?: string }) {
   return (
-    <Link href={href} className="stat-card hover:border-brand-200 hover:shadow transition-all">
+    <Link href={href} className="stat-card hover:border-brand-300 hover:shadow-md transition-all group flex flex-col gap-1">
       <p className="text-xs text-brand-400 font-medium leading-tight">{label}</p>
       <p className="text-3xl font-bold text-brand-700 leading-none mt-1">
         {value}{unit && <span className="text-lg font-normal text-brand-400 ml-1">{unit}</span>}
       </p>
+      <span className="text-[10px] text-brand-300 group-hover:text-brand-500 transition-colors mt-auto pt-1">
+        View →
+      </span>
     </Link>
   );
 }
