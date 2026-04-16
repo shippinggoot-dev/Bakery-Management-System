@@ -22,7 +22,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('bms-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}` }} />
       </head>
       <body>
-        <NextIntlClientProvider messages={messages}>
+        <NextIntlClientProvider locale={locale} messages={messages}>
           <TRPCReactProvider>
             <ThemeProvider>
               <Nav />

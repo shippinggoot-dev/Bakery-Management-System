@@ -90,7 +90,8 @@ function LanguageSwitcher() {
 function PersonalisePanel({ onClose, isLoggedIn, isAnonymous }: {
   onClose: () => void; isLoggedIn: boolean; isAnonymous: boolean;
 }) {
-  const t = useTranslations("nav");
+  const t  = useTranslations("nav");
+  const tc = useTranslations("common");
   const { theme, setTheme, bakeryName, setBakeryName, logoUrl, setLogoUrl } = usePersonalization();
   const [nameInput, setNameInput] = useState(bakeryName);
   const ref = useRef<HTMLDivElement>(null);
@@ -165,7 +166,7 @@ function PersonalisePanel({ onClose, isLoggedIn, isAnonymous }: {
               onClick={() => { setBakeryName(nameInput.trim() || "My Bakery"); onClose(); }}
               className="px-3 py-1.5 rounded-xl bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 transition-colors"
             >
-              {t("save") ?? "Save"}
+              {tc("save")}
             </button>
           </div>
         </div>

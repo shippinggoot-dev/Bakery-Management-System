@@ -187,6 +187,37 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- ── Reference tables (global — no RLS needed) ────────────────────────────────
--- allergens, ingredient_categories, recipe_categories are read-only reference
--- data shared across all users. No RLS applied here intentionally.
+-- ── Reference tables (shared — authenticated access) ────────────────────────
+-- allergens, ingredient_categories, recipe_categories are shared lookup data
+-- with no owner_id. RLS is enabled and any authenticated user may read/write.
+
+ALTER TABLE allergens             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ingredient_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recipe_categories     ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='allergens' AND policyname='authenticated_all') THEN
+    CREATE POLICY authenticated_all ON allergens
+      FOR ALL
+      USING     (auth.role() = 'authenticated')
+      WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ingredient_categories' AND policyname='authenticated_all') THEN
+    CREATE POLICY authenticated_all ON ingredient_categories
+      FOR ALL
+      USING     (auth.role() = 'authenticated')
+      WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='recipe_categories' AND policyname='authenticated_all') THEN
+    CREATE POLICY authenticated_all ON recipe_categories
+      FOR ALL
+      USING     (auth.role() = 'authenticated')
+      WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
