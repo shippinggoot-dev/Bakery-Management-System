@@ -65,7 +65,10 @@
     "logoHint": "PNG, JPG, SVG",
     "bakeryName": "Bakery name",
     "colourScheme": "Colour scheme",
-    "language": "Language"
+    "language": "Language",
+    "operations": "Operations",
+    "production": "Production Schedule",
+    "sales": "Sales Dashboard"
   },
   "dashboard": {
     "todaysTasks": "Today's Tasks",
@@ -90,7 +93,10 @@
     "contentPlanner": "Content planner",
     "supplierCol": "Supplier",
     "statusCol": "Status",
-    "dateCol": "Date"
+    "dateCol": "Date",
+    "stockAlerts": "Stock Alerts",
+    "allStock": "Inventory →",
+    "stockOk": "All stock levels OK"
   },
   "planner": {
     "title": "Order Planner",

@@ -30,6 +30,7 @@ export * from "./shopify-settings";
 export * from "./todos";
 export * from "./cake-orders";
 export * from "./email-settings";
+export * from "./production-schedules";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.
@@ -63,6 +64,7 @@ import { rewards } from "./rewards";
 import { customerSegments, customerSegmentMembers } from "./customer-segments";
 import { customerSales } from "./customer-sales";
 import { cakeOrders } from "./cake-orders";
+import { productionSchedules } from "./production-schedules";
 
 export const allergensRelations = relations(allergens, ({ many }) => ({
   ingredientAllergens: many(ingredientAllergens),
@@ -336,6 +338,15 @@ export const customerSegmentMembersRelations = relations(customerSegmentMembers,
 export const cakeOrdersRelations = relations(cakeOrders, ({ one }) => ({
   recipe: one(recipes, {
     fields: [cakeOrders.recipeId],
+    references: [recipes.id],
+  }),
+}));
+
+// ─── Production schedules ─────────────────────────────────────────────────────
+
+export const productionSchedulesRelations = relations(productionSchedules, ({ one }) => ({
+  recipe: one(recipes, {
+    fields: [productionSchedules.recipeId],
     references: [recipes.id],
   }),
 }));

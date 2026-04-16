@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/trpc/server";
 import { DeleteRecipeButton } from "./delete-button";
+import { SellingPricePanel } from "./SellingPricePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -163,6 +164,16 @@ export default async function RecipeDetailPage({
         </table>
         </div>
       </div>
+
+      {/* Pricing & Margin */}
+      {cost && (
+        <SellingPricePanel
+          recipeId={recipe.id}
+          totalCost={cost.totalCost}
+          yieldAmount={recipe.yieldAmount}
+          initialPrice={recipe.sellingPrice ?? null}
+        />
+      )}
 
       {/* Instructions */}
       {recipe.instructions && (

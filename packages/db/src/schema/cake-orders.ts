@@ -26,6 +26,8 @@ export const cakeOrders = pgTable("cake_orders", {
   shopifyOrderId:      text("shopify_order_id"),
   /** Shopify human-readable order name, e.g. "#1042" */
   shopifyOrderNumber:  text("shopify_order_number"),
+  /** Agreed sale price for this order (stored as text) */
+  salePrice:           text("sale_price"),
   notes:               text("notes"),
   createdAt:           timestamp("created_at").notNull().defaultNow(),
   updatedAt:           timestamp("updated_at").notNull().defaultNow(),

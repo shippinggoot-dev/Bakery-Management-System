@@ -19,6 +19,8 @@ export const recipes = pgTable("recipes", {
   instructions: text("instructions"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
+  /** Retail / selling price (stored as text to preserve decimals, e.g. "12.50") */
+  sellingPrice: text("selling_price"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [

@@ -52,6 +52,7 @@ export const cakeOrdersRouter = createTRPCRouter({
         id:            z.string().uuid(),
         status:        statusSchema.optional(),
         paymentStatus: z.enum(["pending", "paid", "unpaid", "refunded"]).optional(),
+        salePrice:     z.string().optional().nullable(),
         notes:         z.string().optional().nullable(),
         dueDate:       z.string().optional().nullable(),
         quantity:      z.string().optional(),

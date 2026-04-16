@@ -26,6 +26,8 @@ const SEARCH_ITEMS = [
   { label: "New Recipe",            href: "/recipes/new",           icon: "✏️" },
   { label: "Register Customer",     href: "/customers/register",    icon: "➕" },
   { label: "POS Lookup",            href: "/customers/lookup",      icon: "🔍" },
+  { label: "Production Schedule",   href: "/production",            icon: "🗓️" },
+  { label: "Sales Dashboard",       href: "/sales",                 icon: "💰" },
 ];
 
 // Trigger button shown in the nav bar

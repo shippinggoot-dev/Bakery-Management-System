@@ -65,7 +65,10 @@
     "logoHint": "PNG, JPG, SVG",
     "bakeryName": "Bakerinavnet",
     "colourScheme": "Fargetema",
-    "language": "Språk"
+    "language": "Språk",
+    "operations": "Drift",
+    "production": "Produksjonsplan",
+    "sales": "Salgsdashboard"
   },
   "dashboard": {
     "todaysTasks": "Dagens oppgaver",
@@ -90,7 +93,10 @@
     "contentPlanner": "Innholdsplanlegger",
     "supplierCol": "Leverandør",
     "statusCol": "Status",
-    "dateCol": "Dato"
+    "dateCol": "Dato",
+    "stockAlerts": "Lagervarsler",
+    "allStock": "Varebeholdning →",
+    "stockOk": "Alle lagernivåer er OK"
   },
   "planner": {
     "title": "Bestillingsplanlegger",

@@ -12,10 +12,11 @@ import { GlobalSearchTrigger } from "@/components/GlobalSearch";
 // ── Menu structure (labels resolved from translations below) ─────────────────
 
 const GROUP_ICONS: Record<string, string> = {
-  supply:    "🛒",
-  kitchen:   "🍳",
-  stock:     "📦",
-  customers: "👥",
+  supply:     "🛒",
+  kitchen:    "🍳",
+  stock:      "📦",
+  customers:  "👥",
+  operations: "🏭",
 };
 
 const ITEM_ICONS: Record<string, string> = {
@@ -33,6 +34,8 @@ const ITEM_ICONS: Record<string, string> = {
   "/customers":          "👥",
   "/customers/segments": "🎯",
   "/customers/tiers":    "🥇",
+  "/production":         "🗓️",
+  "/sales":              "💰",
 };
 
 function useMenuGroups() {
@@ -74,6 +77,14 @@ function useMenuGroups() {
         { href: "/customers",          label: t("customerList") },
         { href: "/customers/segments", label: t("segments")     },
         { href: "/customers/tiers",    label: t("tiers")        },
+      ],
+    },
+    {
+      label: t("operations"),
+      iconKey: "operations",
+      items: [
+        { href: "/production", label: t("production") },
+        { href: "/sales",      label: t("sales")      },
       ],
     },
   ];

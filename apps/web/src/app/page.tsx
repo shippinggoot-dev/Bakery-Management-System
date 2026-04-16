@@ -5,6 +5,60 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 
+type StockStatus = "ok" | "low" | "critical" | "out";
+
+const STATUS_DOT: Record<StockStatus, string> = {
+  ok:       "bg-emerald-500",
+  low:      "bg-amber-400",
+  critical: "bg-red-500",
+  out:      "bg-gray-500",
+};
+const STATUS_ROW: Record<StockStatus, string> = {
+  ok:       "",
+  low:      "bg-amber-50",
+  critical: "bg-red-50",
+  out:      "bg-gray-50",
+};
+const STATUS_TEXT: Record<StockStatus, string> = {
+  ok:       "text-emerald-600",
+  low:      "text-amber-600",
+  critical: "text-red-600",
+  out:      "text-gray-500",
+};
+
+function StockWidget() {
+  const t = useTranslations("dashboard");
+  const { data: stock = [] } = api.inventory.getStockLevels.useQuery();
+  const alerts = stock.filter((s) => s.status !== "ok").slice(0, 8);
+
+  return (
+    <div className="card overflow-hidden flex flex-col h-full">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-rose-100">
+        <p className="section-title">{t("stockAlerts")}</p>
+        <Link href="/inventory" className="text-xs text-brand-500 hover:text-brand-700 font-medium">{t("allStock")}</Link>
+      </div>
+      <div className="flex-1 overflow-y-auto divide-y divide-rose-50">
+        {alerts.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-brand-300 text-center">{t("stockOk")}</p>
+        ) : alerts.map((s) => (
+          <div key={s.ingredientId} className={`flex items-center gap-3 px-4 py-2.5 ${STATUS_ROW[s.status]}`}>
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[s.status]}`} />
+            <span className="text-sm text-gray-800 flex-1 truncate">{s.name}</span>
+            <span className={`text-xs font-semibold flex-shrink-0 ${STATUS_TEXT[s.status]}`}>
+              {s.currentStock.toFixed(1)} {s.unit}
+            </span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border flex-shrink-0 ${
+              s.status === "out"      ? "bg-gray-100 text-gray-500 border-gray-200" :
+              s.status === "critical" ? "bg-red-100 text-red-600 border-red-200" :
+                                        "bg-amber-100 text-amber-700 border-amber-200"
+            }`}>{s.status}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function today() { return new Date().toISOString().slice(0, 10); }
 
 function startOf(unit: "week" | "month") {
@@ -188,10 +242,11 @@ export default function DashboardPage() {
         <StatCard label={t("shoppingListStat")} value={openLists}       href="/shopping-lists" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4" style={{ minHeight: "340px" }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" style={{ minHeight: "340px" }}>
         <TasksWidget />
         <ThisWeekWidget />
         <ShoppingWidget />
+        <StockWidget />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
