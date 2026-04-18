@@ -30,17 +30,17 @@ export const dashboardRouter = createTRPCRouter({
 
     const todayIso = new Date().toISOString().slice(0, 10);
 
+    // Each sub-query is isolated so one missing table/column doesn't crash the whole page.
     const [openTasks, stockLevels, deliveries, batches] = await Promise.all([
       // All open tasks for count + first 3 titles
       ctx.db.query.todos.findMany({
         where: and(eq(todos.ownerId, ctx.user.id), eq(todos.completed, false)),
         columns: { id: true, title: true, dueDate: true },
-        // Overdue first, then undated, then by creation
         orderBy: (t, { asc }) => [asc(t.createdAt)],
-      }),
+      }).catch(() => [] as { id: string; title: string; dueDate: string | null }[]),
 
       // Stock levels — reuse the inventory service (calculates from lots)
-      inventoryService.getStockLevels(ctx.user.id),
+      inventoryService.getStockLevels(ctx.user.id).catch(() => []),
 
       // Purchase orders with expected delivery = today
       ctx.db.query.purchaseOrders.findMany({
@@ -51,9 +51,9 @@ export const dashboardRouter = createTRPCRouter({
         ),
         with: { supplier: { columns: { name: true } } },
         columns: { id: true, orderNumber: true, status: true },
-      }),
+      }).catch(() => [] as { id: string; orderNumber: string | null; status: string; supplier: { name: string } }[]),
 
-      // Production schedule entries for today that aren't done/cancelled
+      // Production schedule entries for today — table may not exist yet (migration pending)
       ctx.db.query.productionSchedules.findMany({
         where: and(
           eq(productionSchedules.ownerId, ctx.user.id),
@@ -63,7 +63,7 @@ export const dashboardRouter = createTRPCRouter({
         with: { recipe: { columns: { name: true } } },
         columns: { id: true, recipeName: true, shift: true, batchCount: true, status: true },
         orderBy: (ps, { asc }) => [asc(ps.shift)],
-      }),
+      }).catch(() => [] as { id: string; recipeName: string | null; shift: string; batchCount: string; status: string; recipe: { name: string } | null }[]),
     ]);
 
     const alerts = stockLevels.filter((s) => s.status !== "ok");
@@ -100,7 +100,7 @@ export const dashboardRouter = createTRPCRouter({
 
     const [orderRevenueRows, posRevenueRows, orderCountRows, topSellerRows, wasteCountRows] =
       await Promise.all([
-        // Revenue from bespoke cake orders that have a sale price set
+        // Revenue from bespoke cake orders — sale_price column may not exist yet (migration pending)
         ctx.db
           .select({
             total: sql<string>`COALESCE(
@@ -118,7 +118,8 @@ export const dashboardRouter = createTRPCRouter({
               ne(cakeOrders.status, "cancelled"),
               sql`${cakeOrders.salePrice} IS NOT NULL`,
             )
-          ),
+          )
+          .catch(() => [{ total: "0" }]),
 
         // Revenue from walk-in POS sales (customer_sales)
         ctx.db
@@ -131,7 +132,8 @@ export const dashboardRouter = createTRPCRouter({
               eq(customerSales.ownerId, ctx.user.id),
               gte(customerSales.soldAt, weekStart),
             )
-          ),
+          )
+          .catch(() => [{ total: "0" }]),
 
         // Non-cancelled order count this week
         ctx.db
@@ -143,7 +145,8 @@ export const dashboardRouter = createTRPCRouter({
               gte(cakeOrders.createdAt, weekStart),
               ne(cakeOrders.status, "cancelled"),
             )
-          ),
+          )
+          .catch(() => [{ count: "0" }]),
 
         // Top-selling recipe this week by quantity ordered
         ctx.db
@@ -163,7 +166,8 @@ export const dashboardRouter = createTRPCRouter({
           )
           .groupBy(cakeOrders.recipeId, recipes.name)
           .orderBy(desc(sql`SUM(CAST(${cakeOrders.quantity} AS numeric))`))
-          .limit(1),
+          .limit(1)
+          .catch(() => [] as { recipeName: string | null; totalQty: string }[]),
 
         // Waste events this week (monetary value not available — see phase notes)
         ctx.db
@@ -174,7 +178,8 @@ export const dashboardRouter = createTRPCRouter({
               eq(wasteLogs.ownerId, ctx.user.id),
               gte(wasteLogs.loggedAt, weekStart),
             )
-          ),
+          )
+          .catch(() => [{ count: "0" }]),
       ]);
 
     const orderRevenue = parseFloat(orderRevenueRows[0]?.total ?? "0");
