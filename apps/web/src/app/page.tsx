@@ -277,7 +277,7 @@ export default async function DashboardPage() {
           { label: "New order",       href: "/purchase-orders" },
           { label: "Cost check",      href: "/ingredients"     },
           { label: "Customers",       href: "/customers"       },
-          { label: "Production plan", href: "/production"      },
+          { label: "Content planner", href: "/recipes"         },
         ] as const).map(({ label, href }) => (
           <Link
             key={href}
