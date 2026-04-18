@@ -39,19 +39,19 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div className="space-y-5">
       {/* Setup guide */}
-      <div className="rounded-xl bg-gray-800/60 border border-gray-700 overflow-hidden">
+      <div className="rounded-xl bg-rose-50 border border-rose-100 overflow-hidden">
         <button
           onClick={() => setShowGuide((v) => !v)}
-          className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-medium text-gray-300 hover:text-gray-100 transition-colors"
+          className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
         >
           <span>How to get your access token</span>
-          <span className={`text-gray-500 transition-transform duration-200 ${showGuide ? "rotate-180" : ""}`}>▼</span>
+          <span className={`text-gray-400 transition-transform duration-200 ${showGuide ? "rotate-180" : ""}`}>▼</span>
         </button>
         {showGuide && (
-          <div className="px-5 pb-4 border-t border-gray-700">
+          <div className="px-5 pb-4 border-t border-rose-100">
             <ol className="mt-3 space-y-2">
               {SETUP_STEPS.map((s) => (
-                <li key={s.n} className="flex gap-3 text-sm text-gray-400">
+                <li key={s.n} className="flex gap-3 text-sm text-gray-500">
                   <span className="w-5 h-5 rounded-full bg-brand-500/20 text-brand-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                     {s.n}
                   </span>
@@ -69,7 +69,7 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
       {/* Credentials form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         {connect.error && (
-          <div className="rounded-lg bg-red-950/40 border border-red-800 px-4 py-3 text-sm text-red-300">
+          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
             {connect.error.message.includes("Shopify API 401") || connect.error.message.includes("401")
               ? "Invalid access token — make sure you copied the full token from Shopify."
               : connect.error.message.includes("ENOTFOUND") || connect.error.message.includes("404")
@@ -105,29 +105,29 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
             <button
               type="button"
               onClick={() => setShowToken((v) => !v)}
-              className="px-3 rounded-xl bg-gray-800 border border-gray-700 text-gray-500 hover:text-gray-300 text-xs transition-colors"
+              className="px-3 rounded-xl bg-gray-100 border border-rose-200 text-gray-500 hover:text-gray-700 text-xs transition-colors"
             >
               {showToken ? "Hide" : "Show"}
             </button>
           </div>
         </div>
 
-        <div className="rounded-xl bg-gray-900 border border-gray-800 px-4 py-3 space-y-2.5">
+        <div className="rounded-xl bg-rose-50 border border-rose-100 px-4 py-3 space-y-2.5">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sync options</p>
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={syncProd} onChange={(e) => setSyncProd(e.target.checked)}
               className="w-4 h-4 rounded accent-brand-500" />
             <div>
-              <p className="text-sm text-gray-300">Sync recipes → Shopify products</p>
-              <p className="text-xs text-gray-600">Exports your active recipes to your Shopify product catalog</p>
+              <p className="text-sm text-gray-700">Sync recipes → Shopify products</p>
+              <p className="text-xs text-gray-500">Exports your active recipes to your Shopify product catalog</p>
             </div>
           </label>
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={syncOrd} onChange={(e) => setSyncOrd(e.target.checked)}
               className="w-4 h-4 rounded accent-brand-500" />
             <div>
-              <p className="text-sm text-gray-300">View Shopify orders in dashboard</p>
-              <p className="text-xs text-gray-600">Preview recent orders from your Shopify store</p>
+              <p className="text-sm text-gray-700">View Shopify orders in dashboard</p>
+              <p className="text-xs text-gray-500">Preview recent orders from your Shopify store</p>
             </div>
           </label>
         </div>
@@ -165,10 +165,10 @@ function ImportResult({
   if (!result) return null;
   const hasErrors = result.errors.length > 0;
   return (
-    <div className={`rounded-lg px-3 py-2.5 text-sm border ${hasErrors ? "bg-amber-950/30 border-amber-800 text-amber-300" : "bg-emerald-950/30 border-emerald-800 text-emerald-300"}`}>
+    <div className={`rounded-lg px-3 py-2.5 text-sm border ${hasErrors ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-emerald-50 border-emerald-200 text-emerald-700"}`}>
       {label}: {result.count} new{result.skipped !== undefined ? `, ${result.skipped} skipped` : ""} of {result.total} total.
       {hasErrors && (
-        <ul className="mt-1.5 text-xs text-amber-400 space-y-0.5">
+        <ul className="mt-1.5 text-xs text-amber-600 space-y-0.5">
           {result.errors.slice(0, 5).map((e, i) => <li key={i}>• {e}</li>)}
         </ul>
       )}
@@ -249,14 +249,14 @@ function ConnectedPanel({
   return (
     <div className="space-y-4">
       {/* Store header */}
-      <div className="rounded-xl bg-gray-900 border border-[#96bf48]/30 overflow-hidden">
+      <div className="rounded-xl bg-white border border-[#96bf48]/30 overflow-hidden">
         <div className="px-5 py-4 flex items-center gap-4">
           <div className="w-10 h-10 rounded-full bg-[#96bf48]/10 border border-[#96bf48]/30 flex items-center justify-center flex-shrink-0">
             <span className="text-lg">🛍</span>
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <p className="font-semibold text-gray-100 truncate">{settings.shopName ?? settings.shopDomain}</p>
+              <p className="font-semibold text-gray-900 truncate">{settings.shopName ?? settings.shopDomain}</p>
               <span className="px-2 py-0.5 rounded-full bg-[#96bf48]/15 text-[#96bf48] text-[10px] font-bold border border-[#96bf48]/30 flex-shrink-0">
                 Connected
               </span>
@@ -267,16 +267,16 @@ function ConnectedPanel({
           <button
             onClick={() => { if (confirm("Disconnect your Shopify store?")) disconnect.mutate(); }}
             disabled={disconnect.isPending}
-            className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-red-900/30 text-red-400 text-xs hover:bg-red-900/50 transition-colors disabled:opacity-50"
+            className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs hover:bg-red-100 transition-colors disabled:opacity-50"
           >
             Disconnect
           </button>
         </div>
-        <div className="border-t border-gray-800 px-5 py-2.5 flex items-center gap-2">
-          <span className="text-xs text-gray-600 font-mono">Token:</span>
-          <span className="text-xs text-gray-600 font-mono">{settings.tokenPreview}</span>
+        <div className="border-t border-rose-100 px-5 py-2.5 flex items-center gap-2">
+          <span className="text-xs text-gray-500 font-mono">Token:</span>
+          <span className="text-xs text-gray-500 font-mono">{settings.tokenPreview}</span>
           {settings.lastSyncAt && (
-            <span className="ml-auto text-xs text-gray-700">
+            <span className="ml-auto text-xs text-gray-500">
               Last synced {new Date(settings.lastSyncAt).toLocaleDateString()}
             </span>
           )}
@@ -284,7 +284,7 @@ function ConnectedPanel({
       </div>
 
       {/* Sync preferences */}
-      <div className="rounded-xl bg-gray-900 border border-gray-800 px-5 py-4 space-y-3">
+      <div className="rounded-xl bg-rose-50 border border-rose-100 px-5 py-4 space-y-3">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sync settings</p>
         <label className="flex items-center gap-3 cursor-pointer">
           <input
@@ -294,8 +294,8 @@ function ConnectedPanel({
             className="w-4 h-4 rounded accent-brand-500"
           />
           <div className="flex-1">
-            <p className="text-sm text-gray-300">Sync recipes → Shopify products</p>
-            <p className="text-xs text-gray-600">Push active recipes to your product catalog</p>
+            <p className="text-sm text-gray-700">Sync recipes → Shopify products</p>
+            <p className="text-xs text-gray-500">Push active recipes to your product catalog</p>
           </div>
         </label>
         <label className="flex items-center gap-3 cursor-pointer">
@@ -306,28 +306,28 @@ function ConnectedPanel({
             className="w-4 h-4 rounded accent-brand-500"
           />
           <div className="flex-1">
-            <p className="text-sm text-gray-300">Show recent Shopify orders</p>
-            <p className="text-xs text-gray-600">View last 60 days of orders from Shopify</p>
+            <p className="text-sm text-gray-700">Show recent Shopify orders</p>
+            <p className="text-xs text-gray-500">View last 60 days of orders from Shopify</p>
           </div>
         </label>
       </div>
 
       {/* Actions */}
       {settings.syncProducts && (
-        <div className="rounded-xl bg-gray-900 border border-gray-800 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-800 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        <div className="card overflow-hidden">
+          <div className="px-5 py-3 border-b border-rose-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Products
           </div>
           <div className="px-5 py-4 space-y-3">
             {syncResult && (
               <div className={`rounded-lg px-3 py-2.5 text-sm border ${
                 syncResult.errors.length > 0
-                  ? "bg-amber-950/30 border-amber-800 text-amber-300"
-                  : "bg-emerald-950/30 border-emerald-800 text-emerald-300"
+                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                  : "bg-emerald-50 border-emerald-200 text-emerald-700"
               }`}>
                 {syncResult.synced} of {syncResult.total} recipes synced to Shopify.
                 {syncResult.errors.length > 0 && (
-                  <ul className="mt-1.5 text-xs text-amber-400 space-y-0.5">
+                  <ul className="mt-1.5 text-xs text-amber-600 space-y-0.5">
                     {syncResult.errors.slice(0, 5).map((e, i) => <li key={i}>• {e}</li>)}
                   </ul>
                 )}
@@ -351,8 +351,8 @@ function ConnectedPanel({
       )}
 
       {/* Import customers */}
-      <div className="rounded-xl bg-gray-900 border border-gray-800 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-800 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+      <div className="card overflow-hidden">
+        <div className="px-5 py-3 border-b border-rose-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
           Customers
         </div>
         <div className="px-5 py-4 space-y-3">
@@ -378,8 +378,8 @@ function ConnectedPanel({
       </div>
 
       {/* Import orders */}
-      <div className="rounded-xl bg-gray-900 border border-gray-800 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-800 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+      <div className="card overflow-hidden">
+        <div className="px-5 py-3 border-b border-rose-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
           Orders
         </div>
         <div className="px-5 py-4 space-y-3">
@@ -407,40 +407,40 @@ function ConnectedPanel({
       </div>
 
       {settings.syncOrders && (
-        <div className="rounded-xl bg-gray-900 border border-gray-800 overflow-hidden">
+        <div className="card overflow-hidden">
           <button
             onClick={() => setOrdersOpen((v) => !v)}
-            className="w-full flex items-center justify-between px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-300 transition-colors"
+            className="w-full flex items-center justify-between px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition-colors"
           >
             <span>Recent Shopify orders</span>
             <span className={`transition-transform duration-200 ${ordersOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
 
           {ordersOpen && (
-            <div className="border-t border-gray-800">
+            <div className="border-t border-rose-100">
               {fetchingOrders ? (
                 <p className="px-5 py-6 text-sm text-gray-600 text-center animate-pulse">Loading orders…</p>
               ) : orders.length === 0 ? (
                 <p className="px-5 py-6 text-sm text-gray-600 text-center">No orders in the last 60 days.</p>
               ) : (
-                <div className="divide-y divide-gray-800 max-h-80 overflow-y-auto">
+                <div className="divide-y divide-rose-50 max-h-80 overflow-y-auto">
                   {orders.map((o) => (
                     <div key={o.id} className="px-5 py-3 flex justify-between items-start gap-3 text-sm">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-200">{o.name}</span>
+                          <span className="font-medium text-gray-800">{o.name}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                            o.status === "paid" ? "bg-emerald-900/40 text-emerald-400"
-                            : o.status === "pending" ? "bg-amber-900/40 text-amber-400"
-                            : "bg-gray-800 text-gray-500"
+                            o.status === "paid" ? "bg-emerald-50 text-emerald-700"
+                            : o.status === "pending" ? "bg-amber-50 text-amber-700"
+                            : "bg-gray-100 text-gray-500"
                           }`}>{o.status}</span>
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5 truncate">{o.customer}</p>
-                        <p className="text-xs text-gray-700 mt-0.5 truncate">{o.items}</p>
+                        <p className="text-xs text-gray-400 mt-0.5 truncate">{o.items}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="font-mono font-bold text-gray-200">{parseFloat(o.total).toFixed(2)} {o.currency}</p>
-                        <p className="text-xs text-gray-600 mt-0.5">
+                        <p className="font-mono font-bold text-gray-800">{parseFloat(o.total).toFixed(2)} {o.currency}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
                           {new Date(o.date).toLocaleDateString()}
                         </p>
                       </div>
@@ -454,26 +454,26 @@ function ConnectedPanel({
       )}
 
       {/* Webhook setup */}
-      <div className="rounded-xl bg-gray-900 border border-gray-800 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-800 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+      <div className="card overflow-hidden">
+        <div className="px-5 py-3 border-b border-rose-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
           Automatic order intake (Webhook)
         </div>
         <div className="px-5 py-4 space-y-4">
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-600">
             Set up a webhook in Shopify so every new order automatically appears in your Planner — no manual importing needed.
           </p>
 
           {/* Collapsible guide */}
-          <div className="rounded-xl bg-gray-800/60 border border-gray-700 overflow-hidden">
+          <div className="rounded-xl bg-rose-50 border border-rose-100 overflow-hidden">
             <button
               onClick={() => setShowWebhookGuide((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-300 hover:text-gray-100 transition-colors"
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
             >
               <span>Step-by-step setup guide</span>
-              <span className={`text-gray-500 transition-transform duration-200 ${showWebhookGuide ? "rotate-180" : ""}`}>▼</span>
+              <span className={`text-gray-400 transition-transform duration-200 ${showWebhookGuide ? "rotate-180" : ""}`}>▼</span>
             </button>
             {showWebhookGuide && (
-              <div className="px-4 pb-4 border-t border-gray-700">
+              <div className="px-4 pb-4 border-t border-rose-100">
                 <ol className="mt-3 space-y-3">
                   {[
                     { n: 1, text: "In your Shopify admin, go to Settings → Notifications." },
@@ -482,7 +482,7 @@ function ConnectedPanel({
                     { n: 4, text: "Paste the URL below into the URL field and save." },
                     { n: 5, text: "Shopify will show you a signing secret. Copy it and paste it into the field below." },
                   ].map((s) => (
-                    <li key={s.n} className="flex gap-3 text-sm text-gray-400">
+                    <li key={s.n} className="flex gap-3 text-sm text-gray-500">
                       <span className="w-5 h-5 rounded-full bg-[#96bf48]/20 text-[#96bf48] text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                         {s.n}
                       </span>
@@ -501,11 +501,11 @@ function ConnectedPanel({
               <input
                 readOnly
                 value={webhookUrl}
-                className="flex-1 form-input font-mono text-xs bg-gray-950 text-gray-300 cursor-text select-all"
+                className="flex-1 form-input font-mono text-xs bg-rose-50 text-gray-700 cursor-text select-all"
               />
               <button
                 onClick={() => navigator.clipboard.writeText(webhookUrl)}
-                className="px-3 py-1.5 rounded-xl bg-gray-700 text-gray-300 text-xs hover:bg-gray-600 transition-colors"
+                className="px-3 py-1.5 rounded-xl bg-gray-100 text-gray-600 text-xs hover:bg-gray-200 transition-colors"
               >
                 Copy
               </button>
@@ -526,7 +526,7 @@ function ConnectedPanel({
               <button
                 type="button"
                 onClick={() => setShowSecret((v) => !v)}
-                className="px-3 rounded-xl bg-gray-800 border border-gray-700 text-gray-500 hover:text-gray-300 text-xs transition-colors"
+                className="px-3 rounded-xl bg-gray-100 border border-rose-200 text-gray-500 hover:text-gray-700 text-xs transition-colors"
               >
                 {showSecret ? "Hide" : "Show"}
               </button>
@@ -848,11 +848,11 @@ export default function SettingsPage() {
 
       {/* Must be signed in */}
       {isAnonymous && (
-        <div className="card px-5 py-4 border-amber-800/40 bg-amber-950/20 flex items-start gap-3">
-          <span className="text-amber-400 text-lg flex-shrink-0">⚠</span>
+        <div className="card px-5 py-4 border-amber-200 bg-amber-50 flex items-start gap-3">
+          <span className="text-amber-500 text-lg flex-shrink-0">⚠</span>
           <div>
-            <p className="text-sm font-medium text-amber-300">Sign in to connect integrations</p>
-            <p className="text-xs text-amber-500/70 mt-0.5">
+            <p className="text-sm font-medium text-amber-700">Sign in to connect integrations</p>
+            <p className="text-xs text-amber-600 mt-0.5">
               You&apos;re currently in demo mode. Create an account to save your Shopify connection.
             </p>
             <Link href="/login" className="inline-block mt-2 text-xs font-semibold text-brand-400 hover:text-brand-300 transition-colors">
@@ -865,19 +865,19 @@ export default function SettingsPage() {
       {/* Shopify integration card */}
       <div className="card overflow-hidden">
         {/* Card header */}
-        <div className="px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+        <div className="px-6 py-4 border-b border-rose-100 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-[#96bf48]/10 border border-[#96bf48]/20 flex items-center justify-center text-base flex-shrink-0">
             🛍
           </div>
           <div className="flex-1">
-            <p className="font-semibold text-gray-200 text-sm">Shopify</p>
+            <p className="font-semibold text-gray-800 text-sm">Shopify</p>
             <p className="text-xs text-gray-500">Sync products and view orders from your Shopify store</p>
           </div>
           {!isLoading && (
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
               shopify?.isConnected
                 ? "bg-[#96bf48]/10 text-[#96bf48] border-[#96bf48]/30"
-                : "bg-gray-800 text-gray-500 border-gray-700"
+                : "bg-gray-100 text-gray-500 border-gray-200"
             }`}>
               {shopify?.isConnected ? "Connected" : "Not connected"}
             </span>

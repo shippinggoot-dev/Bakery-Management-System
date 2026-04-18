@@ -11,9 +11,9 @@ type RouterOutputs = inferRouterOutputs<AppRouter>;
 type ShoppingListsData = RouterOutputs["shoppingLists"]["getAll"];
 
 const statusStyle: Record<string, string> = {
-  draft:       "bg-gray-800 text-gray-400",
-  in_progress: "bg-blue-950/60 text-blue-400",
-  completed:   "bg-emerald-950/60 text-emerald-400",
+  draft:       "bg-gray-100 text-gray-500 border-gray-200",
+  in_progress: "bg-blue-50 text-blue-700 border-blue-200",
+  completed:   "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
 function AddListForm({ onClose }: { onClose: () => void }) {
@@ -133,30 +133,30 @@ export default function ShoppingListsClient({
           <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-800/50 border-b border-gray-800">
+              <tr className="bg-rose-50 border-b border-rose-100">
                 <th className="table-header px-6 py-3">{t("nameCol")}</th>
                 <th className="table-header px-6 py-3">{t("statusCol")}</th>
                 <th className="table-header px-6 py-3">{t("dueDateCol")}</th>
                 <th className="table-header px-6 py-3">{t("notesCol")}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className="divide-y divide-rose-50">
               {lists.map((list) => (
-                <tr key={list.id} className="hover:bg-gray-800/40">
+                <tr key={list.id} className="hover:bg-rose-50/50">
                   <td className="px-6 py-4">
-                    <p className="font-medium text-gray-100">{list.name}</p>
+                    <p className="font-medium text-gray-800">{list.name}</p>
                     {list.description && <p className="text-xs text-gray-600 mt-0.5">{list.description}</p>}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`badge ${statusStyle[list.status] ?? "bg-gray-800 text-gray-400"}`}>
+                    <span className={`badge ${statusStyle[list.status] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}>
                       {statusLabel[list.status] ?? list.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {list.dueDate ?? <span className="text-gray-700">—</span>}
+                    {list.dueDate ?? <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                    {list.notes ?? <span className="text-gray-700">—</span>}
+                    {list.notes ?? <span className="text-gray-400">—</span>}
                   </td>
                 </tr>
               ))}

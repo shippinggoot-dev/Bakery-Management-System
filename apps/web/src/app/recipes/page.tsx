@@ -7,14 +7,14 @@ import { CategoryManager } from "./CategoryManager";
 export const dynamic = "force-dynamic";
 
 const categoryColour: Record<string, string> = {
-  "Sponges":  "bg-amber-950/60 text-amber-300",
-  "Fillings": "bg-blue-950/60 text-blue-300",
-  "Frostings":"bg-pink-950/60 text-pink-300",
-  "Mousse":   "bg-violet-950/60 text-violet-300",
-  "Brownie":  "bg-orange-950/60 text-orange-300",
-  "Cookies":  "bg-yellow-950/60 text-yellow-300",
-  "Cupcakes": "bg-rose-950/60 text-rose-300",
-  "Entremet": "bg-emerald-950/60 text-emerald-300",
+  "Sponges":  "bg-amber-50 text-amber-700 border-amber-200",
+  "Fillings": "bg-blue-50 text-blue-700 border-blue-200",
+  "Frostings":"bg-pink-50 text-pink-700 border-pink-200",
+  "Mousse":   "bg-violet-50 text-violet-700 border-violet-200",
+  "Brownie":  "bg-orange-50 text-orange-700 border-orange-200",
+  "Cookies":  "bg-yellow-50 text-yellow-700 border-yellow-200",
+  "Cupcakes": "bg-rose-50 text-rose-700 border-rose-200",
+  "Entremet": "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
 export default async function RecipesPage() {
@@ -73,25 +73,25 @@ export default async function RecipesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {recipes.map((recipe) => {
             const catName    = recipe.category?.name ?? "";
-            const badgeClass = categoryColour[catName] ?? "bg-gray-800 text-gray-400";
+            const badgeClass = categoryColour[catName] ?? "bg-gray-100 text-gray-500 border-gray-200";
             const totalTime  = (recipe.prepTimeMinutes ?? 0) + (recipe.bakeTimeMinutes ?? 0);
 
             return (
               <Link
                 key={recipe.id}
                 href={`/recipes/${recipe.id}`}
-                className="card p-5 hover:border-gray-700 hover:bg-gray-800/50 transition-all flex flex-col gap-3"
+                className="card p-5 hover:border-brand-200 hover:bg-rose-50/50 transition-all flex flex-col gap-3"
               >
                 {catName && (
                   <span className={`badge w-fit ${badgeClass}`}>{catName}</span>
                 )}
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-100 leading-snug">{recipe.name}</h3>
+                  <h3 className="font-semibold text-gray-800 leading-snug">{recipe.name}</h3>
                   {recipe.description && (
                     <p className="text-sm text-gray-500 mt-1 line-clamp-2">{recipe.description}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-4 text-xs text-gray-600 border-t border-gray-800 pt-3">
+                <div className="flex items-center gap-4 text-xs text-gray-600 border-t border-rose-100 pt-3">
                   <span>🎯 {recipe.yieldAmount} {recipe.yieldUnit}</span>
                   {totalTime > 0 && <span>⏱ {totalTime} min</span>}
                 </div>

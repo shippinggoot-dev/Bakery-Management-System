@@ -133,22 +133,22 @@ export default function SuppliersPage() {
           {suppliers.map((s) => (
             <div key={s.id} className="card p-5 space-y-3">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-gray-100 leading-snug">{s.name}</h3>
+                <h3 className="font-semibold text-gray-800 leading-snug">{s.name}</h3>
                 <button
                   onClick={() => toggle.mutate({ id: s.id, data: { isActive: !s.isActive } })}
                   disabled={toggle.isPending}
-                  className={`badge shrink-0 cursor-pointer transition-colors ${s.isActive ? "bg-emerald-950/60 text-emerald-400 hover:bg-emerald-950" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
+                  className={`badge shrink-0 cursor-pointer transition-colors ${s.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100" : "bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200"}`}
                 >
                   {s.isActive ? t("active") : t("inactive")}
                 </button>
               </div>
-              <div className="space-y-1 text-sm text-gray-400">
+              <div className="space-y-1 text-sm text-gray-600">
                 {s.contactName && <p>👤 {s.contactName}</p>}
-                {s.email && <p>📧 <a href={`mailto:${s.email}`} className="text-brand-400 hover:text-brand-500">{s.email}</a></p>}
+                {s.email && <p>📧 <a href={`mailto:${s.email}`} className="text-brand-500 hover:text-brand-700">{s.email}</a></p>}
                 {s.phone && <p>📞 {s.phone}</p>}
-                {s.address && <p className="text-gray-600 text-xs mt-1">{s.address}</p>}
+                {s.address && <p className="text-brand-400 text-xs mt-1">{s.address}</p>}
               </div>
-              {s.notes && <p className="text-xs text-gray-600 border-t border-gray-800 pt-3">{s.notes}</p>}
+              {s.notes && <p className="text-xs text-brand-400 border-t border-rose-100 pt-3">{s.notes}</p>}
             </div>
           ))}
         </div>

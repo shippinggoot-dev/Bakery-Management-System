@@ -13,9 +13,9 @@ const PRIORITY_DOT: Record<Priority, string> = {
 };
 
 const PRIORITY_BADGE: Record<Priority, string> = {
-  high:   "bg-red-950/40 text-red-400 border-red-800/50",
-  medium: "bg-amber-950/30 text-amber-400 border-amber-800/40",
-  low:    "bg-gray-800 text-gray-500 border-gray-700",
+  high:   "bg-red-50 text-red-700 border-red-200",
+  medium: "bg-amber-50 text-amber-700 border-amber-200",
+  low:    "bg-gray-100 text-gray-500 border-gray-200",
 };
 
 function isOverdue(dueDate: string | null | undefined) {
@@ -71,7 +71,7 @@ function AddForm({ onAdd }: { onAdd: () => void }) {
       </div>
 
       {expanded && (
-        <div className="space-y-3 pt-1 border-t border-gray-800">
+        <div className="space-y-3 pt-1 border-t border-rose-100">
           <textarea
             className="form-input text-sm resize-none"
             placeholder={t("descriptionPlaceholder")}
@@ -152,7 +152,7 @@ function TodoRow({ todo, onMutate }: {
   }
 
   return (
-    <div className={`flex items-start gap-3 px-4 py-3 border-b border-gray-800 last:border-0 group ${todo.completed ? "opacity-50" : ""}`}>
+    <div className={`flex items-start gap-3 px-4 py-3 border-b border-rose-100 last:border-0 group ${todo.completed ? "opacity-50" : ""}`}>
       {/* Checkbox */}
       <button
         onClick={() => toggle.mutate({ id: todo.id })}
@@ -160,7 +160,7 @@ function TodoRow({ todo, onMutate }: {
         className={`mt-0.5 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
           todo.completed
             ? "bg-brand-500/30 border-brand-500/50"
-            : "border-gray-600 hover:border-brand-500/60"
+            : "border-rose-300 hover:border-brand-400"
         }`}
         aria-label={todo.completed ? t("markIncomplete") : t("markComplete")}
       >
@@ -180,7 +180,7 @@ function TodoRow({ todo, onMutate }: {
           />
         ) : (
           <p
-            className={`text-sm font-medium cursor-text ${todo.completed ? "line-through text-gray-600" : "text-gray-200"}`}
+            className={`text-sm font-medium cursor-text ${todo.completed ? "line-through text-gray-400" : "text-gray-800"}`}
             onClick={() => { if (!todo.completed) { setEditing(true); setEditTitle(todo.title); } }}
           >
             {todo.title}
@@ -206,7 +206,7 @@ function TodoRow({ todo, onMutate }: {
       <button
         onClick={() => del.mutate({ id: todo.id })}
         disabled={del.isPending}
-        className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-700 hover:text-red-400 hover:bg-red-950/30 transition-all"
+        className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"
         aria-label={t("deleteTask")}
       >
         ✕
@@ -260,15 +260,15 @@ export default function TodosPage() {
       <AddForm onAdd={() => refetch()} />
 
       {/* Filter tabs */}
-      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1">
+      <div className="card p-1 flex gap-1">
         {(["all", "active", "completed"] as Filter[]).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
             className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               filter === f
-                ? "bg-brand-500/20 text-brand-400 border border-brand-500/30"
-                : "text-gray-600 hover:text-gray-400"
+                ? "bg-brand-600 text-white"
+                : "text-gray-500 hover:text-gray-700 hover:bg-rose-50"
             }`}
           >
             {filterLabels[f]}

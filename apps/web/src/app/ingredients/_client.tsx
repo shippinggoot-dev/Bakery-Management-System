@@ -13,13 +13,13 @@ type CategoriesData   = RouterOutputs["ingredients"]["getCategories"];
 type AllergensData    = RouterOutputs["ingredients"]["getAllAllergens"];
 
 const allergenColour: Record<string, string> = {
-  Gluten:      "bg-yellow-950/60 text-yellow-300",
-  Milk:        "bg-blue-950/60 text-blue-300",
-  Eggs:        "bg-orange-950/60 text-orange-300",
-  "Tree Nuts": "bg-emerald-950/60 text-emerald-300",
-  Peanuts:     "bg-red-950/60 text-red-300",
-  Soy:         "bg-purple-950/60 text-purple-300",
-  Sesame:      "bg-stone-900 text-stone-300",
+  Gluten:      "bg-yellow-50 text-yellow-700 border-yellow-200",
+  Milk:        "bg-blue-50 text-blue-700 border-blue-200",
+  Eggs:        "bg-orange-50 text-orange-700 border-orange-200",
+  "Tree Nuts": "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Peanuts:     "bg-red-50 text-red-700 border-red-200",
+  Soy:         "bg-purple-50 text-purple-700 border-purple-200",
+  Sesame:      "bg-stone-50 text-stone-700 border-stone-200",
 };
 
 const COMMON_UNITS = ["g", "kg", "ml", "L", "piece", "tsp", "tbsp"];
@@ -98,7 +98,7 @@ function AddIngredientForm({
               <div className="flex gap-1 flex-wrap">
                 {COMMON_UNITS.map((u) => (
                   <button key={u} type="button" onClick={() => setUnit(u)}
-                    className={`text-xs px-2 py-1 rounded border transition-colors ${unit === u ? "border-brand-500/50 text-brand-400 bg-brand-500/10" : "border-gray-700 text-gray-600 hover:text-gray-400"}`}>
+                    className={`text-xs px-2 py-1 rounded border transition-colors ${unit === u ? "border-brand-500/50 text-brand-400 bg-brand-500/10" : "border-rose-200 text-gray-500 hover:text-gray-700"}`}>
                     {u}
                   </button>
                 ))}
@@ -130,7 +130,7 @@ function AddIngredientForm({
                   className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                     selectedAllergens.includes(a.id)
                       ? "border-brand-500/50 text-brand-400 bg-brand-500/10"
-                      : "border-gray-700 text-gray-600 hover:text-gray-400"
+                      : "border-rose-200 text-gray-500 hover:text-gray-700"
                   }`}>
                   {a.name}
                 </button>
@@ -211,23 +211,23 @@ export default function IngredientsClient({
 
       {categories.map((cat) => (
         <div key={cat} className="card overflow-hidden">
-          <div className="px-6 py-3 bg-gray-800/50 border-b border-gray-800">
-            <h3 className="text-sm font-semibold text-gray-400">{cat}</h3>
+          <div className="px-6 py-3 bg-rose-50 border-b border-rose-100">
+            <h3 className="text-sm font-semibold text-gray-600">{cat}</h3>
           </div>
           <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-800">
+              <tr className="border-b border-rose-100">
                 <th className="table-header px-6 py-3">{t("nameCol")}</th>
                 <th className="table-header px-6 py-3">{t("unitCol")}</th>
                 <th className="table-header px-6 py-3">{t("allergensCol")}</th>
                 <th className="table-header px-6 py-3">{t("supplierPriceCol")}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className="divide-y divide-rose-50">
               {grouped[cat]!.map((ing) => (
-                <tr key={ing.id} className="hover:bg-gray-800/40">
-                  <td className="px-6 py-3 font-medium text-gray-200">{ing.name}</td>
+                <tr key={ing.id} className="hover:bg-rose-50/50">
+                  <td className="px-6 py-3 font-medium text-gray-800">{ing.name}</td>
                   <td className="px-6 py-3 text-gray-500 text-sm">{ing.unit}</td>
                   <td className="px-6 py-3">
                     <div className="flex flex-wrap gap-1">
@@ -237,7 +237,7 @@ export default function IngredientsClient({
                         ing.allergens.map((ia) => {
                           const aName = ia.allergen?.name ?? "";
                           return (
-                            <span key={aName} className={`badge ${allergenColour[aName] ?? "bg-gray-800 text-gray-400"}`}>{aName}</span>
+                            <span key={aName} className={`badge ${allergenColour[aName] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}>{aName}</span>
                           );
                         })
                       )}
