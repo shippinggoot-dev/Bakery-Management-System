@@ -11,6 +11,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Bakery Management",
   description: "Manage recipes, ingredients, suppliers, and orders for your bakery",
+  viewport: { width: "device-width", initialScale: 1, viewportFit: "cover" } as never,
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -29,7 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <ThemeProvider>
               <Nav />
               <GlobalSearch />
-              <main className="pt-[88px] min-h-screen">
+              <main className="pt-[88px] min-h-screen pb-20 md:pb-0">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                   <Breadcrumb />
                   {children}
