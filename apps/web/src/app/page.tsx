@@ -1,267 +1,294 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
-import { api } from "@/trpc/react";
+import { api } from "@/trpc/server";
 
-type StockStatus = "ok" | "low" | "critical" | "out";
+// ── Currency formatting ───────────────────────────────────────────────────────
+// TODO: replace hardcoded locale/currency with per-workspace settings when
+//       multi-currency support is added.
+const NOK = new Intl.NumberFormat("nb-NO", {
+  style:                 "currency",
+  currency:              "NOK",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
 
-const STATUS_DOT: Record<StockStatus, string> = {
-  ok:       "bg-emerald-500",
+function fmtNOK(value: number) { return NOK.format(value); }
+
+// ── Stock status colours ──────────────────────────────────────────────────────
+const STOCK_DOT: Record<string, string> = {
   low:      "bg-amber-400",
   critical: "bg-red-500",
-  out:      "bg-gray-500",
+  out:      "bg-gray-400",
 };
-const STATUS_ROW: Record<StockStatus, string> = {
-  ok:       "",
-  low:      "bg-amber-50",
-  critical: "bg-red-50",
-  out:      "bg-gray-50",
-};
-const STATUS_TEXT: Record<StockStatus, string> = {
-  ok:       "text-emerald-600",
-  low:      "text-amber-600",
-  critical: "text-red-600",
-  out:      "text-gray-500",
+const STOCK_LABEL: Record<string, string> = {
+  low:      "text-amber-700 bg-amber-50  border-amber-200",
+  critical: "text-red-700   bg-red-50    border-red-200",
+  out:      "text-gray-600  bg-gray-100  border-gray-200",
 };
 
-function StockWidget() {
-  const t = useTranslations("dashboard");
-  const { data: stock = [] } = api.inventory.getStockLevels.useQuery();
-  const alerts = stock.filter((s) => s.status !== "ok").slice(0, 8);
+// ── Shift display ─────────────────────────────────────────────────────────────
+const SHIFT_ICON: Record<string, string>  = { morning: "🌅", afternoon: "☀️",  evening: "🌙" };
+const SHIFT_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon", evening: "Evening" };
 
+// ── Sub-components (all server-safe — no hooks) ───────────────────────────────
+
+function ZoneHeading({ children }: { children: React.ReactNode }) {
   return (
-    <div className="card overflow-hidden flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-rose-100">
-        <p className="section-title">{t("stockAlerts")}</p>
-        <Link href="/inventory" className="text-xs text-brand-500 hover:text-brand-700 font-medium">{t("allStock")}</Link>
+    <h2 className="text-[11px] font-bold text-brand-400 uppercase tracking-[0.12em] mb-3 select-none">
+      {children}
+    </h2>
+  );
+}
+
+function TodayCard({
+  title,
+  href,
+  linkLabel,
+  children,
+}: {
+  title:     string;
+  href:      string;
+  linkLabel: string;
+  children:  React.ReactNode;
+}) {
+  return (
+    <div className="card p-5 flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="section-title">{title}</h3>
+        <Link
+          href={href}
+          className="text-xs text-brand-500 hover:text-brand-700 font-medium flex-shrink-0 transition-colors"
+        >
+          {linkLabel}
+        </Link>
       </div>
-      <div className="flex-1 overflow-y-auto divide-y divide-rose-50">
-        {alerts.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-brand-300 text-center">{t("stockOk")}</p>
-        ) : alerts.map((s) => (
-          <div key={s.ingredientId} className={`flex items-center gap-3 px-4 py-2.5 ${STATUS_ROW[s.status]}`}>
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[s.status]}`} />
-            <span className="text-sm text-gray-800 flex-1 truncate">{s.name}</span>
-            <span className={`text-xs font-semibold flex-shrink-0 ${STATUS_TEXT[s.status]}`}>
-              {s.currentStock.toFixed(1)} {s.unit}
-            </span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border flex-shrink-0 ${
-              s.status === "out"      ? "bg-gray-100 text-gray-500 border-gray-200" :
-              s.status === "critical" ? "bg-red-100 text-red-600 border-red-200" :
-                                        "bg-amber-100 text-amber-700 border-amber-200"
-            }`}>{s.status}</span>
-          </div>
-        ))}
-      </div>
+      {children}
     </div>
   );
 }
 
-function today() { return new Date().toISOString().slice(0, 10); }
-
-function startOf(unit: "week" | "month") {
-  const d = new Date();
-  if (unit === "week") { const day = d.getDay(); d.setDate(d.getDate() - day); }
-  else { d.setDate(1); }
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function StatCard({ label, value, href, unit }: { label: string; value: number | string; href: string; unit?: string }) {
+function KpiCard({
+  label,
+  value,
+  caption,
+}: {
+  label:    string;
+  value:    string;
+  caption?: string;
+}) {
   return (
-    <Link href={href} className="stat-card hover:border-brand-300 hover:shadow-md transition-all group flex flex-col gap-1">
-      <p className="text-xs text-brand-400 font-medium leading-tight">{label}</p>
-      <p className="text-3xl font-bold text-brand-700 leading-none mt-1">
-        {value}{unit && <span className="text-lg font-normal text-brand-400 ml-1">{unit}</span>}
-      </p>
-      <span className="text-[10px] text-brand-300 group-hover:text-brand-500 transition-colors mt-auto pt-1">
-        View →
-      </span>
-    </Link>
+    <div className="card px-5 py-4 flex flex-col gap-1">
+      <p className="text-[10px] font-bold text-brand-400 uppercase tracking-widest">{label}</p>
+      <p className="text-2xl font-bold text-brand-700 leading-none mt-1">{value}</p>
+      {caption && <p className="text-xs text-brand-300 mt-1 leading-snug">{caption}</p>}
+    </div>
   );
 }
 
-function TasksWidget() {
-  const t = useTranslations("dashboard");
-  const [newTitle, setNewTitle] = useState("");
-  const { data: todos = [], refetch } = api.todos.list.useQuery();
-  const create = api.todos.create.useMutation({ onSuccess: () => { setNewTitle(""); refetch(); } });
-  const toggle = api.todos.toggle.useMutation({ onSuccess: () => refetch() });
-  const active = todos.filter((td) => !td.completed).slice(0, 8);
+// ── Page (server component) ───────────────────────────────────────────────────
+
+export default async function DashboardPage() {
+  const [today, week] = await Promise.all([
+    api.dashboard.getTodaySummary(),
+    api.dashboard.getWeekSummary(),
+  ]);
+
+  const showDeliveries = (today?.deliveriesToday.length ?? 0) > 0;
+  const showBatches    = (today?.batchesToday.length    ?? 0) > 0;
 
   return (
-    <div className="card overflow-hidden flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-rose-100">
-        <p className="section-title">{t("todaysTasks")}</p>
-        <Link href="/todos" className="text-xs text-brand-500 hover:text-brand-700 font-medium">{t("allTasks")}</Link>
-      </div>
-      <div className="flex gap-2 px-3 py-2.5 border-b border-rose-100">
-        <input
-          className="flex-1 text-sm bg-rose-50 border border-rose-200 rounded-lg px-3 py-1.5 text-gray-800 placeholder-brand-300 focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-200"
-          placeholder={t("quickAdd")}
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && newTitle.trim()) create.mutate({ title: newTitle.trim() }); }}
-        />
-        <button
-          onClick={() => { if (newTitle.trim()) create.mutate({ title: newTitle.trim() }); }}
-          disabled={!newTitle.trim() || create.isPending}
-          className="px-3 py-1.5 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 transition-colors disabled:opacity-40"
-        >{t("addBtn")}</button>
-      </div>
-      <div className="flex-1 overflow-y-auto divide-y divide-rose-50">
-        {active.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-brand-300 text-center">{t("noTasks")}</p>
-        ) : active.map((td) => (
-          <label key={td.id} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-rose-50 transition-colors">
-            <input type="checkbox" checked={td.completed} onChange={() => toggle.mutate({ id: td.id })}
-              className="w-4 h-4 rounded border-2 border-brand-300 accent-brand-600 flex-shrink-0" />
-            <span className="text-sm text-gray-800 truncate">{td.title}</span>
-            {td.dueDate && td.dueDate < today() && (
-              <span className="text-[10px] text-red-400 flex-shrink-0">{t("noTasks").includes("overdue") ? "overdue" : "overdue"}</span>
+    <div className="space-y-8 max-w-5xl">
+
+      {/* ════════════════════════════════════════════════════════════
+          TODAY
+      ════════════════════════════════════════════════════════════ */}
+      <section>
+        <ZoneHeading>Today</ZoneHeading>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+
+          {/* Tasks — always present */}
+          <TodayCard title="Open tasks" href="/todos" linkLabel="All tasks →">
+            <div>
+              <p className="text-4xl font-bold text-brand-700 leading-none">
+                {today?.tasks.count ?? 0}
+              </p>
+              <p className="text-xs text-brand-400 mt-1">
+                {today?.tasks.count === 1 ? "task open" : "tasks open"}
+              </p>
+            </div>
+            {today && today.tasks.titles.length > 0 ? (
+              <ul className="space-y-2 border-t border-rose-100 pt-3">
+                {today.tasks.titles.map((title, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-300 flex-shrink-0" />
+                    <span className="truncate">{title}</span>
+                  </li>
+                ))}
+                {today.tasks.count > 3 && (
+                  <li className="text-xs text-brand-300 pl-3.5">
+                    +{today.tasks.count - 3} more
+                  </li>
+                )}
+              </ul>
+            ) : (
+              <p className="text-sm text-brand-300 border-t border-rose-100 pt-3">
+                All done — nothing open
+              </p>
             )}
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
+          </TodayCard>
 
-function ThisWeekWidget() {
-  const t = useTranslations("dashboard");
-  const { data: orders = [] } = api.purchaseOrders.getAll.useQuery({ limit: 20 });
-  const weekStart = startOf("week");
-  const thisWeek  = orders.filter((o) => new Date(o.createdAt) >= weekStart).slice(0, 6);
+          {/* Stock alerts — always present */}
+          <TodayCard title="Stock alerts" href="/inventory" linkLabel="Inventory →">
+            {today && today.stockAlerts.length > 0 ? (
+              <ul className="space-y-2.5">
+                {today.stockAlerts.map((s) => (
+                  <li key={s.ingredientId} className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STOCK_DOT[s.status] ?? "bg-gray-400"}`} />
+                    <span className="text-sm text-gray-700 flex-1 truncate">{s.name}</span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0 ${STOCK_LABEL[s.status] ?? "text-gray-600 bg-gray-100 border-gray-200"}`}>
+                      {s.currentStock.toFixed(1)} {s.unit}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-brand-300">All stock levels OK</p>
+            )}
+          </TodayCard>
 
-  return (
-    <div className="card overflow-hidden flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-rose-100">
-        <p className="section-title">{t("thisWeek")}</p>
-        <Link href="/purchase-orders" className="text-xs text-brand-500 hover:text-brand-700 font-medium">{t("allOrders")}</Link>
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-3 px-4 py-2 border-b border-rose-100 bg-rose-50">
-          <p className="text-xs font-semibold text-brand-400 uppercase tracking-wider">{t("supplierCol")}</p>
-          <p className="text-xs font-semibold text-brand-400 uppercase tracking-wider">{t("statusCol")}</p>
-          <p className="text-xs font-semibold text-brand-400 uppercase tracking-wider">{t("dateCol")}</p>
+          {/* Deliveries expected — conditional */}
+          {showDeliveries && (
+            <TodayCard title="Deliveries today" href="/purchase-orders" linkLabel="Orders →">
+              <ul className="space-y-3">
+                {today!.deliveriesToday.map((d) => (
+                  <li key={d.id}>
+                    <p className="text-sm font-semibold text-gray-800">{d.supplier.name}</p>
+                    {d.orderNumber && (
+                      <p className="text-xs text-brand-400 mt-0.5">{d.orderNumber}</p>
+                    )}
+                    <span className={`mt-1 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                      d.status === "confirmed"
+                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                        : "bg-blue-50 text-blue-700 border-blue-200"
+                    }`}>
+                      {d.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </TodayCard>
+          )}
+
+          {/* Batches to bake — conditional */}
+          {showBatches && (
+            <TodayCard title="Batches to bake" href="/production" linkLabel="Production →">
+              <ul className="space-y-3">
+                {today!.batchesToday.map((b) => (
+                  <li key={b.id} className="flex items-start gap-2.5">
+                    <span className="text-lg leading-none mt-0.5 flex-shrink-0">
+                      {SHIFT_ICON[b.shift] ?? "🍳"}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {b.recipeName ?? b.recipe?.name ?? "—"}
+                      </p>
+                      <p className="text-xs text-brand-400 mt-0.5">
+                        {SHIFT_LABEL[b.shift] ?? b.shift} · {b.batchCount}× batch
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </TodayCard>
+          )}
         </div>
-        {thisWeek.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-brand-300 text-center">{t("noOrders")}</p>
-        ) : thisWeek.map((o) => (
-          <Link key={o.id} href="/purchase-orders"
-            className="grid grid-cols-3 px-4 py-3 border-b border-rose-50 last:border-0 hover:bg-rose-50 transition-colors">
-            <p className="text-sm text-gray-800 truncate">{o.supplier?.name ?? "—"}</p>
-            <p className="text-sm">
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                o.status === "delivered" ? "bg-green-100 text-green-700" :
-                o.status === "sent"      ? "bg-blue-100 text-blue-700" :
-                o.status === "confirmed" ? "bg-amber-100 text-amber-700" :
-                o.status === "cancelled" ? "bg-red-100 text-red-600" :
-                                           "bg-rose-100 text-brand-600"
-              }`}>{o.status}</span>
+      </section>
+
+      {/* ════════════════════════════════════════════════════════════
+          THIS WEEK
+      ════════════════════════════════════════════════════════════ */}
+      <section>
+        <ZoneHeading>This week</ZoneHeading>
+
+        <div className="space-y-3">
+
+          {/* Revenue — hero card, visually dominant */}
+          <div className="card px-6 py-5">
+            <p className="text-[10px] font-bold text-brand-400 uppercase tracking-widest">
+              Revenue
             </p>
-            <p className="text-sm text-brand-400">
-              {new Date(o.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-            </p>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
+            {week?.weekRevenue ? (
+              <>
+                <p className="text-5xl sm:text-6xl font-bold text-brand-700 leading-none mt-2 tabular-nums">
+                  {fmtNOK(week.weekRevenue)}
+                </p>
+                <p className="text-xs text-brand-300 mt-2">combined orders &amp; POS sales</p>
+              </>
+            ) : (
+              <>
+                <p className="text-5xl sm:text-6xl font-bold text-brand-300 leading-none mt-2">—</p>
+                <p className="text-xs text-brand-300 mt-2">
+                  No data yet · Add sale prices to orders or record a POS sale to track revenue
+                </p>
+              </>
+            )}
+          </div>
 
-function ShoppingWidget() {
-  const t = useTranslations("dashboard");
-  const [newName, setNewName] = useState("");
-  const { data: lists = [], refetch } = api.shoppingLists.getAll.useQuery({ limit: 10 });
-  const create = api.shoppingLists.create.useMutation({ onSuccess: () => { setNewName(""); refetch(); } });
-  const open = lists.filter((l) => l.status !== "completed").slice(0, 7);
+          {/* Smaller KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <KpiCard
+              label="Orders"
+              value={week?.orderCount ? String(week.orderCount) : "—"}
+              caption={
+                week?.orderCount
+                  ? week.orderCount === 1 ? "customer order" : "customer orders"
+                  : "No orders this week"
+              }
+            />
+            <KpiCard
+              label="Top seller"
+              value={week?.topSeller?.name ?? "—"}
+              caption={
+                week?.topSeller
+                  ? `${week.topSeller.totalQty % 1 === 0
+                      ? week.topSeller.totalQty
+                      : week.topSeller.totalQty.toFixed(1)} units ordered`
+                  : "No orders linked to recipes yet"
+              }
+            />
+            <KpiCard
+              label="Waste logged"
+              value={week?.wasteEventCount ? String(week.wasteEventCount) : "—"}
+              caption={
+                week?.wasteEventCount
+                  ? week.wasteEventCount === 1 ? "event this week" : "events this week"
+                  : "No waste logged this week"
+              }
+            />
+          </div>
+        </div>
+      </section>
 
-  return (
-    <div className="card overflow-hidden flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-rose-100">
-        <p className="section-title">{t("shoppingList")}</p>
-        <Link href="/shopping-lists" className="text-xs text-brand-500 hover:text-brand-700 font-medium">{t("allLists")}</Link>
-      </div>
-      <div className="flex gap-2 px-3 py-2.5 border-b border-rose-100">
-        <input
-          className="flex-1 text-sm bg-rose-50 border border-rose-200 rounded-lg px-3 py-1.5 text-gray-800 placeholder-brand-300 focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-200"
-          placeholder={t("quickAdd")}
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && newName.trim()) create.mutate({ name: newName.trim() }); }}
-        />
-        <button
-          onClick={() => { if (newName.trim()) create.mutate({ name: newName.trim() }); }}
-          disabled={!newName.trim() || create.isPending}
-          className="px-3 py-1.5 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 transition-colors disabled:opacity-40"
-        >{t("addBtn")}</button>
-      </div>
-      <div className="flex-1 overflow-y-auto divide-y divide-rose-50">
-        {open.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-brand-300 text-center">{t("noLists")}</p>
-        ) : open.map((l) => (
-          <Link key={l.id} href="/shopping-lists" className="flex items-center gap-3 px-4 py-2.5 hover:bg-rose-50 transition-colors">
-            <span className="w-3.5 h-3.5 rounded-full border-2 border-brand-300 flex-shrink-0" />
-            <span className="text-sm text-gray-800 flex-1 truncate">{l.name}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-              l.status === "draft" ? "bg-rose-100 text-brand-500" : "bg-amber-100 text-amber-700"
-            }`}>{l.status}</span>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export default function DashboardPage() {
-  const t = useTranslations("dashboard");
-  const { data: orders        = [] } = api.purchaseOrders.getAll.useQuery({ limit: 100 });
-  const { data: todos         = [] } = api.todos.list.useQuery();
-  const { data: shoppingLists = [] } = api.shoppingLists.getAll.useQuery({ limit: 100 });
-
-  const todayStr   = today();
-  const weekStart  = startOf("week");
-  const monthStart = startOf("month");
-
-  const ordersThisMonth = orders.filter((o) => new Date(o.createdAt) >= monthStart).length;
-  const ordersThisWeek  = orders.filter((o) => new Date(o.createdAt) >= weekStart).length;
-  const invoiceCount    = orders.filter((o) => o.status === "sent" || o.status === "confirmed").length;
-  const todaysTodos     = todos.filter((td) => !td.completed && (td.dueDate === todayStr || !td.dueDate)).length;
-  const openLists       = shoppingLists.filter((l) => l.status !== "completed").length;
-
-  return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <StatCard label={t("totalOrdersMonth")} value={ordersThisMonth} href="/purchase-orders" />
-        <StatCard label={t("ordersThisWeek")}   value={ordersThisWeek}  href="/purchase-orders" />
-        <StatCard label={t("invoicesSent")}      value={invoiceCount}    href="/purchase-orders" />
-        <StatCard label={t("todaysTodosLabel")} value={todaysTodos}     href="/todos" />
-        <StatCard label={t("shoppingListStat")} value={openLists}       href="/shopping-lists" />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" style={{ minHeight: "340px" }}>
-        <TasksWidget />
-        <ThisWeekWidget />
-        <ShoppingWidget />
-        <StockWidget />
-      </div>
-
+      {/* ════════════════════════════════════════════════════════════
+          QUICK ACTIONS
+      ════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { key: "newOrder",       href: "/purchase-orders" },
-          { key: "costCheck",      href: "/ingredients"     },
-          { key: "customers",      href: "/customers"       },
-          { key: "contentPlanner", href: "/recipes"         },
-        ].map(({ key, href }) => (
-          <Link key={href} href={href}
-            className="bg-white border border-rose-200 rounded-2xl px-4 py-3 text-sm font-medium text-brand-600 hover:bg-rose-50 hover:border-brand-300 transition-all text-center shadow-sm">
-            {t(key as Parameters<typeof t>[0])}
+        {([
+          { label: "New order",       href: "/purchase-orders" },
+          { label: "Cost check",      href: "/ingredients"     },
+          { label: "Customers",       href: "/customers"       },
+          { label: "Production plan", href: "/production"      },
+        ] as const).map(({ label, href }) => (
+          <Link
+            key={href}
+            href={href}
+            className="bg-white border border-rose-200 rounded-2xl px-4 py-3 text-sm font-medium text-brand-600 hover:bg-rose-50 hover:border-brand-300 transition-all text-center shadow-sm"
+          >
+            {label}
           </Link>
         ))}
       </div>
+
     </div>
   );
 }
