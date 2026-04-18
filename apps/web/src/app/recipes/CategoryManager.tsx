@@ -47,15 +47,15 @@ export function CategoryManager({ initialCategories }: { initialCategories: Cate
   }
 
   return (
-    <div className="card p-5 space-y-4 border-gray-700/50">
+    <div className="card p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-300">Recipe Categories</h3>
+        <h3 className="text-sm font-semibold text-gray-700">Recipe Categories</h3>
         <button onClick={() => setOpen(false)} className="text-gray-600 hover:text-gray-400 text-xl leading-none">×</button>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {categories.map((cat) => (
-          <span key={cat.id} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-800 text-gray-300 text-sm">
+          <span key={cat.id} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-brand-600 border border-rose-200 text-sm">
             {cat.name}
             <button
               onClick={() => {

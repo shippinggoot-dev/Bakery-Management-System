@@ -68,7 +68,7 @@ export default function InvoiceIngestionPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <a href="/price-ingestion" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
+        <a href="/price-ingestion" className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
           ← Back to Price Sync
         </a>
         <h2 className="page-title mt-2">Invoice Text Import</h2>
@@ -80,12 +80,12 @@ export default function InvoiceIngestionPage() {
       <div className="card p-5 space-y-5">
 
         {/* How to get text from a PDF */}
-        <div className="bg-gray-800/50 rounded-lg px-4 py-3 text-xs text-gray-500 space-y-1">
-          <p className="font-medium text-gray-400">How to copy invoice text</p>
+        <div className="bg-rose-50 border border-rose-100 rounded-lg px-4 py-3 text-xs text-gray-500 space-y-1">
+          <p className="font-medium text-gray-600">How to copy invoice text</p>
           <p>1. Open the invoice PDF in your browser or PDF viewer.</p>
-          <p>2. Press <kbd className="px-1.5 py-0.5 rounded bg-gray-700 text-gray-300 font-mono text-xs">Ctrl+A</kbd> to select all, then <kbd className="px-1.5 py-0.5 rounded bg-gray-700 text-gray-300 font-mono text-xs">Ctrl+C</kbd> to copy.</p>
-          <p>3. Click in the box below and press <kbd className="px-1.5 py-0.5 rounded bg-gray-700 text-gray-300 font-mono text-xs">Ctrl+V</kbd> to paste.</p>
-          <p>4. Click <strong className="text-gray-300">Extract items</strong> — the script finds the product lines for you.</p>
+          <p>2. Press <kbd className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono text-xs">Ctrl+A</kbd> to select all, then <kbd className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono text-xs">Ctrl+C</kbd> to copy.</p>
+          <p>3. Click in the box below and press <kbd className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono text-xs">Ctrl+V</kbd> to paste.</p>
+          <p>4. Click <strong className="text-gray-700">Extract items</strong> — the script finds the product lines for you.</p>
         </div>
 
         {/* Paste area */}
@@ -107,13 +107,13 @@ export default function InvoiceIngestionPage() {
           type="button"
           onClick={handleParse}
           disabled={text.trim().length < 10}
-          className="w-full py-2 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 text-sm font-medium transition-colors disabled:opacity-40"
+          className="w-full py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm font-medium transition-colors disabled:opacity-40"
         >
           Extract items
         </button>
 
         {error && (
-          <div className="bg-red-950/40 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-400">
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
@@ -122,20 +122,20 @@ export default function InvoiceIngestionPage() {
         {isParsed && preview.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-300">
+              <p className="text-sm font-medium text-gray-800">
                 {preview.length} item{preview.length !== 1 ? "s" : ""} found
               </p>
               <button
                 onClick={() => { setIsParsed(false); setPreview([]); }}
-                className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
               >
                 Clear
               </button>
             </div>
 
-            <div className="rounded-lg border border-gray-800 overflow-hidden">
+            <div className="rounded-lg border border-rose-100 overflow-hidden">
               <table className="w-full text-xs">
-                <thead className="bg-gray-800/60 text-gray-500 uppercase tracking-wide">
+                <thead className="bg-rose-50 text-gray-500 uppercase tracking-wide">
                   <tr>
                     <th className="px-3 py-2 text-left">Name</th>
                     <th className="px-3 py-2 text-left">Price</th>
@@ -143,11 +143,11 @@ export default function InvoiceIngestionPage() {
                     <th className="px-3 py-2 text-left">Unit</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800">
+                <tbody className="divide-y divide-rose-50">
                   {preview.map((item, i) => (
-                    <tr key={i} className="text-gray-300">
+                    <tr key={i} className="text-gray-700">
                       <td className="px-3 py-2">{item.rawName}</td>
-                      <td className="px-3 py-2 font-mono text-emerald-400">{item.rawPrice ?? <span className="text-gray-600">—</span>}</td>
+                      <td className="px-3 py-2 font-mono text-emerald-600">{item.rawPrice ?? <span className="text-gray-400">—</span>}</td>
                       <td className="px-3 py-2 text-gray-500">{item.rawQuantity ?? "—"}</td>
                       <td className="px-3 py-2 text-gray-500">{item.rawUnit ?? "—"}</td>
                     </tr>

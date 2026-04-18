@@ -31,7 +31,7 @@ export default function LoyaltyCardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-500 text-sm animate-pulse">Loading card…</div>
       </div>
     );
@@ -39,7 +39,7 @@ export default function LoyaltyCardPage() {
 
   if (!customer) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-500">Customer not found.</div>
       </div>
     );
@@ -51,10 +51,10 @@ export default function LoyaltyCardPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-start py-8 px-4 gap-6">
+    <div className="max-w-sm mx-auto flex flex-col items-center py-8 px-4 gap-6">
       <button
         onClick={() => router.back()}
-        className="self-start text-gray-500 hover:text-gray-300 text-sm transition-colors"
+        className="self-start text-gray-500 hover:text-gray-700 text-sm transition-colors"
       >
         ← Back
       </button>
@@ -101,14 +101,14 @@ export default function LoyaltyCardPage() {
       </div>
 
       {/* ── Points summary ─────────────────────────────────────────────────── */}
-      <div className="w-full max-w-sm grid grid-cols-3 gap-3">
+      <div className="w-full grid grid-cols-3 gap-3">
         {[
           { label: "Points",          value: customer.points.toLocaleString() },
           { label: "Lifetime pts",    value: customer.lifetimePoints.toLocaleString() },
           { label: "Total spend",     value: `${parseFloat(customer.totalSpend).toFixed(0)} NOK` },
         ].map(({ label, value }) => (
-          <div key={label} className="rounded-xl bg-gray-900 border border-gray-800 px-3 py-3 text-center">
-            <div className="text-lg font-bold text-gray-100">{value}</div>
+          <div key={label} className="rounded-xl bg-white border border-rose-100 shadow-sm px-3 py-3 text-center">
+            <div className="text-lg font-bold text-gray-800">{value}</div>
             <div className="text-[10px] text-gray-500 mt-0.5">{label}</div>
           </div>
         ))}
@@ -116,18 +116,18 @@ export default function LoyaltyCardPage() {
 
       {/* ── Active rewards ─────────────────────────────────────────────────── */}
       {activeRewards.length > 0 && (
-        <div className="w-full max-w-sm space-y-2">
+        <div className="w-full space-y-2">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active rewards</h3>
           {activeRewards.map((reward) => (
-            <div key={reward.id} className="rounded-xl border border-emerald-800/50 bg-emerald-950/40 px-4 py-3">
+            <div key={reward.id} className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold text-emerald-300">{reward.description}</p>
+                  <p className="text-sm font-semibold text-emerald-700">{reward.description}</p>
                   <p className="text-xs text-emerald-600 mt-0.5">
                     Valid until {new Date(reward.validUntil).toLocaleDateString()}
                   </p>
                 </div>
-                <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-400 text-[10px] font-bold border border-emerald-700 capitalize">
+                <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold border border-emerald-200 capitalize">
                   {reward.type}
                 </span>
               </div>
@@ -138,15 +138,15 @@ export default function LoyaltyCardPage() {
 
       {/* ── Dietary / preference ───────────────────────────────────────────── */}
       {(customer.dietaryRequirements || customer.favouriteCategory) && (
-        <div className="w-full max-w-sm rounded-xl bg-gray-900 border border-gray-800 px-4 py-3 flex flex-wrap gap-2">
+        <div className="w-full rounded-xl bg-white border border-rose-100 shadow-sm px-4 py-3 flex flex-wrap gap-2">
           {customer.dietaryRequirements &&
             (JSON.parse(customer.dietaryRequirements) as string[]).map((d) => (
-              <span key={d} className="px-2 py-0.5 rounded-full bg-purple-900/40 text-purple-300 text-xs border border-purple-800">
+              <span key={d} className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-xs border border-purple-200">
                 {d.replace(/_/g, " ")}
               </span>
             ))}
           {customer.favouriteCategory && (
-            <span className="px-2 py-0.5 rounded-full bg-brand-900/40 text-brand-300 text-xs border border-brand-800">
+            <span className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 text-xs border border-brand-200">
               ♥ {customer.favouriteCategory}
             </span>
           )}

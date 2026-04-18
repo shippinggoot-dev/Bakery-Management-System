@@ -32,12 +32,12 @@ export function SellingPricePanel({ recipeId, totalCost, yieldAmount, initialPri
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div>
-          <p className="text-xs text-gray-600 uppercase tracking-wide">Ingredient cost</p>
-          <p className="font-semibold text-gray-200 mt-0.5">kr{cost.toFixed(2)}</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Ingredient cost</p>
+          <p className="font-semibold text-gray-800 mt-0.5">kr{cost.toFixed(2)}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-600 uppercase tracking-wide">Cost per unit</p>
-          <p className="font-semibold text-gray-200 mt-0.5">kr{costPerUnit.toFixed(2)}</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Cost per unit</p>
+          <p className="font-semibold text-gray-800 mt-0.5">kr{costPerUnit.toFixed(2)}</p>
         </div>
         {profit !== null && (
           <div>
@@ -60,7 +60,7 @@ export function SellingPricePanel({ recipeId, totalCost, yieldAmount, initialPri
       {/* Margin bar */}
       {margin !== null && (
         <div>
-          <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-2 bg-rose-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${
                 margin >= 60 ? "bg-emerald-500" : margin >= 40 ? "bg-amber-400" : "bg-red-500"
@@ -75,8 +75,8 @@ export function SellingPricePanel({ recipeId, totalCost, yieldAmount, initialPri
       )}
 
       {/* Input */}
-      <div className="flex items-center gap-3 pt-2 border-t border-gray-800">
-        <label className="text-sm text-gray-400 flex-shrink-0">Selling price (per unit)</label>
+      <div className="flex items-center gap-3 pt-2 border-t border-rose-100">
+        <label className="text-sm text-gray-600 flex-shrink-0">Selling price (per unit)</label>
         <div className="flex items-center gap-2 flex-1">
           <span className="text-gray-500 text-sm">kr</span>
           <input
@@ -86,7 +86,7 @@ export function SellingPricePanel({ recipeId, totalCost, yieldAmount, initialPri
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="0.00"
-            className="w-28 bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-brand-400"
+            className="form-input w-28 text-sm"
           />
           <button
             onClick={() => update.mutate({ id: recipeId, data: { sellingPrice: price || null } })}

@@ -101,7 +101,7 @@ export default function CSVIngestionPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
-        <a href="/price-ingestion" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
+        <a href="/price-ingestion" className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
           ← Back to Price Sync
         </a>
         <h2 className="page-title mt-2">CSV Import</h2>
@@ -147,7 +147,7 @@ export default function CSVIngestionPage() {
           <div className="card p-5 space-y-5">
             <h3 className="section-title">Column Mapping</h3>
 
-            <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
               <input
                 type="checkbox"
                 checked={hasHeader}
@@ -207,24 +207,24 @@ export default function CSVIngestionPage() {
             {/* Preview table */}
             <div>
               <p className="text-xs text-gray-500 mb-2">Preview (first 6 rows)</p>
-              <div className="overflow-x-auto rounded-lg border border-gray-800">
+              <div className="overflow-x-auto rounded-lg border border-rose-100">
                 <table className="w-full text-xs">
                   <tbody>
                     {previewRows.map((row, ri) => (
-                      <tr key={ri} className={ri === 0 && hasHeader ? "bg-gray-800/60 text-gray-400" : "text-gray-300"}>
+                      <tr key={ri} className={ri === 0 && hasHeader ? "bg-rose-50 text-gray-500" : "text-gray-700"}>
                         {row.map((cell, ci) => {
                           const isName  = ci === nameCol;
                           const isPrice = ci === priceCol;
                           const isUnit  = unitCol !== "" && ci === unitCol;
                           const isQty   = quantityCol !== "" && ci === quantityCol;
                           const highlight =
-                            isName  ? "bg-brand-500/10 text-brand-300" :
-                            isPrice ? "bg-emerald-950/30 text-emerald-400" :
-                            isUnit  ? "bg-purple-950/30 text-purple-300" :
-                            isQty   ? "bg-cyan-950/30 text-cyan-300" : "";
+                            isName  ? "bg-brand-50 text-brand-700" :
+                            isPrice ? "bg-emerald-50 text-emerald-700" :
+                            isUnit  ? "bg-purple-50 text-purple-700" :
+                            isQty   ? "bg-cyan-50 text-cyan-700" : "";
                           return (
-                            <td key={ci} className={`px-3 py-2 border-r border-gray-800 last:border-r-0 ${highlight}`}>
-                              {cell || <span className="text-gray-700">—</span>}
+                            <td key={ci} className={`px-3 py-2 border-r border-rose-100 last:border-r-0 ${highlight}`}>
+                              {cell || <span className="text-gray-400">—</span>}
                             </td>
                           );
                         })}
@@ -234,17 +234,17 @@ export default function CSVIngestionPage() {
                 </table>
               </div>
               <div className="flex gap-4 mt-2 text-xs">
-                <span className="text-brand-300">■ Name</span>
-                <span className="text-emerald-400">■ Price</span>
-                {unitCol !== "" && <span className="text-purple-300">■ Unit</span>}
-                {quantityCol !== "" && <span className="text-cyan-300">■ Qty/size</span>}
+                <span className="text-brand-600">■ Name</span>
+                <span className="text-emerald-600">■ Price</span>
+                {unitCol !== "" && <span className="text-purple-600">■ Unit</span>}
+                {quantityCol !== "" && <span className="text-cyan-600">■ Qty/size</span>}
               </div>
             </div>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-950/40 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-400">
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}

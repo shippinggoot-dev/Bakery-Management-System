@@ -6,21 +6,21 @@ import { api } from "@/trpc/react";
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
-    pending:    "bg-yellow-950/60 text-yellow-400",
-    processing: "bg-blue-950/60 text-blue-400",
-    completed:  "bg-emerald-950/60 text-emerald-400",
-    failed:     "bg-red-950/60 text-red-400",
+    pending:    "bg-yellow-50 text-yellow-700 border-yellow-200",
+    processing: "bg-blue-50 text-blue-700 border-blue-200",
+    completed:  "bg-emerald-50 text-emerald-700 border-emerald-200",
+    failed:     "bg-red-50 text-red-700 border-red-200",
   };
-  return map[status] ?? "bg-gray-800 text-gray-400";
+  return map[status] ?? "bg-gray-100 text-gray-500 border-gray-200";
 }
 
 function sourceBadge(source: string) {
   const map: Record<string, string> = {
-    invoice: "bg-purple-950/60 text-purple-400",
-    csv:     "bg-cyan-950/60 text-cyan-400",
-    api:     "bg-orange-950/60 text-orange-400",
+    invoice: "bg-purple-50 text-purple-700 border-purple-200",
+    csv:     "bg-cyan-50 text-cyan-700 border-cyan-200",
+    api:     "bg-orange-50 text-orange-700 border-orange-200",
   };
-  return map[source] ?? "bg-gray-800 text-gray-400";
+  return map[source] ?? "bg-gray-100 text-gray-500 border-gray-200";
 }
 
 export default function PriceIngestionPage() {
@@ -45,7 +45,7 @@ export default function PriceIngestionPage() {
         >
           <span className="text-3xl">📄</span>
           <div>
-            <h3 className="font-semibold text-gray-100 group-hover:text-brand-300 transition-colors">
+            <h3 className="font-semibold text-gray-800 group-hover:text-brand-600 transition-colors">
               {t("invoiceOcr")}
             </h3>
             <p className="text-sm text-gray-500 mt-1">{t("invoiceOcrDesc")}</p>
@@ -59,7 +59,7 @@ export default function PriceIngestionPage() {
         >
           <span className="text-3xl">📊</span>
           <div>
-            <h3 className="font-semibold text-gray-100 group-hover:text-brand-300 transition-colors">
+            <h3 className="font-semibold text-gray-800 group-hover:text-brand-600 transition-colors">
               {t("csvImport")}
             </h3>
             <p className="text-sm text-gray-500 mt-1">{t("csvImportDesc")}</p>
@@ -72,10 +72,10 @@ export default function PriceIngestionPage() {
       {cogsResults.length > 0 && (
         <div>
           <h3 className="section-title mb-3">{t("costOverview")}</h3>
-          <div className="card divide-y divide-gray-800">
+          <div className="card divide-y divide-rose-50">
             {cogsResults.map((r) => (
               <div key={r.recipeId} className="flex items-center justify-between px-5 py-3 text-sm">
-                <span className="text-gray-300 font-medium">{r.recipeName}</span>
+                <span className="text-gray-800 font-medium">{r.recipeName}</span>
                 <div className="flex items-center gap-4 text-right">
                   <span className="text-gray-500">
                     {r.yieldAmount} {r.yieldUnit}
@@ -105,18 +105,18 @@ export default function PriceIngestionPage() {
             <p className="text-sm mt-1">{t("noImportsHint")}</p>
           </div>
         ) : (
-          <div className="card divide-y divide-gray-800">
+          <div className="card divide-y divide-rose-50">
             {sessions.map((s) => (
               <Link
                 key={s.id}
                 href={`/price-ingestion/${s.id}`}
-                className="flex items-center gap-4 px-5 py-4 hover:bg-gray-800/40 transition-colors"
+                className="flex items-center gap-4 px-5 py-4 hover:bg-rose-50/50 transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`badge text-xs ${sourceBadge(s.source)}`}>{s.source}</span>
                     <span className={`badge text-xs ${statusBadge(s.status)}`}>{s.status}</span>
-                    <span className="text-gray-300 text-sm font-medium truncate">
+                    <span className="text-gray-800 text-sm font-medium truncate">
                       {s.fileName ?? `${s.source} import`}
                     </span>
                   </div>

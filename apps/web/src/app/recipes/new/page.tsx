@@ -48,7 +48,7 @@ function ImportPanel({ onImport }: {
       >
         <span className="text-2xl">📋</span>
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-300 group-hover:text-brand-300 transition-colors">
+          <p className="font-medium text-gray-700 group-hover:text-brand-600 transition-colors">
             Import from text
           </p>
           <p className="text-sm text-gray-600 mt-0.5">
@@ -84,7 +84,7 @@ function ImportPanel({ onImport }: {
       />
 
       {parseError && (
-        <p className="text-sm text-red-400 bg-red-950/30 border border-red-800 rounded-lg px-4 py-3">
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
           {parseError}
         </p>
       )}
@@ -98,7 +98,7 @@ function ImportPanel({ onImport }: {
           Fill in form
         </button>
         <button onClick={() => { setOpen(false); setParseError(null); }}
-          className="px-5 py-2 rounded-lg text-gray-500 hover:text-gray-300 text-sm transition-colors">
+          className="px-5 py-2 rounded-lg text-gray-500 hover:text-gray-700 text-sm transition-colors">
           Cancel
         </button>
       </div>
@@ -227,7 +227,7 @@ export default function NewRecipePage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <Link href="/recipes" className="text-sm text-gray-500 hover:text-gray-300">
+      <Link href="/recipes" className="text-sm text-gray-500 hover:text-gray-700">
         ← Back to Recipes
       </Link>
 
@@ -241,10 +241,10 @@ export default function NewRecipePage() {
 
       {/* Import success banner */}
       {importBanner && (
-        <div className="flex items-start gap-3 rounded-lg border border-emerald-800/50 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-300">
+        <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           <span>✓</span>
           <span className="flex-1">{importBanner}</span>
-          <button onClick={() => setImportBanner(null)} className="text-emerald-700 hover:text-emerald-400 leading-none">×</button>
+          <button onClick={() => setImportBanner(null)} className="text-emerald-500 hover:text-emerald-700 leading-none">×</button>
         </div>
       )}
 
@@ -445,7 +445,7 @@ export default function NewRecipePage() {
         </div>
 
         {error && (
-          <p className="text-sm text-red-400 bg-red-950/30 border border-red-800 rounded-lg px-4 py-3">
+          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
             {error}
           </p>
         )}
@@ -460,7 +460,7 @@ export default function NewRecipePage() {
           </button>
           <Link
             href="/recipes"
-            className="px-6 py-2.5 rounded-lg text-gray-500 hover:text-gray-300 text-sm transition-colors"
+            className="px-6 py-2.5 rounded-lg text-gray-500 hover:text-gray-700 text-sm transition-colors"
           >
             Cancel
           </Link>

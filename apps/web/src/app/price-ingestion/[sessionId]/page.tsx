@@ -23,9 +23,9 @@ type Item = {
 
 function scoreColour(score: string | null) {
   const n = parseFloat(score ?? "0");
-  if (n >= 0.9) return "text-emerald-400";
-  if (n >= 0.75) return "text-yellow-400";
-  return "text-red-400";
+  if (n >= 0.9) return "text-emerald-600";
+  if (n >= 0.75) return "text-amber-600";
+  return "text-red-600";
 }
 
 function IngredientCombobox({
@@ -97,7 +97,7 @@ function ItemRow({
   }
 
   return (
-    <tr className="hover:bg-gray-800/30 transition-colors">
+    <tr className="hover:bg-rose-50/50 transition-colors">
       <td className="px-4 py-3 text-center">
         {item.ingredientId ? (
           <input
@@ -111,7 +111,7 @@ function ItemRow({
         )}
       </td>
       <td className="px-4 py-3">
-        <p className="text-sm text-gray-200">{item.rawName}</p>
+        <p className="text-sm text-gray-800">{item.rawName}</p>
         {(item.rawPrice || item.rawQuantity || item.rawUnit) && (
           <p className="text-xs text-gray-600 mt-0.5">
             {[item.rawPrice && `${item.rawPrice}`, item.rawQuantity && `qty: ${item.rawQuantity}`, item.rawUnit && item.rawUnit]
@@ -125,8 +125,8 @@ function ItemRow({
           onChange={(id) => onReassign(item.id, id)}
         />
       </td>
-      <td className="px-4 py-3 text-sm text-gray-300 font-mono">
-        {item.pricePerUnit ?? <span className="text-gray-600">—</span>}
+      <td className="px-4 py-3 text-sm text-gray-700 font-mono">
+        {item.pricePerUnit ?? <span className="text-gray-400">—</span>}
       </td>
       <td className="px-4 py-3 text-sm text-gray-500">
         {item.unit ?? "—"}
@@ -143,7 +143,7 @@ function ItemRow({
       <td className="px-4 py-3">
         <button
           onClick={() => reject.mutate(item.id)}
-          className="text-xs text-gray-600 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-950/20"
+          className="text-xs text-gray-500 hover:text-red-600 transition-colors px-2 py-1 rounded hover:bg-red-50"
         >
           Skip
         </button>
@@ -225,14 +225,14 @@ export default function SessionReviewPage({ params }: { params: Promise<{ sessio
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <a href="/price-ingestion" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
+          <a href="/price-ingestion" className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
             ← Back to Price Sync
           </a>
           <h2 className="page-title mt-1">
             {session.fileName ?? `${session.source} import`}
           </h2>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span className="badge text-xs bg-gray-800 text-gray-400">{session.source}</span>
+            <span className="badge text-xs bg-gray-100 text-gray-500 border-gray-200">{session.source}</span>
             <span className="text-xs text-gray-500">
               {new Date(session.startedAt).toLocaleString()}
             </span>
@@ -254,23 +254,23 @@ export default function SessionReviewPage({ params }: { params: Promise<{ sessio
       </div>
 
       {apply.data && (
-        <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-lg px-4 py-3 text-sm text-emerald-400">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700">
           {apply.data.applied} price{apply.data.applied !== 1 ? "s" : ""} applied successfully.
         </div>
       )}
 
       {apply.error && (
-        <div className="bg-red-950/40 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-400">
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
           {apply.error.message}
         </div>
       )}
 
       {allDone && (
-        <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-lg px-5 py-4 text-sm text-emerald-400 flex items-center gap-3">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-5 py-4 text-sm text-emerald-700 flex items-center gap-3">
           <span className="text-xl">✓</span>
           <div>
             <p className="font-medium">All items reviewed</p>
-            <p className="text-emerald-500/70 text-xs mt-0.5">
+            <p className="text-emerald-600 text-xs mt-0.5">
               {appliedCount} prices have been applied to your supplier data.
             </p>
           </div>
@@ -286,7 +286,7 @@ export default function SessionReviewPage({ params }: { params: Promise<{ sessio
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-800/60 text-xs text-gray-500 uppercase tracking-wide">
+              <thead className="bg-rose-50 text-xs text-gray-500 uppercase tracking-wide border-b border-rose-100">
                 <tr>
                   <th className="px-4 py-3 text-center w-10">
                     {matchedReviewable.length > 0 && (
@@ -306,7 +306,7 @@ export default function SessionReviewPage({ params }: { params: Promise<{ sessio
                   <th className="px-4 py-3 w-16" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800">
+              <tbody className="divide-y divide-rose-50">
                 {items.map((item) => (
                   <ItemRow
                     key={item.id}
@@ -321,7 +321,7 @@ export default function SessionReviewPage({ params }: { params: Promise<{ sessio
           </div>
 
           {matchedReviewable.length > 0 && (
-            <div className="px-4 py-3 bg-gray-800/30 border-t border-gray-800 flex items-center justify-between text-sm">
+            <div className="px-4 py-3 bg-rose-50 border-t border-rose-100 flex items-center justify-between text-sm">
               <span className="text-gray-500">
                 {checked.size} of {matchedReviewable.length} matched items selected
               </span>

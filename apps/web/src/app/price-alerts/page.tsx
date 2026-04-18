@@ -57,13 +57,13 @@ export default function PriceAlertsPage() {
         </div>
       ) : (
         <div className="card overflow-hidden">
-          <ul className="divide-y divide-gray-800">
+          <ul className="divide-y divide-rose-50">
             {alerts.map((alert) => {
               const { pct, up } = priceDiff(alert.oldPriceNok, alert.newPriceNok);
               return (
                 <li key={alert.id} className="flex items-center gap-4 px-6 py-4">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-100">{alert.ingredientName}</p>
+                    <p className="font-medium text-gray-800">{alert.ingredientName}</p>
                     <p className="text-sm text-gray-500 mt-0.5">
                       {alert.newStore}
                       {alert.oldStore && alert.oldStore !== alert.newStore && (
@@ -77,10 +77,10 @@ export default function PriceAlertsPage() {
                       <span className="text-gray-500 line-through text-sm">
                         {formatPrice(alert.oldPriceNok)}
                       </span>
-                      <span className="text-gray-100 font-semibold">
+                      <span className="text-gray-800 font-semibold">
                         {formatPrice(alert.newPriceNok)}
                       </span>
-                      <span className={`badge ${up ? "bg-red-950/60 text-red-300" : "bg-emerald-950/60 text-emerald-300"}`}>
+                      <span className={`badge ${up ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
                         {up ? "▲" : "▼"} {Math.abs(Number(pct))}%
                       </span>
                     </div>
@@ -93,7 +93,7 @@ export default function PriceAlertsPage() {
 
                   <button
                     onClick={() => dismiss.mutate(alert.id)}
-                    className="text-gray-700 hover:text-gray-400 transition-colors text-lg leading-none shrink-0"
+                    className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none shrink-0"
                     title={t("dismissAll")}
                   >
                     ×
