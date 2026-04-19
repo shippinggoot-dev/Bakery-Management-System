@@ -6,8 +6,8 @@ import { api } from "@/trpc/react";
 
 const WASTE_REASONS = [
   { value: "expired",        label: "Expired",        icon: "📅" },
-  { value: "burnt",          label: "Burnt",           icon: "🔥" },
-  { value: "dropped",        label: "Dropped",         icon: "💧" },
+  { value: "damaged",        label: "Burnt/Damaged",  icon: "🔥" },
+  { value: "spillage",       label: "Dropped",         icon: "💧" },
   { value: "overproduction", label: "Overproduction",  icon: "📦" },
   { value: "other",          label: "Other",           icon: "❓" },
 ] as const;
