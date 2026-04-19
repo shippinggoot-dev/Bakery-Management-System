@@ -32,6 +32,7 @@ export const ingredients = pgTable("ingredients", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
+  index("idx_ingredients_owner_id").on(t.ownerId),
   index("idx_ingredients_category_id").on(t.categoryId),
   index("idx_ingredients_name").on(t.name),
 ]);
