@@ -24,6 +24,7 @@ export const recipes = pgTable("recipes", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
+  index("idx_recipes_owner_active").on(t.ownerId, t.isActive),
   index("idx_recipes_category_id").on(t.categoryId),
   index("idx_recipes_is_active").on(t.isActive),
   index("idx_recipes_name").on(t.name),
