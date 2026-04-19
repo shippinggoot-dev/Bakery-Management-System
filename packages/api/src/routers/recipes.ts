@@ -100,7 +100,15 @@ export const recipesRouter = createTRPCRouter({
           category: true,
           ingredients: {
             with: {
-              ingredient: { with: { allergens: { with: { allergen: true } } } },
+              ingredient: {
+                with: {
+                  allergens: { with: { allergen: true } },
+                  supplierPrices: {
+                    where: (sp, { eq }) => eq(sp.isPreferred, true),
+                    limit: 1,
+                  },
+                },
+              },
             },
             orderBy: (ri, { asc }) => [asc(ri.sortOrder)],
           },

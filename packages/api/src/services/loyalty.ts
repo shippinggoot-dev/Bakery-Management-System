@@ -58,11 +58,15 @@ export async function getOwnerTiers(ownerId: string) {
 
 // ─── Tier resolution ──────────────────────────────────────────────────────────
 
-export async function resolveTier(ownerId: string, lifetimePoints: number): Promise<string> {
-  const tiers = await getOwnerTiers(ownerId);
-  // tiers sorted highest minPoints first
+function resolveTierFromList(tiers: { slug: string; minPoints: number }[], lifetimePoints: number): string {
+  // tiers must be sorted highest minPoints first
   const matched = tiers.find((t) => lifetimePoints >= t.minPoints);
   return matched?.slug ?? "bronze";
+}
+
+export async function resolveTier(ownerId: string, lifetimePoints: number): Promise<string> {
+  const tiers = await getOwnerTiers(ownerId);
+  return resolveTierFromList(tiers, lifetimePoints);
 }
 
 // ─── Award points for a sale ─────────────────────────────────────────────────
@@ -103,8 +107,8 @@ export async function awardPoints(opts: {
     notes:            opts.notes,
   }).returning();
 
-  // Resolve new tier
-  const newTier      = await resolveTier(opts.ownerId, newLifetime);
+  // Resolve new tier — reuse already-fetched tiers, no second DB round-trip
+  const newTier      = resolveTierFromList(tiers, newLifetime);
   const tierUpgraded = newTier !== customer.tier ? newTier : null;
 
   // Update customer

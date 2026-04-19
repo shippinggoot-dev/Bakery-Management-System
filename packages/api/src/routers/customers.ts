@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, and, desc, ilike, or, gte, lte } from "drizzle-orm";
+import { eq, and, asc, desc, ilike, like, or, gte } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import {
   customers,
@@ -111,44 +111,38 @@ export const customersRouter = createTRPCRouter({
     }).optional())
     .query(async ({ ctx, input }) => {
       const conditions: ReturnType<typeof eq>[] = [eq(customers.ownerId, ctx.user.id) as ReturnType<typeof eq>];
-      if (input?.tier) conditions.push(eq(customers.tier, input.tier) as ReturnType<typeof eq>);
 
-      const results = await ctx.db.query.customers.findMany({
+      if (input?.tier)      conditions.push(eq(customers.tier, input.tier) as ReturnType<typeof eq>);
+      if (input?.minPoints) conditions.push(gte(customers.points, input.minPoints) as ReturnType<typeof eq>);
+      if (input?.dietaryReq) {
+        // dietaryRequirements is stored as JSON array e.g. '["gluten_free","vegan"]'
+        // values are enum-validated at write time so this pattern match is safe
+        conditions.push(like(customers.dietaryRequirements, `%"${input.dietaryReq}"%`) as ReturnType<typeof eq>);
+      }
+      if (input?.search) {
+        const q = `%${input.search}%`;
+        conditions.push(or(
+          ilike(customers.firstName, q),
+          ilike(customers.lastName, q),
+          ilike(customers.phone, q),
+          ilike(customers.email, q),
+          ilike(customers.cardNumber, q),
+        ) as ReturnType<typeof eq>);
+      }
+
+      const sort = input?.sort ?? "name";
+      const orderBy =
+        sort === "points"    ? [desc(customers.points)] :
+        sort === "spend"     ? [desc(customers.totalSpend)] :
+        sort === "lastVisit" ? [desc(customers.lastVisitAt)] :
+                               [asc(customers.firstName), asc(customers.lastName)];
+
+      return ctx.db.query.customers.findMany({
         where: and(...conditions),
-        orderBy: [desc(customers.createdAt)],
-        limit: input?.limit ?? 50,
+        orderBy,
+        limit:  input?.limit  ?? 50,
         offset: input?.offset ?? 0,
       });
-
-      let filtered = results;
-      if (input?.search) {
-        const q = input.search.toLowerCase();
-        filtered = results.filter((c) =>
-          c.firstName.toLowerCase().includes(q) ||
-          c.lastName.toLowerCase().includes(q) ||
-          c.phone?.includes(q) ||
-          c.email?.toLowerCase().includes(q) ||
-          c.cardNumber.toLowerCase().includes(q)
-        );
-      }
-      if (input?.minPoints !== undefined) {
-        filtered = filtered.filter((c) => c.points >= input.minPoints!);
-      }
-      if (input?.dietaryReq) {
-        filtered = filtered.filter((c) => {
-          const reqs: string[] = c.dietaryRequirements ? JSON.parse(c.dietaryRequirements) : [];
-          return reqs.includes(input.dietaryReq!);
-        });
-      }
-
-      // Sort
-      const sort = input?.sort ?? "name";
-      if (sort === "points")    filtered.sort((a, b) => b.points - a.points);
-      if (sort === "spend")     filtered.sort((a, b) => parseFloat(b.totalSpend) - parseFloat(a.totalSpend));
-      if (sort === "lastVisit") filtered.sort((a, b) => (b.lastVisitAt?.getTime() ?? 0) - (a.lastVisitAt?.getTime() ?? 0));
-      if (sort === "name")      filtered.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
-
-      return filtered;
     }),
 
   // ── Individual customer profile ───────────────────────────────────────────────
@@ -296,12 +290,25 @@ export const customersRouter = createTRPCRouter({
 
   // ── Segments ─────────────────────────────────────────────────────────────────
 
-  getSegments: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.db.query.customerSegments.findMany({
-      where: eq(customerSegments.ownerId, ctx.user.id),
-      orderBy: [desc(customerSegments.updatedAt)],
-    });
-  }),
+  getSegments: protectedProcedure
+    .input(z.object({
+      limit:  z.number().min(1).max(100).default(25),
+      offset: z.number().min(0).default(0),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const limit  = input?.limit  ?? 25;
+      const offset = input?.offset ?? 0;
+
+      const rows = await ctx.db.query.customerSegments.findMany({
+        where: eq(customerSegments.ownerId, ctx.user.id),
+        orderBy: [desc(customerSegments.updatedAt)],
+        limit:  limit + 1,
+        offset,
+      });
+
+      const hasMore = rows.length > limit;
+      return { segments: hasMore ? rows.slice(0, limit) : rows, hasMore };
+    }),
 
   createSegment: protectedProcedure
     .input(z.object({

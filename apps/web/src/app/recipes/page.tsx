@@ -1,10 +1,9 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { api } from "@/trpc/server";
 import { PlusIcon } from "@/components/icons";
 import { CategoryManager } from "./CategoryManager";
-
-export const dynamic = "force-dynamic";
 
 const categoryColour: Record<string, string> = {
   "Sponges":  "bg-amber-50 text-amber-700 border-amber-200",
@@ -20,6 +19,30 @@ const categoryColour: Record<string, string> = {
 export default async function RecipesPage() {
   const t = await getTranslations("recipes");
 
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Header streams immediately — no DB needed */}
+      <div className="flex items-center justify-between">
+        <h2 className="page-title">{t("title")}</h2>
+        <Link
+          href="/recipes/new"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 hover:text-brand-300 transition-colors text-sm font-medium"
+        >
+          <PlusIcon />
+          {t("newRecipe")}
+        </Link>
+      </div>
+
+      <Suspense fallback={<RecipesPageSkeleton />}>
+        <RecipesContent />
+      </Suspense>
+    </div>
+  );
+}
+
+async function RecipesContent() {
+  const t = await getTranslations("recipes");
+
   let recipes: Awaited<ReturnType<typeof api.recipes.getAll>> = [];
   let categories: Awaited<ReturnType<typeof api.recipes.getCategories>> = [];
 
@@ -29,9 +52,8 @@ export default async function RecipesPage() {
       api.recipes.getCategories(),
     ]);
   } catch (err) {
-    console.error("[RecipesPage] Failed to load data:", err);
     return (
-      <div className="max-w-5xl mx-auto py-16 text-center">
+      <div className="py-16 text-center">
         <p className="text-4xl mb-3">⚠️</p>
         <p className="font-semibold text-gray-400 text-lg">{t("errorTitle")}</p>
         <p className="text-sm text-gray-600 mt-2">
@@ -46,20 +68,8 @@ export default async function RecipesPage() {
     : t("subtitlePlural").replace("{count}", String(recipes.length));
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="page-title">{t("title")}</h2>
-          <p className="text-gray-500 mt-1">{subtitleText}</p>
-        </div>
-        <Link
-          href="/recipes/new"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30 hover:text-brand-300 transition-colors text-sm font-medium"
-        >
-          <PlusIcon />
-          {t("newRecipe")}
-        </Link>
-      </div>
+    <>
+      <p className="text-gray-500 -mt-2">{subtitleText}</p>
 
       <CategoryManager initialCategories={categories} />
 
@@ -100,6 +110,26 @@ export default async function RecipesPage() {
           })}
         </div>
       )}
+    </>
+  );
+}
+
+function RecipesPageSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="h-4 bg-rose-100 rounded w-24" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="card p-5 space-y-3">
+            <div className="h-4 bg-rose-100 rounded w-20" />
+            <div className="h-5 bg-rose-100 rounded w-3/4" />
+            <div className="h-4 bg-rose-100 rounded w-1/2" />
+            <div className="border-t border-rose-100 pt-3">
+              <div className="h-3 bg-rose-100 rounded w-28" />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
