@@ -17,11 +17,7 @@ const createCaller = createCallerFactory(appRouter);
 
 const createContext = cache(async (): Promise<Context> => {
   const supabase = await createServerSupabase();
-  // getSession() reads the signed JWT from the cookie — no network round-trip to Supabase auth servers.
-  // Safe because the JWT is signed with Supabase's private key and cannot be forged.
-  // Middleware already validates the token on every request.
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user ?? null;
+  const { data: { user } } = await supabase.auth.getUser();
   return {
     db,
     user: user ? { id: user.id, email: user.email ?? null, isAnonymous: user.is_anonymous ?? false } : null,
