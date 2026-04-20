@@ -79,7 +79,12 @@ async function RecipeDetailContent({ id }: { id: string }) {
   return (
     <>
       <div className="flex items-center justify-between">
-        <div>{/* spacer — back link is in outer shell */}</div>
+        <Link
+          href={`/recipes/${id}/edit`}
+          className="px-4 py-2 rounded-lg border border-brand-200 text-brand-600 text-sm font-semibold hover:bg-brand-50 transition-colors"
+        >
+          ✏️ Edit recipe
+        </Link>
         <DeleteRecipeButton id={id} name={recipe.name} />
       </div>
 
