@@ -1,9 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import { parseInvoiceText } from "@/lib/invoice-parser";
+
+async function extractTextFromFile(file: File): Promise<string> {
+  if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url,
+    ).toString();
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pages: string[] = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      pages.push(content.items.map((item) => ("str" in item ? item.str : "")).join(" "));
+    }
+    return pages.join("\n");
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result as string ?? "");
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+}
 
 const EXAMPLE = `Hvetemel tipo 00   1kg   45.50
 Sukker             2kg   32.00
@@ -20,6 +45,25 @@ export default function InvoiceIngestionPage() {
   const [error, setError]           = useState<string | null>(null);
   const [preview, setPreview]       = useState<ReturnType<typeof parseInvoiceText>>([]);
   const [isParsed, setIsParsed]     = useState(false);
+  const [fileLoading, setFileLoading] = useState(false);
+  const [dragOver, setDragOver]     = useState(false);
+  const fileInputRef                = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    setError(null);
+    setFileLoading(true);
+    setIsParsed(false);
+    setPreview([]);
+    try {
+      const extracted = await extractTextFromFile(file);
+      setText(extracted);
+      setFileName(file.name.replace(/\.[^.]+$/, ""));
+    } catch {
+      setError("Could not read the file. Try copying the text manually.");
+    } finally {
+      setFileLoading(false);
+    }
+  }
 
   const { data: suppliers = [] } = api.suppliers.getAll.useQuery({ limit: 200 });
 
@@ -73,19 +117,51 @@ export default function InvoiceIngestionPage() {
         </a>
         <h2 className="page-title mt-2">Invoice Text Import</h2>
         <p className="text-gray-500 mt-1">
-          Copy the text from your supplier invoice and paste it below — no file upload, no AI.
+          Upload a PDF or text file, or paste the invoice text directly — no AI, runs in your browser.
         </p>
       </div>
 
       <div className="card p-5 space-y-5">
 
-        {/* How to get text from a PDF */}
-        <div className="bg-rose-50 border border-rose-100 rounded-lg px-4 py-3 text-xs text-gray-500 space-y-1">
-          <p className="font-medium text-gray-600">How to copy invoice text</p>
-          <p>1. Open the invoice PDF in your browser or PDF viewer.</p>
-          <p>2. Press <kbd className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono text-xs">Ctrl+A</kbd> to select all, then <kbd className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono text-xs">Ctrl+C</kbd> to copy.</p>
-          <p>3. Click in the box below and press <kbd className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono text-xs">Ctrl+V</kbd> to paste.</p>
-          <p>4. Click <strong className="text-gray-700">Extract items</strong> — the script finds the product lines for you.</p>
+        {/* File drop zone */}
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.txt,.csv"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+          />
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const f = e.dataTransfer.files[0];
+              if (f) handleFile(f);
+            }}
+            className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-8 cursor-pointer transition-colors ${
+              dragOver ? "border-brand-400 bg-brand-50" : "border-rose-200 hover:border-brand-300 hover:bg-rose-50/50"
+            }`}
+          >
+            {fileLoading ? (
+              <p className="text-sm text-brand-400 animate-pulse">Reading file…</p>
+            ) : (
+              <>
+                <span className="text-3xl">📄</span>
+                <p className="text-sm font-medium text-gray-700">Drop invoice file here, or <span className="text-brand-500 underline">browse</span></p>
+                <p className="text-xs text-gray-400">PDF, TXT or CSV</p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-gray-400">
+          <div className="flex-1 h-px bg-rose-100" />
+          or paste text below
+          <div className="flex-1 h-px bg-rose-100" />
         </div>
 
         {/* Paste area */}
