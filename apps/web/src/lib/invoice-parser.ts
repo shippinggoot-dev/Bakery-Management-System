@@ -141,10 +141,61 @@ function looksLikeProductLine(line: string, priceMatch: ReturnType<typeof extrac
   return true;
 }
 
+// ── Stacked-format detector ───────────────────────────────────────────────────
+
+/**
+ * Some invoices (especially PDF-extracted text) have each field on its own line:
+ *   Hvit kakedrum kvadratisk 20x20cm
+ *   15
+ *   261,00 NOK
+ *
+ * Detects this pattern and groups triplets (name / qty / price) into items.
+ * Returns null if the text doesn't look like stacked format.
+ */
+function tryStackedFormat(lines: string[]): InvoiceLineItem[] | null {
+  const nonBlank = lines.map((l) => l.trim()).filter(Boolean);
+  if (nonBlank.length < 3) return null;
+
+  const tripletTotal = Math.floor(nonBlank.length / 3);
+
+  // Score: how many [name, bareNumber, priceValue] triplets exist at every 3rd offset
+  let matched = 0;
+  for (let i = 0; i + 2 < nonBlank.length; i += 3) {
+    const hasLetters = /[a-zA-ZæøåÆØÅ]/.test(nonBlank[i]!);
+    const isBareNum  = /^\d+([.,]\d+)?$/.test(nonBlank[i + 1]!);
+    const hasPrice   = extractPrice(nonBlank[i + 2]!) !== null;
+    if (hasLetters && isBareNum && hasPrice) matched++;
+  }
+
+  if (tripletTotal === 0 || matched / tripletTotal < 0.5) return null;
+
+  const items: InvoiceLineItem[] = [];
+  for (let i = 0; i + 2 < nonBlank.length; i += 3) {
+    const name  = nonBlank[i]!.trim();
+    const qty   = nonBlank[i + 1]!.trim();
+    const price = nonBlank[i + 2]!.trim();
+    const priceMatch = extractPrice(price);
+    if (!priceMatch || !/[a-zA-ZæøåÆØÅ]/.test(name)) continue;
+    items.push({
+      rawName:     name,
+      rawPrice:    priceMatch.value,
+      rawQuantity: qty.replace(",", "."),
+      rawUnit:     null,
+    });
+  }
+
+  return items.length > 0 ? items : null;
+}
+
 // ── Main parser ───────────────────────────────────────────────────────────────
 
 export function parseInvoiceText(text: string): InvoiceLineItem[] {
   const lines = text.split(/\r?\n/);
+
+  // Try stacked format first (name / qty / price each on their own line)
+  const stacked = tryStackedFormat(lines);
+  if (stacked) return stacked;
+
   const items: InvoiceLineItem[] = [];
   const seen = new Set<string>(); // deduplicate near-identical lines
 
