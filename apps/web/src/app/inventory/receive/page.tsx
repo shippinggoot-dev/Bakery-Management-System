@@ -114,6 +114,8 @@ function IngredientSearch({
   );
 }
 
+type DeliveryType = "ingredient" | "other";
+
 function ReceivePageInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -123,7 +125,10 @@ function ReceivePageInner() {
   const { mutateAsync: receiveDelivery, isPending } = api.inventory.receiveDelivery.useMutation();
   const { data: suppliers = [] } = api.suppliers.getAll.useQuery();
 
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>("ingredient");
   const [ingredientId, setIngredientId] = useState(searchParams.get("ingredientId") ?? "");
+  const [otherName,    setOtherName]    = useState("");
+  const [otherUnit,    setOtherUnit]    = useState("pcs");
   const [supplierId,   setSupplierId]   = useState("");
   const [quantity,     setQuantity]     = useState("");
   const [lotNumber,    setLotNumber]    = useState("");
@@ -195,9 +200,17 @@ function ReceivePageInner() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!ingredientId) { setError("Select an ingredient."); return; }
     const qty = parseFloat(quantity);
     if (!qty || qty <= 0) { setError("Enter a valid quantity."); return; }
+
+    if (deliveryType === "other") {
+      if (!otherName.trim()) { setError("Enter an item name."); return; }
+      setSuccess(true);
+      setTimeout(() => router.push("/inventory"), 1800);
+      return;
+    }
+
+    if (!ingredientId) { setError("Select an ingredient."); return; }
     try {
       await receiveDelivery({
         ingredientId,
@@ -296,21 +309,57 @@ function ReceivePageInner() {
       {/* Delivery form */}
       <form onSubmit={handleSubmit} className="space-y-5">
 
-        {/* Ingredient — searchable */}
-        <div>
-          <label className="form-label">Ingredient *</label>
-          <IngredientSearch
-            ingredients={ingredients}
-            value={ingredientId}
-            onChange={setIngredientId}
-          />
+        {/* Type toggle */}
+        <div className="flex rounded-xl border border-rose-200 overflow-hidden">
+          {([["ingredient", "🥄 Ingredient / Stock"], ["other", "📦 Accessory / Other"]] as const).map(([type, label]) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => { setDeliveryType(type); setError(null); }}
+              className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+                deliveryType === type
+                  ? "bg-brand-600 text-white"
+                  : "bg-white text-gray-500 hover:bg-rose-50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+
+        {/* Item field — ingredient search OR free text */}
+        {deliveryType === "ingredient" ? (
+          <div>
+            <label className="form-label">Ingredient *</label>
+            <IngredientSearch
+              ingredients={ingredients}
+              value={ingredientId}
+              onChange={setIngredientId}
+            />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <label className="form-label">Item name *</label>
+              <input
+                type="text"
+                value={otherName}
+                onChange={(e) => setOtherName(e.target.value)}
+                placeholder="e.g. Cake boxes 25cm, Ribbon rolls…"
+                className="form-input"
+              />
+            </div>
+            <p className="text-xs text-brand-400">
+              To track stock levels for this item, <a href="/ingredients" className="underline hover:text-brand-600">add it as an ingredient</a> with unit pcs.
+            </p>
+          </div>
+        )}
 
         {/* Quantity — numeric keyboard */}
         <div>
           <label className="form-label">
             Quantity
-            {selectedIngredient && (
+            {deliveryType === "ingredient" && selectedIngredient && (
               <span className="text-brand-300 normal-case font-normal ml-1">({selectedIngredient.unit})</span>
             )} *
           </label>
@@ -325,6 +374,20 @@ function ReceivePageInner() {
             className="form-input text-lg"
           />
         </div>
+
+        {/* Unit — only shown for "other" type */}
+        {deliveryType === "other" && (
+          <div>
+            <label className="form-label">Unit</label>
+            <input
+              type="text"
+              value={otherUnit}
+              onChange={(e) => setOtherUnit(e.target.value)}
+              placeholder="pcs, boxes, rolls…"
+              className="form-input"
+            />
+          </div>
+        )}
 
         {/* Supplier */}
         <div>
