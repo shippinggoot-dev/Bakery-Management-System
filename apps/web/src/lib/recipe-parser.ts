@@ -153,7 +153,7 @@ function extractTimes(text: string): { prep: number | null; bake: number | null 
 // ── Ingredient line parsing ───────────────────────────────────────────────────
 
 // All recognised unit abbreviations (English + Norwegian)
-const UNITS_RE = "(?:g|kg|ml|dl|cl|l|L|tsp|tbsp|ts|ss|stk|pk|tablespoons?|teaspoons?|cups?|pieces?|pcs?|pc|pinch(?:es)?|bunch(?:es)?|cloves?|slices?|oz|lbs?|pounds?|ounces?|grams?|kilos?|kilograms?|liters?|litres?|milliliters?|millilitres?|deciliters?|decilitres?|handfuls?|sprigs?|sheets?|sticks?|drops?|dashes?|handful|pinch)";
+const UNITS_RE = "(?:g|kg|ml|dl|cl|l|L|tsp|tbsp|ts|ss|stk|pk|tablespoons?|teaspoons?|cups?|pieces?|pcs?|pc|units?|pinch(?:es)?|bunch(?:es)?|cloves?|slices?|oz|lbs?|pounds?|ounces?|grams?|kilos?|kilograms?|liters?|litres?|milliliters?|millilitres?|deciliters?|decilitres?|handfuls?|sprigs?|sheets?|sticks?|drops?|dashes?|handful|pinch)";
 
 // Quantity: integer, decimal, fraction (unicode or ASCII)
 const QTY_RE = "[½¼¾⅓⅔⅛⅜⅝⅞]|\\d+(?:[.,]\\d+)?(?:\\s+\\d+\\s*/\\s*\\d+|\\s*/\\s*\\d+)?";
@@ -182,6 +182,8 @@ function parseIngredientLine(raw: string): { name: string; quantity: string; uni
   // 4. NAME-FIRST (Nordic)      "Hvetemel 100 g", "Brunt sukker 0.75 ts"
   //    Name part capped at 5 words to avoid matching instruction sentences
   const nameFirst = line.match(new RegExp(`^(\\S+(?:\\s+\\S+){0,4})\\s+(${QTY_RE})\\s+(${UNITS_RE})$`, "i"));
+  // 4b. NAME-FIRST fused        "Sugar 80g", "Kefir 107.5g" — qty+unit with no space
+  const nameFirstFused = line.match(new RegExp(`^(\\S+(?:\\s+\\S+){0,4})\\s+(${QTY_RE})(${UNITS_RE})$`, "i"));
   // 5. qty + name, no unit      "3 eggs", "2 bananas"
   const noUnit    = line.match(new RegExp(`^(${QTY_RE})\\s+(.+)$`));
 
@@ -201,6 +203,10 @@ function parseIngredientLine(raw: string): { name: string; quantity: string; uni
     name     = nameFirst[1]!.trim();
     quantity = convertQuantity(nameFirst[2]!);
     unit     = normaliseUnit(nameFirst[3]!);
+  } else if (nameFirstFused) {
+    name     = nameFirstFused[1]!.trim();
+    quantity = convertQuantity(nameFirstFused[2]!);
+    unit     = normaliseUnit(nameFirstFused[3]!);
   } else if (noUnit) {
     quantity = convertQuantity(noUnit[1]!);
     unit     = "piece";
@@ -247,6 +253,10 @@ function isIngredientLike(line: string): boolean {
   // Short name cap prevents matching instruction sentences like "Bake at 180°C for 30 minutes"
   const nameFirstRe = new RegExp(`^(\\S+(?:\\s+\\S+){0,4})\\s+(${QTY_RE})\\s+(${UNITS_RE})$`, "i");
   if (nameFirstRe.test(cleaned)) return true;
+
+  // Name-first fused: "Sugar 80g", "Kefir 107.5g" — no space between qty and unit
+  const nameFirstFusedRe = new RegExp(`^(\\S+(?:\\s+\\S+){0,4})\\s+(${QTY_RE})(${UNITS_RE})$`, "i");
+  if (nameFirstFusedRe.test(cleaned)) return true;
 
   return false;
 }
