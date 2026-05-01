@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { suppliers, supplierPrices } from "@bakery/db";
 
@@ -125,7 +125,8 @@ export const suppliersRouter = createTRPCRouter({
   deletePrice: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.delete(supplierPrices).where(eq(supplierPrices.id, input));
+      const ownedSupplierIds = ctx.db.select({ id: suppliers.id }).from(suppliers).where(eq(suppliers.ownerId, ctx.user.id));
+      await ctx.db.delete(supplierPrices).where(and(eq(supplierPrices.id, input), inArray(supplierPrices.supplierId, ownedSupplierIds)));
       return { success: true };
     }),
 

@@ -40,7 +40,8 @@ export const priceSyncRouter = createTRPCRouter({
   dismissAlert: protectedProcedure
     .input(z.string())
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.update(priceAlerts).set({ dismissedAt: new Date() }).where(eq(priceAlerts.id, input));
+      const ownedIngredientIds = ctx.db.select({ id: ingredients.id }).from(ingredients).where(eq(ingredients.ownerId, ctx.user.id));
+      await ctx.db.update(priceAlerts).set({ dismissedAt: new Date() }).where(and(eq(priceAlerts.id, input), inArray(priceAlerts.ingredientId, ownedIngredientIds)));
       return { success: true };
     }),
 

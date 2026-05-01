@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { shoppingLists, shoppingListItems, recipeIngredients } from "@bakery/db";
 
@@ -112,10 +112,11 @@ export const shoppingListsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const ownedListIds = ctx.db.select({ id: shoppingLists.id }).from(shoppingLists).where(eq(shoppingLists.ownerId, ctx.user.id));
       const [updated] = await ctx.db
         .update(shoppingListItems)
         .set(input.data)
-        .where(eq(shoppingListItems.id, input.id))
+        .where(and(eq(shoppingListItems.id, input.id), inArray(shoppingListItems.shoppingListId, ownedListIds)))
         .returning();
       return updated;
     }),
@@ -123,10 +124,11 @@ export const shoppingListsRouter = createTRPCRouter({
   markItemPurchased: protectedProcedure
     .input(z.object({ id: z.string().uuid(), isPurchased: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
+      const ownedListIds = ctx.db.select({ id: shoppingLists.id }).from(shoppingLists).where(eq(shoppingLists.ownerId, ctx.user.id));
       const [updated] = await ctx.db
         .update(shoppingListItems)
         .set({ isPurchased: input.isPurchased })
-        .where(eq(shoppingListItems.id, input.id))
+        .where(and(eq(shoppingListItems.id, input.id), inArray(shoppingListItems.shoppingListId, ownedListIds)))
         .returning();
       return updated;
     }),
@@ -134,7 +136,8 @@ export const shoppingListsRouter = createTRPCRouter({
   removeItem: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.delete(shoppingListItems).where(eq(shoppingListItems.id, input));
+      const ownedListIds = ctx.db.select({ id: shoppingLists.id }).from(shoppingLists).where(eq(shoppingLists.ownerId, ctx.user.id));
+      await ctx.db.delete(shoppingListItems).where(and(eq(shoppingListItems.id, input), inArray(shoppingListItems.shoppingListId, ownedListIds)));
       return { success: true };
     }),
 

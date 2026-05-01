@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {
   priceIngestionSessions,
@@ -127,30 +127,33 @@ export const priceIngestionRouter = createTRPCRouter({
   confirmItem: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
+      const ownedSessionIds = ctx.db.select({ id: priceIngestionSessions.id }).from(priceIngestionSessions).where(eq(priceIngestionSessions.ownerId, ctx.user.id));
       await ctx.db
         .update(priceIngestionItems)
         .set({ confirmed: true, rejected: false })
-        .where(eq(priceIngestionItems.id, input));
+        .where(and(eq(priceIngestionItems.id, input), inArray(priceIngestionItems.sessionId, ownedSessionIds)));
       return { success: true };
     }),
 
   rejectItem: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
+      const ownedSessionIds = ctx.db.select({ id: priceIngestionSessions.id }).from(priceIngestionSessions).where(eq(priceIngestionSessions.ownerId, ctx.user.id));
       await ctx.db
         .update(priceIngestionItems)
         .set({ rejected: true, confirmed: false })
-        .where(eq(priceIngestionItems.id, input));
+        .where(and(eq(priceIngestionItems.id, input), inArray(priceIngestionItems.sessionId, ownedSessionIds)));
       return { success: true };
     }),
 
   reassignItem: protectedProcedure
     .input(z.object({ itemId: z.string().uuid(), ingredientId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      const ownedSessionIds = ctx.db.select({ id: priceIngestionSessions.id }).from(priceIngestionSessions).where(eq(priceIngestionSessions.ownerId, ctx.user.id));
       await ctx.db
         .update(priceIngestionItems)
         .set({ ingredientId: input.ingredientId, confirmed: true, rejected: false, matchScore: "1.000" })
-        .where(eq(priceIngestionItems.id, input.itemId));
+        .where(and(eq(priceIngestionItems.id, input.itemId), inArray(priceIngestionItems.sessionId, ownedSessionIds)));
       return { success: true };
     }),
 

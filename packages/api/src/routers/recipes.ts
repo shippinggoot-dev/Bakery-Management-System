@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {
   recipes,
@@ -177,18 +177,21 @@ export const recipesRouter = createTRPCRouter({
   updateIngredient: protectedProcedure
     .input(z.object({ id: z.string().uuid(), data: recipeIngredientInputSchema.partial() }))
     .mutation(async ({ ctx, input }) => {
+      const ownedRecipeIds = ctx.db.select({ id: recipes.id }).from(recipes).where(eq(recipes.ownerId, ctx.user.id));
       const [updated] = await ctx.db
         .update(recipeIngredients)
         .set(input.data)
-        .where(eq(recipeIngredients.id, input.id))
+        .where(and(eq(recipeIngredients.id, input.id), inArray(recipeIngredients.recipeId, ownedRecipeIds)))
         .returning();
+      if (!updated) throw new TRPCError({ code: "FORBIDDEN" });
       return updated;
     }),
 
   removeIngredient: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.delete(recipeIngredients).where(eq(recipeIngredients.id, input));
+      const ownedRecipeIds = ctx.db.select({ id: recipes.id }).from(recipes).where(eq(recipes.ownerId, ctx.user.id));
+      await ctx.db.delete(recipeIngredients).where(and(eq(recipeIngredients.id, input), inArray(recipeIngredients.recipeId, ownedRecipeIds)));
       return { success: true };
     }),
 
