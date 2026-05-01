@@ -16,6 +16,7 @@ import { productionRouter } from "./routers/production";
 import { salesRouter } from "./routers/sales";
 import { dashboardRouter } from "./routers/dashboard";
 import { otherDeliveriesRouter } from "./routers/other-deliveries";
+import { instagramRouter } from "./routers/instagram";
 
 export const appRouter = createTRPCRouter({
   recipes:        recipesRouter,
@@ -35,6 +36,7 @@ export const appRouter = createTRPCRouter({
   sales:          salesRouter,
   dashboard:      dashboardRouter,
   otherDeliveries: otherDeliveriesRouter,
+  instagram:        instagramRouter,
 });
 
 export type AppRouter = typeof appRouter;

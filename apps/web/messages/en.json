@@ -68,7 +68,8 @@
     "language": "Language",
     "operations": "Operations",
     "production": "Production Schedule",
-    "sales": "Sales Dashboard"
+    "sales": "Sales Dashboard",
+    "social": "Instagram"
   },
   "planner": {
     "title": "Order Planner",

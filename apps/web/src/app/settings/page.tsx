@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import { createClientSupabase } from "@/lib/supabase/client";
 import { usePersonalization, THEMES, type ThemeId } from "@/components/ThemeProvider";
@@ -819,12 +820,171 @@ function PersonalizationSection() {
   );
 }
 
+// ── Instagram section ─────────────────────────────────────────────────────────
+
+const IG_SETUP_STEPS = [
+  { n: 1, text: "Go to developers.facebook.com and create a free account." },
+  { n: 2, text: 'Create a new App → choose "Business" type.' },
+  { n: 3, text: "Under Products, add Instagram Graph API." },
+  { n: 4, text: "In App Settings → Basic, copy your App ID and App Secret." },
+  { n: 5, text: "Add NEXT_PUBLIC_META_APP_ID and META_APP_SECRET to your Vercel environment variables, then redeploy." },
+  { n: 6, text: "In the Meta App, add your callback URL under Facebook Login → OAuth Redirect URIs: https://your-app.vercel.app/api/instagram/callback" },
+  { n: 7, text: "Submit the app for review requesting instagram_content_publish and instagram_basic permissions." },
+];
+
+function InstagramSection({ justConnected }: { justConnected: boolean }) {
+  const utils = api.useUtils();
+  const { data: conn, isLoading } = api.instagram.getConnection.useQuery();
+  const disconnect = api.instagram.disconnect.useMutation({
+    onSuccess: () => utils.instagram.getConnection.invalidate(),
+  });
+
+  const appId       = process.env.NEXT_PUBLIC_META_APP_ID;
+  const redirectUri = typeof window !== "undefined"
+    ? `${window.location.origin}/api/instagram/callback`
+    : "";
+  const oauthUrl = appId
+    ? `https://www.facebook.com/v20.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement&response_type=code`
+    : null;
+
+  const [showGuide, setShowGuide] = useState(false);
+
+  return (
+    <div className="card overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-rose-100 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-100 to-pink-100 border border-purple-200/50 flex items-center justify-center text-base flex-shrink-0">
+          📸
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-gray-800 text-sm">Instagram</p>
+          <p className="text-xs text-gray-500">Post photos directly to your Instagram Business account</p>
+        </div>
+        {!isLoading && (
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+            conn?.connected
+              ? "bg-purple-50 text-purple-700 border-purple-200"
+              : "bg-gray-100 text-gray-500 border-gray-200"
+          }`}>
+            {conn?.connected ? "Connected" : "Not connected"}
+          </span>
+        )}
+      </div>
+
+      <div className="px-6 py-5 space-y-4">
+        {justConnected && (
+          <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 font-medium">
+            Instagram connected successfully!
+          </div>
+        )}
+
+        {isLoading ? (
+          <p className="text-sm text-gray-400 animate-pulse">Loading…</p>
+        ) : conn?.connected ? (
+          /* Connected state */
+          <div className="space-y-4">
+            <div className="rounded-xl bg-white border border-purple-100 px-5 py-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                {conn.igUsername?.[0]?.toUpperCase() ?? "I"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 text-sm">
+                  {conn.igUsername ? `@${conn.igUsername}` : conn.pageName ?? "Connected"}
+                </p>
+                {conn.pageName && conn.igUsername && (
+                  <p className="text-xs text-gray-500 mt-0.5">via {conn.pageName}</p>
+                )}
+                {conn.expiresAt && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Token expires {new Date(conn.expiresAt).toLocaleDateString()} (auto-refreshed)
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => { if (confirm("Disconnect Instagram?")) disconnect.mutate(); }}
+                disabled={disconnect.isPending}
+                className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs hover:bg-red-100 transition-colors disabled:opacity-50"
+              >
+                Disconnect
+              </button>
+            </div>
+
+            <Link
+              href="/social"
+              className="flex items-center justify-between w-full px-5 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
+            >
+              <span>Go to post composer</span>
+              <span>→</span>
+            </Link>
+          </div>
+        ) : (
+          /* Not connected state */
+          <div className="space-y-4">
+            {/* Setup guide */}
+            <div className="rounded-xl bg-rose-50 border border-rose-100 overflow-hidden">
+              <button
+                onClick={() => setShowGuide((v) => !v)}
+                className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+              >
+                <span>Setup guide (first time)</span>
+                <span className={`text-gray-400 transition-transform duration-200 ${showGuide ? "rotate-180" : ""}`}>▼</span>
+              </button>
+              {showGuide && (
+                <div className="px-5 pb-4 border-t border-rose-100">
+                  <ol className="mt-3 space-y-3">
+                    {IG_SETUP_STEPS.map((s) => (
+                      <li key={s.n} className="flex gap-3 text-sm text-gray-500">
+                        <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                          {s.n}
+                        </span>
+                        <span>{s.text}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  <p className="mt-3 text-xs text-gray-400">
+                    App Review takes 1–5 business days. Once approved, clicking Connect below will work instantly.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {!appId && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                <p className="font-medium">Environment variable missing</p>
+                <p className="mt-1 text-xs">
+                  Add <span className="font-mono">NEXT_PUBLIC_META_APP_ID</span> and{" "}
+                  <span className="font-mono">META_APP_SECRET</span> to Vercel, then redeploy.
+                </p>
+              </div>
+            )}
+
+            <a
+              href={oauthUrl ?? "#"}
+              className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                oauthUrl
+                  ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              }`}
+              onClick={(e) => !oauthUrl && e.preventDefault()}
+            >
+              Connect Instagram
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main settings page ────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const [isLoggedIn,   setIsLoggedIn]   = useState(false);
   const [isAnonymous,  setIsAnonymous]  = useState(false);
   const [connected,    setConnected]    = useState(false);
+  const searchParams   = useSearchParams();
+  const justConnected  = searchParams.get("instagram") === "connected";
+  const instagramError = searchParams.get("instagram_error");
 
   useEffect(() => {
     const supabase = createClientSupabase();
@@ -902,6 +1062,18 @@ export default function SettingsPage() {
 
       {/* Email notifications */}
       {!isAnonymous && <EmailSettingsSection />}
+
+      {/* Instagram */}
+      {!isAnonymous && (
+        <>
+          {instagramError && (
+            <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              Instagram connection failed: {instagramError}
+            </div>
+          )}
+          <InstagramSection justConnected={justConnected} />
+        </>
+      )}
     </div>
   );
 }

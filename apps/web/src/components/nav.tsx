@@ -36,6 +36,7 @@ const ITEM_ICONS: Record<string, string> = {
   "/customers/tiers":    "🥇",
   "/production":         "🗓️",
   "/sales":              "💰",
+  "/social":             "📸",
 };
 
 function useMenuGroups() {
@@ -85,6 +86,7 @@ function useMenuGroups() {
       items: [
         { href: "/production", label: t("production") },
         { href: "/sales",      label: t("sales")      },
+        { href: "/social",     label: t("social")     },
       ],
     },
   ];

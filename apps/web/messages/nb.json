@@ -68,7 +68,8 @@
     "language": "Språk",
     "operations": "Drift",
     "production": "Produksjonsplan",
-    "sales": "Salgsdashboard"
+    "sales": "Salgsdashboard",
+    "social": "Instagram"
   },
   "planner": {
     "title": "Bestillingsplanlegger",

@@ -32,6 +32,7 @@ export * from "./cake-orders";
 export * from "./email-settings";
 export * from "./production-schedules";
 export * from "./other-deliveries";
+export * from "./instagram";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.
@@ -361,3 +362,7 @@ export const otherDeliveriesRelations = relations(otherDeliveries, ({ one }) => 
     references: [suppliers.id],
   }),
 }));
+
+// ─── Instagram ────────────────────────────────────────────────────────────────
+// instagramConnections and instagramPosts are standalone per-owner tables with no cross-table
+// foreign keys, so no Drizzle relations are needed here.
