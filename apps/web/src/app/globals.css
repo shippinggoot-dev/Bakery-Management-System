@@ -136,3 +136,20 @@
     @apply w-full rounded-lg bg-white border border-rose-200 text-gray-900 px-3 py-2 text-sm placeholder-gray-400 focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-300 transition-colors;
   }
 }
+
+@media print {
+  /* Hide navigation, sidebar, and action buttons */
+  nav, aside, header, footer,
+  [data-sidebar], [data-nav],
+  .print\:hidden { display: none !important; }
+
+  /* Remove shadows and borders that look odd on paper */
+  .card { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+
+  /* Ensure full width and readable font size */
+  body { font-size: 12pt; color: #000; background: #fff; }
+  .max-w-3xl { max-width: 100% !important; }
+
+  /* Break pages cleanly between sections */
+  .card { break-inside: avoid; }
+}

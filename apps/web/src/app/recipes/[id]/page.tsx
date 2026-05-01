@@ -78,14 +78,22 @@ async function RecipeDetailContent({ id }: { id: string }) {
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between print:hidden">
         <Link
           href={`/recipes/${id}/edit`}
           className="px-4 py-2 rounded-lg border border-brand-200 text-brand-600 text-sm font-semibold hover:bg-brand-50 transition-colors"
         >
           ✏️ Edit recipe
         </Link>
-        <DeleteRecipeButton id={id} name={recipe.name} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => window.print()}
+            className="px-4 py-2 rounded-lg border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors"
+          >
+            🖨️ Print
+          </button>
+          <DeleteRecipeButton id={id} name={recipe.name} />
+        </div>
       </div>
 
       {/* Header card */}

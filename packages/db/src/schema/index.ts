@@ -31,6 +31,7 @@ export * from "./todos";
 export * from "./cake-orders";
 export * from "./email-settings";
 export * from "./production-schedules";
+export * from "./other-deliveries";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.
@@ -65,6 +66,7 @@ import { customerSegments, customerSegmentMembers } from "./customer-segments";
 import { customerSales } from "./customer-sales";
 import { cakeOrders } from "./cake-orders";
 import { productionSchedules } from "./production-schedules";
+import { otherDeliveries } from "./other-deliveries";
 
 export const allergensRelations = relations(allergens, ({ many }) => ({
   ingredientAllergens: many(ingredientAllergens),
@@ -348,5 +350,14 @@ export const productionSchedulesRelations = relations(productionSchedules, ({ on
   recipe: one(recipes, {
     fields: [productionSchedules.recipeId],
     references: [recipes.id],
+  }),
+}));
+
+// ─── Other deliveries ─────────────────────────────────────────────────────────
+
+export const otherDeliveriesRelations = relations(otherDeliveries, ({ one }) => ({
+  supplier: one(suppliers, {
+    fields: [otherDeliveries.supplierId],
+    references: [suppliers.id],
   }),
 }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import { parseInvoiceText } from "@/lib/invoice-parser";
@@ -40,8 +40,14 @@ export default function InvoiceIngestionPage() {
   const router = useRouter();
 
   const [text, setText]             = useState("");
-  const [supplierId, setSupplierId] = useState("");
+  const [supplierId, setSupplierId] = useState(() =>
+    typeof window !== "undefined" ? (localStorage.getItem("invoice-last-supplier") ?? "") : ""
+  );
   const [fileName, setFileName]     = useState("invoice");
+
+  useEffect(() => {
+    if (supplierId) localStorage.setItem("invoice-last-supplier", supplierId);
+  }, [supplierId]);
   const [error, setError]           = useState<string | null>(null);
   const [preview, setPreview]       = useState<ReturnType<typeof parseInvoiceText>>([]);
   const [isParsed, setIsParsed]     = useState(false);

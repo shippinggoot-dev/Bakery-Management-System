@@ -123,6 +123,7 @@ function ReceivePageInner() {
 
   const { data: ingredients = [] } = api.ingredients.getAll.useQuery();
   const { mutateAsync: receiveDelivery, isPending } = api.inventory.receiveDelivery.useMutation();
+  const { mutateAsync: recordOtherDelivery, isPending: isOtherPending } = api.otherDeliveries.create.useMutation();
   const { data: suppliers = [] } = api.suppliers.getAll.useQuery();
 
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("ingredient");
@@ -205,8 +206,20 @@ function ReceivePageInner() {
 
     if (deliveryType === "other") {
       if (!otherName.trim()) { setError("Enter an item name."); return; }
-      setSuccess(true);
-      setTimeout(() => router.push("/inventory"), 1800);
+      try {
+        await recordOtherDelivery({
+          itemName:   otherName.trim(),
+          quantity:   String(qty),
+          unit:       otherUnit || "pcs",
+          supplierId: supplierId || null,
+          lotNumber:  lotNumber || null,
+          notes:      notes || null,
+        });
+        setSuccess(true);
+        setTimeout(() => router.push("/inventory"), 1200);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to record delivery.");
+      }
       return;
     }
 
@@ -449,7 +462,7 @@ function ReceivePageInner() {
 
         <button
           type="submit"
-          disabled={isPending || success}
+          disabled={isPending || isOtherPending || success}
           className="w-full py-4 rounded-2xl bg-brand-600 text-white font-bold text-base hover:bg-brand-700 active:bg-brand-800 disabled:opacity-50 transition-colors"
         >
           {isPending ? "Recording…" : "Record delivery"}
