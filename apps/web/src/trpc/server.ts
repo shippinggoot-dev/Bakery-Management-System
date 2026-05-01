@@ -17,7 +17,10 @@ const createCaller = createCallerFactory(appRouter);
 
 const createContext = cache(async (): Promise<Context> => {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  // getSession() reads from the cookie — no Supabase network round-trip.
+  // getUser() validates the JWT remotely and adds 200-500 ms per request.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
   return {
     db,
     user: user ? { id: user.id, email: user.email ?? null, isAnonymous: user.is_anonymous ?? false } : null,
