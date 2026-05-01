@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 
@@ -23,9 +23,11 @@ export default function StocktakePage() {
   const [saved,   setSaved]   = useState(false);
   const [error,   setError]   = useState<string | null>(null);
   const [search,  setSearch]  = useState("");
+  const hasInitialized = useRef(false);
 
   useEffect(() => {
-    if (!stockLevels.length) return;
+    if (!stockLevels.length || hasInitialized.current) return;
+    hasInitialized.current = true;
     setRows(
       stockLevels.map((s) => ({
         ingredientId: s.ingredientId,
@@ -38,18 +40,22 @@ export default function StocktakePage() {
     );
   }, [stockLevels]);
 
+  function parseCount(value: string) {
+    return parseFloat(value.replace(",", "."));
+  }
+
   function setCounted(ingredientId: string, value: string) {
     setRows((r) =>
       r.map((row) =>
         row.ingredientId === ingredientId
-          ? { ...row, counted: value, dirty: value !== String(row.current) }
+          ? { ...row, counted: value, dirty: value.replace(",", ".") !== String(row.current) }
           : row
       )
     );
   }
 
   async function handleSave() {
-    const changed = rows.filter((r) => r.dirty && r.counted.trim() !== "" && !isNaN(parseFloat(r.counted)));
+    const changed = rows.filter((r) => r.dirty && r.counted.trim() !== "" && !isNaN(parseCount(r.counted)));
     if (changed.length === 0) { router.push("/inventory"); return; }
 
     setSaving(true);
@@ -59,7 +65,7 @@ export default function StocktakePage() {
         changed.map((r) =>
           adjustStock.mutateAsync({
             ingredientId: r.ingredientId,
-            newQuantity:  parseFloat(r.counted),
+            newQuantity:  parseCount(r.counted),
             unit:         r.unit,
             notes:        "Stocktake",
           })
@@ -73,7 +79,7 @@ export default function StocktakePage() {
     }
   }
 
-  const changedCount = rows.filter((r) => r.dirty && !isNaN(parseFloat(r.counted))).length;
+  const changedCount = rows.filter((r) => r.dirty && !isNaN(parseCount(r.counted))).length;
   const filtered = rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
