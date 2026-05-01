@@ -175,6 +175,73 @@ function GeneratePanel({ orders, onClose, onGenerated }: {
   );
 }
 
+function ScheduleModal({
+  orderId, recipeId, recipeName, dueDate, quantity,
+  onClose,
+}: {
+  orderId: string; recipeId: string | null; recipeName: string | null;
+  dueDate: string | null; quantity: string | number; onClose: () => void;
+}) {
+  const utils = api.useUtils();
+  const today = new Date().toISOString().slice(0, 10);
+  const [date,       setDate]       = useState(dueDate ?? today);
+  const [shift,      setShift]      = useState("morning");
+  const [batchCount, setBatchCount] = useState(String(Math.ceil(Number(quantity))));
+  const [error,      setError]      = useState<string | null>(null);
+
+  const create = api.production.create.useMutation({
+    onSuccess: () => { utils.production.getSchedule.invalidate(); onClose(); },
+    onError: (e) => setError(e.message),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!date) return setError("Pick a date.");
+    create.mutate({
+      recipeId, scheduledDate: date,
+      shift: shift as "morning" | "afternoon" | "evening",
+      batchCount: Math.max(1, parseInt(batchCount) || 1),
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900">Schedule batch</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+        <p className="text-sm text-gray-500">{recipeName}</p>
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="form-label">Date *</label>
+            <input type="date" className="form-input" value={date} onChange={(e) => setDate(e.target.value)} required />
+          </div>
+          <div>
+            <label className="form-label">Shift</label>
+            <select className="form-input" value={shift} onChange={(e) => setShift(e.target.value)}>
+              <option value="morning">Morning</option>
+              <option value="afternoon">Afternoon</option>
+              <option value="evening">Evening</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Batch count</label>
+            <input type="number" min="1" className="form-input" value={batchCount} onChange={(e) => setBatchCount(e.target.value)} />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={create.isPending} className="btn-primary disabled:opacity-50 flex-1">
+              {create.isPending ? "Scheduling…" : "Add to production"}
+            </button>
+            <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function PlannerPage() {
   const t = useTranslations("planner");
   const router = useRouter();
@@ -183,6 +250,7 @@ export default function PlannerPage() {
   const [showAdd,      setShowAdd]      = useState(false);
   const [showGenerate, setShowGenerate] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("active");
+  const [schedulingId, setSchedulingId] = useState<string | null>(null);
 
   const { data: allOrders = [], isLoading } = api.cakeOrders.getAll.useQuery();
 
@@ -239,6 +307,19 @@ export default function PlannerPage() {
         <GeneratePanel orders={allOrders as OrderWithRecipe[]} onClose={() => setShowGenerate(false)}
           onGenerated={() => { setShowGenerate(false); router.push("/shopping-lists"); }} />
       )}
+      {schedulingId && (() => {
+        const o = allOrders.find((x) => x.id === schedulingId);
+        return o ? (
+          <ScheduleModal
+            orderId={o.id}
+            recipeId={o.recipeId ?? null}
+            recipeName={o.recipe?.name ?? null}
+            dueDate={o.dueDate ?? null}
+            quantity={o.quantity}
+            onClose={() => setSchedulingId(null)}
+          />
+        ) : null;
+      })()}
 
       <div className="flex gap-1">
         {[
@@ -297,8 +378,18 @@ export default function PlannerPage() {
                       </select>
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <button onClick={() => { if (confirm(t("deleteOrder"))) deleteOrder.mutate(order.id); }}
-                        className="text-xs text-gray-300 hover:text-red-500 transition-colors">✕</button>
+                      <div className="flex items-center justify-end gap-3">
+                        {order.recipeId && order.status !== "completed" && order.status !== "cancelled" && (
+                          <button
+                            onClick={() => setSchedulingId(order.id)}
+                            className="text-xs text-brand-400 hover:text-brand-600 font-medium transition-colors whitespace-nowrap"
+                          >
+                            + Schedule
+                          </button>
+                        )}
+                        <button onClick={() => { if (confirm(t("deleteOrder"))) deleteOrder.mutate(order.id); }}
+                          className="text-xs text-gray-300 hover:text-red-500 transition-colors">✕</button>
+                      </div>
                     </td>
                   </tr>
                 ))}

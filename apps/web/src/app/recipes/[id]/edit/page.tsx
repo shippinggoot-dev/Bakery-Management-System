@@ -25,7 +25,7 @@ export default function EditRecipePage() {
 
   const { data: recipe, isLoading } = api.recipes.getById.useQuery(id);
   const { data: categories = [] }   = api.recipes.getCategories.useQuery();
-  const { data: allIngredients = [] } = api.ingredients.getAll.useQuery({ limit: 200 });
+  const { data: allIngredients = [], refetch: refetchIngredients } = api.ingredients.getAll.useQuery({ limit: 200 });
 
   const [name,         setName]         = useState("");
   const [description,  setDescription]  = useState("");
@@ -41,10 +41,17 @@ export default function EditRecipePage() {
   const [error,        setError]        = useState<string | null>(null);
   const [saving,       setSaving]       = useState(false);
 
-  const updateRecipe     = api.recipes.update.useMutation();
-  const addIngredient    = api.recipes.addIngredient.useMutation();
-  const updateIngredient = api.recipes.updateIngredient.useMutation();
-  const removeIngredient = api.recipes.removeIngredient.useMutation();
+  // Inline ingredient creation state
+  const [creatingForKey, setCreatingForKey] = useState<string | null>(null);
+  const [newIngName,     setNewIngName]     = useState("");
+  const [newIngUnit,     setNewIngUnit]     = useState("g");
+  const [creating,       setCreating]       = useState(false);
+
+  const updateRecipe      = api.recipes.update.useMutation();
+  const addIngredient     = api.recipes.addIngredient.useMutation();
+  const updateIngredient  = api.recipes.updateIngredient.useMutation();
+  const removeIngredient  = api.recipes.removeIngredient.useMutation();
+  const createIngredient  = api.ingredients.create.useMutation();
 
   useEffect(() => {
     if (!recipe) return;
@@ -79,10 +86,30 @@ export default function EditRecipePage() {
       if (row?.id) setRemovedIds((ids) => [...ids, row.id!]);
       return r.filter((x) => x.rowKey !== rowKey);
     });
+    if (creatingForKey === rowKey) setCreatingForKey(null);
   }
 
   function updateRow(rowKey: string, patch: Partial<IngredientRow>) {
     setRows((r) => r.map((row) => row.rowKey === rowKey ? { ...row, ...patch } : row));
+  }
+
+  async function handleQuickCreate(rowKey: string) {
+    if (!newIngName.trim() || !newIngUnit.trim()) return;
+    setCreating(true);
+    try {
+      const created = await createIngredient.mutateAsync({
+        ingredient: { name: newIngName.trim(), unit: newIngUnit.trim() },
+      });
+      await refetchIngredients();
+      updateRow(rowKey, { ingredientId: created!.id, unit: newIngUnit.trim() });
+      setCreatingForKey(null);
+      setNewIngName("");
+      setNewIngUnit("g");
+    } catch {
+      // leave form open so user can retry
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -144,6 +171,8 @@ export default function EditRecipePage() {
       setSaving(false);
     }
   }
+
+  const unmatchedCount = rows.filter((r) => !r.ingredientId && r.quantity).length;
 
   if (isLoading) {
     return (
@@ -226,44 +255,101 @@ export default function EditRecipePage() {
         <div className="card p-6 space-y-4">
           <h3 className="section-title">Ingredients</h3>
 
+          {unmatchedCount > 0 && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+              {unmatchedCount} ingredient{unmatchedCount !== 1 ? "s are" : " is"} not linked to your ingredient list
+              and will be skipped when saving. Pick from the dropdown or create a new ingredient below.
+            </div>
+          )}
+
           {rows.length > 0 && (
             <div className="overflow-x-auto">
-              <div className="space-y-2 min-w-[520px]">
+              <div className="space-y-3 min-w-[520px]">
                 {rows.map((row, i) => {
                   const sel = allIngredients.find((x) => x.id === row.ingredientId);
+                  const isCreatingThis = creatingForKey === row.rowKey;
                   return (
-                    <div key={row.rowKey} className="grid grid-cols-[1fr_90px_80px_1fr_32px] gap-2 items-start">
-                      <div>
-                        {i === 0 && <p className="form-label mb-1">Ingredient</p>}
-                        <select
-                          className="form-input"
-                          value={row.ingredientId}
-                          onChange={(e) => {
-                            const ing = allIngredients.find((x) => x.id === e.target.value);
-                            updateRow(row.rowKey, { ingredientId: e.target.value, unit: ing?.unit ?? row.unit });
-                          }}
+                    <div key={row.rowKey} className="space-y-1">
+                      <div className="grid grid-cols-[1fr_90px_80px_1fr_32px] gap-2 items-start">
+                        <div>
+                          {i === 0 && <p className="form-label mb-1">Ingredient</p>}
+                          <select
+                            className={`form-input ${!row.ingredientId ? "border-amber-300 bg-amber-50" : ""}`}
+                            value={row.ingredientId}
+                            onChange={(e) => {
+                              const ing = allIngredients.find((x) => x.id === e.target.value);
+                              updateRow(row.rowKey, { ingredientId: e.target.value, unit: ing?.unit ?? row.unit });
+                              if (creatingForKey === row.rowKey) setCreatingForKey(null);
+                            }}
+                          >
+                            <option value="">— pick —</option>
+                            {allIngredients.map((ing) => <option key={ing.id} value={ing.id}>{ing.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          {i === 0 && <p className="form-label mb-1">Amount</p>}
+                          <input className="form-input" placeholder="100" value={row.quantity} onChange={(e) => updateRow(row.rowKey, { quantity: e.target.value })} />
+                        </div>
+                        <div>
+                          {i === 0 && <p className="form-label mb-1">Unit</p>}
+                          <input className="form-input" value={row.unit || sel?.unit || ""} onChange={(e) => updateRow(row.rowKey, { unit: e.target.value })} />
+                        </div>
+                        <div>
+                          {i === 0 && <p className="form-label mb-1">Notes</p>}
+                          <input className="form-input" placeholder="e.g. softened" value={row.notes} onChange={(e) => updateRow(row.rowKey, { notes: e.target.value })} />
+                        </div>
+                        <div className={i === 0 ? "mt-6" : ""}>
+                          <button type="button" onClick={() => removeRow(row.rowKey)} className="p-2 text-gray-400 hover:text-red-400 transition-colors">
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Inline create form — shown when no ingredient selected */}
+                      {!row.ingredientId && !isCreatingThis && (
+                        <button
+                          type="button"
+                          onClick={() => { setCreatingForKey(row.rowKey); setNewIngName(""); setNewIngUnit("g"); }}
+                          className="ml-1 text-xs text-brand-500 hover:text-brand-700 transition-colors"
                         >
-                          <option value="">— pick —</option>
-                          {allIngredients.map((ing) => <option key={ing.id} value={ing.id}>{ing.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        {i === 0 && <p className="form-label mb-1">Amount</p>}
-                        <input className="form-input" placeholder="100" value={row.quantity} onChange={(e) => updateRow(row.rowKey, { quantity: e.target.value })} />
-                      </div>
-                      <div>
-                        {i === 0 && <p className="form-label mb-1">Unit</p>}
-                        <input className="form-input" value={row.unit || sel?.unit || ""} onChange={(e) => updateRow(row.rowKey, { unit: e.target.value })} />
-                      </div>
-                      <div>
-                        {i === 0 && <p className="form-label mb-1">Notes</p>}
-                        <input className="form-input" placeholder="e.g. softened" value={row.notes} onChange={(e) => updateRow(row.rowKey, { notes: e.target.value })} />
-                      </div>
-                      <div className={i === 0 ? "mt-6" : ""}>
-                        <button type="button" onClick={() => removeRow(row.rowKey)} className="p-2 text-gray-400 hover:text-red-400 transition-colors">
-                          <TrashIcon />
+                          + Create new ingredient
                         </button>
-                      </div>
+                      )}
+
+                      {isCreatingThis && (
+                        <div className="ml-1 flex items-center gap-2 flex-wrap">
+                          <input
+                            autoFocus
+                            className="form-input w-40 text-sm"
+                            placeholder="Ingredient name"
+                            value={newIngName}
+                            onChange={(e) => setNewIngName(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleQuickCreate(row.rowKey))}
+                          />
+                          <input
+                            className="form-input w-20 text-sm"
+                            placeholder="Unit"
+                            value={newIngUnit}
+                            onChange={(e) => setNewIngUnit(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleQuickCreate(row.rowKey))}
+                          />
+                          <button
+                            type="button"
+                            disabled={creating || !newIngName.trim()}
+                            onClick={() => handleQuickCreate(row.rowKey)}
+                            className="px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-600 border border-brand-500/30 text-xs font-semibold hover:bg-brand-500/30 disabled:opacity-50 transition-colors"
+                          >
+                            {creating ? "Adding…" : "Add"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCreatingForKey(null)}
+                            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

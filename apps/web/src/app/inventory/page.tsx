@@ -133,6 +133,9 @@ export default function InventoryPage() {
           <Link href="/inventory/produce" className="btn bg-white border border-rose-200 text-brand-600 hover:bg-rose-50">
             {t("recordBatch")}
           </Link>
+          <Link href="/inventory/stocktake" className="btn bg-white border border-rose-200 text-gray-600 hover:bg-rose-50">
+            📋 Stocktake
+          </Link>
         </div>
       </div>
 
