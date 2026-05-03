@@ -33,6 +33,7 @@ export * from "./email-settings";
 export * from "./production-schedules";
 export * from "./other-deliveries";
 export * from "./instagram";
+export * from "./custom-options";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.

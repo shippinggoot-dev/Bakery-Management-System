@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api } from "@/trpc/react";
 import { TrashIcon, PlusIcon } from "@/components/icons";
 import { parseRecipeText } from "@/lib/recipe-parser";
+import { TagCombobox } from "@/components/TagCombobox";
 
 type IngredientRow = {
   ingredientId: string;
@@ -118,7 +119,7 @@ export default function NewRecipePage() {
   const [bakeTime, setBakeTime]       = useState("");
   const [instructions, setInstructions] = useState("");
   const [notes, setNotes]             = useState("");
-  const [flavours, setFlavours]       = useState("");
+  const [flavours, setFlavours]       = useState<string[]>([]);
   const [rows, setRows]               = useState<IngredientRow[]>([]);
   const [error, setError]             = useState<string | null>(null);
   const [importBanner, setImportBanner] = useState<string | null>(null);
@@ -126,8 +127,12 @@ export default function NewRecipePage() {
   const { data: categories = [] } = api.recipes.getCategories.useQuery();
   const { data: allIngredients = [] } = api.ingredients.getAll.useQuery({ limit: 200 });
 
+  const recordUsage = api.customOptions.recordUsage.useMutation();
   const createMutation = api.recipes.create.useMutation({
-    onSuccess: (recipe) => router.push(`/recipes/${recipe!.id}`),
+    onSuccess: (recipe) => {
+      if (flavours.length > 0) recordUsage.mutate({ fieldKey: "recipe.flavours", values: flavours });
+      router.push(`/recipes/${recipe!.id}`);
+    },
     onError: (err) => setError(err.message),
   });
 
@@ -214,7 +219,7 @@ export default function NewRecipePage() {
         bakeTimeMinutes: bakeTime ? parseInt(bakeTime) : null,
         instructions: instructions.trim() || null,
         notes: notes.trim() || null,
-        flavours: flavours.trim() || null,
+        flavours: flavours.join(",") || null,
         isActive: true,
       },
       ingredients: validRows.map((r, i) => ({
@@ -280,13 +285,12 @@ export default function NewRecipePage() {
 
           <div>
             <label className="form-label">Flavours</label>
-            <input
-              className="form-input"
-              placeholder="e.g. Chocolate, Vanilla, Strawberry"
-              value={flavours}
-              onChange={(e) => setFlavours(e.target.value)}
+            <TagCombobox
+              fieldKey="recipe.flavours"
+              values={flavours}
+              onChange={setFlavours}
+              placeholder="e.g. Chocolate, Vanilla, Strawberry…"
             />
-            <p className="text-xs text-gray-400 mt-1">Separate multiple flavours with a comma</p>
           </div>
 
           <div>

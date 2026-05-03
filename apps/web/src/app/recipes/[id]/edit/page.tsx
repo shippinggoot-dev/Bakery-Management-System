@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/trpc/react";
 import { TrashIcon, PlusIcon } from "@/components/icons";
+import { TagCombobox } from "@/components/TagCombobox";
 
 type IngredientRow = {
   rowKey:       string;
@@ -36,7 +37,7 @@ export default function EditRecipePage() {
   const [bakeTime,     setBakeTime]     = useState("");
   const [instructions, setInstructions] = useState("");
   const [notes,        setNotes]        = useState("");
-  const [flavours,     setFlavours]     = useState("");
+  const [flavours,     setFlavours]     = useState<string[]>([]);
   const [rows,         setRows]         = useState<IngredientRow[]>([]);
   const [removedIds,   setRemovedIds]   = useState<string[]>([]);
   const [error,        setError]        = useState<string | null>(null);
@@ -48,6 +49,7 @@ export default function EditRecipePage() {
   const [newIngUnit,     setNewIngUnit]     = useState("g");
   const [creating,       setCreating]       = useState(false);
 
+  const recordUsage       = api.customOptions.recordUsage.useMutation();
   const updateRecipe      = api.recipes.update.useMutation();
   const addIngredient     = api.recipes.addIngredient.useMutation();
   const updateIngredient  = api.recipes.updateIngredient.useMutation();
@@ -65,7 +67,7 @@ export default function EditRecipePage() {
     setBakeTime(recipe.bakeTimeMinutes ? String(recipe.bakeTimeMinutes) : "");
     setInstructions(recipe.instructions ?? "");
     setNotes(recipe.notes ?? "");
-    setFlavours(recipe.flavours ?? "");
+    setFlavours(recipe.flavours ? recipe.flavours.split(",").map((f) => f.trim()).filter(Boolean) : []);
     setRows(
       recipe.ingredients.map((ri) => ({
         rowKey:       nextKey(),
@@ -136,7 +138,7 @@ export default function EditRecipePage() {
           bakeTimeMinutes: bakeTime ? parseInt(bakeTime) : null,
           instructions:    instructions.trim() || null,
           notes:           notes.trim() || null,
-          flavours:        flavours.trim() || null,
+          flavours:        flavours.join(",") || null,
         },
       });
 
@@ -168,6 +170,7 @@ export default function EditRecipePage() {
         )
       );
 
+      if (flavours.length > 0) recordUsage.mutate({ fieldKey: "recipe.flavours", values: flavours });
       router.push(`/recipes/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save changes.");
@@ -224,13 +227,12 @@ export default function EditRecipePage() {
           </div>
           <div>
             <label className="form-label">Flavours</label>
-            <input
-              className="form-input"
-              placeholder="e.g. Chocolate, Vanilla, Strawberry"
-              value={flavours}
-              onChange={(e) => setFlavours(e.target.value)}
+            <TagCombobox
+              fieldKey="recipe.flavours"
+              values={flavours}
+              onChange={setFlavours}
+              placeholder="e.g. Chocolate, Vanilla, Strawberry…"
             />
-            <p className="text-xs text-gray-400 mt-1">Separate multiple flavours with a comma</p>
           </div>
           <div>
             <label className="form-label">Category</label>

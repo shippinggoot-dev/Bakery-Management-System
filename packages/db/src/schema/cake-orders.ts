@@ -29,6 +29,14 @@ export const cakeOrders = pgTable("cake_orders", {
   /** Agreed sale price for this order (stored as text) */
   salePrice:           text("sale_price"),
   notes:               text("notes"),
+  cakeStyle:           text("cake_style"),
+  cakeFormat:          text("cake_format"),
+  /** Comma-separated sponge flavours, e.g. "Chocolate,Vanilla" */
+  spongeFlavours:      text("sponge_flavours"),
+  /** Comma-separated frostings */
+  frostings:           text("frostings"),
+  /** Comma-separated fillings */
+  fillings:            text("fillings"),
   createdAt:           timestamp("created_at").notNull().defaultNow(),
   updatedAt:           timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [

@@ -4,23 +4,43 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
+import { TagCombobox } from "@/components/TagCombobox";
 
 function AddOrderForm({ onClose }: { onClose: () => void }) {
   const t = useTranslations("planner");
   const utils = api.useUtils();
   const { data: recipes = [] } = api.recipes.getAll.useQuery({ limit: 100 });
 
-  const [recipeId,     setRecipeId]     = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [quantity,     setQuantity]     = useState("1");
-  const [dueDate,      setDueDate]      = useState("");
-  const [notes,        setNotes]        = useState("");
-  const [error,        setError]        = useState<string | null>(null);
+  const [recipeId,       setRecipeId]       = useState("");
+  const [customerName,   setCustomerName]   = useState("");
+  const [quantity,       setQuantity]       = useState("1");
+  const [dueDate,        setDueDate]        = useState("");
+  const [notes,          setNotes]          = useState("");
+  const [cakeFormat,     setCakeFormat]     = useState<string[]>([]);
+  const [cakeStyle,      setCakeStyle]      = useState<string[]>([]);
+  const [spongeFlavours, setSpongeFlavours] = useState<string[]>([]);
+  const [frostings,      setFrostings]      = useState<string[]>([]);
+  const [fillings,       setFillings]       = useState<string[]>([]);
+  const [error,          setError]          = useState<string | null>(null);
 
   const selectedRecipe = recipes.find((r) => r.id === recipeId);
 
+  const recordUsage = api.customOptions.recordUsage.useMutation();
   const create = api.cakeOrders.create.useMutation({
-    onSuccess: () => { utils.cakeOrders.getAll.invalidate(); onClose(); },
+    onSuccess: () => {
+      const fields: Array<[string, string[]]> = [
+        ["cake.format",        cakeFormat],
+        ["cake.style",         cakeStyle],
+        ["cake.spongeFlavour", spongeFlavours],
+        ["cake.frosting",      frostings],
+        ["cake.filling",       fillings],
+      ];
+      fields.forEach(([key, vals]) => {
+        if (vals.length > 0) recordUsage.mutate({ fieldKey: key, values: vals });
+      });
+      utils.cakeOrders.getAll.invalidate();
+      onClose();
+    },
     onError: (e) => setError(e.message),
   });
 
@@ -28,7 +48,18 @@ function AddOrderForm({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     if (!recipeId) return setError(t("selectRecipeError"));
     setError(null);
-    create.mutate({ recipeId, customerName: customerName.trim() || null, quantity: quantity.trim() || "1", dueDate: dueDate || null, notes: notes.trim() || null });
+    create.mutate({
+      recipeId,
+      customerName:   customerName.trim() || null,
+      quantity:       quantity.trim() || "1",
+      dueDate:        dueDate || null,
+      notes:          notes.trim() || null,
+      cakeFormat:     cakeFormat[0] ?? null,
+      cakeStyle:      cakeStyle[0] ?? null,
+      spongeFlavours: spongeFlavours.join(",") || null,
+      frostings:      frostings.join(",") || null,
+      fillings:       fillings.join(",") || null,
+    });
   }
 
   return (
@@ -64,6 +95,30 @@ function AddOrderForm({ onClose }: { onClose: () => void }) {
           <div>
             <label className="form-label">{t("dueDate")}</label>
             <input className="form-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Format</label>
+            <TagCombobox fieldKey="cake.format" values={cakeFormat} onChange={setCakeFormat} placeholder="e.g. Single Tier, Two Tier…" multi={false} />
+          </div>
+          <div>
+            <label className="form-label">Style</label>
+            <TagCombobox fieldKey="cake.style" values={cakeStyle} onChange={setCakeStyle} placeholder="e.g. Showstopper, Simple…" multi={false} />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="form-label">Sponge flavour(s)</label>
+            <TagCombobox fieldKey="cake.spongeFlavour" values={spongeFlavours} onChange={setSpongeFlavours} placeholder="e.g. Chocolate…" />
+          </div>
+          <div>
+            <label className="form-label">Frosting(s)</label>
+            <TagCombobox fieldKey="cake.frosting" values={frostings} onChange={setFrostings} placeholder="e.g. SMBC…" />
+          </div>
+          <div>
+            <label className="form-label">Filling(s)</label>
+            <TagCombobox fieldKey="cake.filling" values={fillings} onChange={setFillings} placeholder="e.g. Caramel…" />
           </div>
         </div>
         <div>
@@ -366,6 +421,14 @@ export default function PlannerPage() {
                         {order.recipe?.name ?? <span className="text-amber-500 italic">{t("unlinkedItem")}</span>}
                       </p>
                       {order.shopifyOrderNumber && <p className="text-[10px] text-gray-400 mt-0.5">{order.shopifyOrderNumber}</p>}
+                      {(order.cakeFormat ?? order.cakeStyle) && (
+                        <p className="text-xs text-gray-400 mt-0.5">{[order.cakeFormat, order.cakeStyle].filter(Boolean).join(" · ")}</p>
+                      )}
+                      {(order.spongeFlavours ?? order.frostings ?? order.fillings) && (
+                        <p className="text-xs text-gray-400 mt-0.5 max-w-xs truncate">
+                          {[order.spongeFlavours, order.frostings, order.fillings].filter(Boolean).join(" / ")}
+                        </p>
+                      )}
                       {order.notes && <p className="text-xs text-gray-400 mt-0.5 max-w-xs truncate">{order.notes}</p>}
                     </td>
                     <td className="px-5 py-3 text-sm text-gray-600">{order.customerName ?? <span className="text-gray-300">—</span>}</td>

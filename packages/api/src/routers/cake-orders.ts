@@ -30,12 +30,17 @@ export const cakeOrdersRouter = createTRPCRouter({
   create: protectedProcedure
     .input(
       z.object({
-        customerName:  z.string().optional().nullable(),
-        customerEmail: z.string().email().optional().nullable(),
-        recipeId:      z.string().uuid().optional().nullable(),
-        quantity:      z.string().min(1),
-        dueDate:       z.string().optional().nullable(),
-        notes:         z.string().optional().nullable(),
+        customerName:   z.string().optional().nullable(),
+        customerEmail:  z.string().email().optional().nullable(),
+        recipeId:       z.string().uuid().optional().nullable(),
+        quantity:       z.string().min(1),
+        dueDate:        z.string().optional().nullable(),
+        notes:          z.string().optional().nullable(),
+        cakeStyle:      z.string().optional().nullable(),
+        cakeFormat:     z.string().optional().nullable(),
+        spongeFlavours: z.string().optional().nullable(),
+        frostings:      z.string().optional().nullable(),
+        fillings:       z.string().optional().nullable(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -52,13 +57,18 @@ export const cakeOrdersRouter = createTRPCRouter({
         id:            z.string().uuid(),
         status:        statusSchema.optional(),
         paymentStatus: z.enum(["pending", "paid", "unpaid", "refunded"]).optional(),
-        salePrice:     z.string().optional().nullable(),
-        notes:         z.string().optional().nullable(),
-        dueDate:       z.string().optional().nullable(),
-        quantity:      z.string().optional(),
-        customerName:  z.string().optional().nullable(),
-        customerEmail: z.string().email().optional().nullable(),
-        recipeId:      z.string().uuid().optional().nullable(),
+        salePrice:      z.string().optional().nullable(),
+        notes:          z.string().optional().nullable(),
+        dueDate:        z.string().optional().nullable(),
+        quantity:       z.string().optional(),
+        customerName:   z.string().optional().nullable(),
+        customerEmail:  z.string().email().optional().nullable(),
+        recipeId:       z.string().uuid().optional().nullable(),
+        cakeStyle:      z.string().optional().nullable(),
+        cakeFormat:     z.string().optional().nullable(),
+        spongeFlavours: z.string().optional().nullable(),
+        frostings:      z.string().optional().nullable(),
+        fillings:       z.string().optional().nullable(),
       })
     )
     .mutation(async ({ ctx, input }) => {
