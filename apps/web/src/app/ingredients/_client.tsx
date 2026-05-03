@@ -4,13 +4,6 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 import { PlusIcon } from "@/components/icons";
-import type { AppRouter } from "@bakery/api";
-import type { inferRouterOutputs } from "@trpc/server";
-
-type RouterOutputs = inferRouterOutputs<AppRouter>;
-type IngredientsData  = RouterOutputs["ingredients"]["getAll"];
-type CategoriesData   = RouterOutputs["ingredients"]["getCategories"];
-type AllergensData    = RouterOutputs["ingredients"]["getAllAllergens"];
 
 const allergenColour: Record<string, string> = {
   Gluten:      "bg-yellow-50 text-yellow-700 border-yellow-200",
@@ -24,15 +17,7 @@ const allergenColour: Record<string, string> = {
 
 const COMMON_UNITS = ["g", "kg", "ml", "L", "piece", "tsp", "tbsp"];
 
-function AddIngredientForm({
-  onClose,
-  initialCategories,
-  initialAllergens,
-}: {
-  onClose: () => void;
-  initialCategories: CategoriesData;
-  initialAllergens: AllergensData;
-}) {
+function AddIngredientForm({ onClose }: { onClose: () => void }) {
   const t  = useTranslations("ingredients");
   const tc = useTranslations("common");
   const utils = api.useUtils();
@@ -43,14 +28,8 @@ function AddIngredientForm({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const { data: categories = initialCategories } = api.ingredients.getCategories.useQuery(
-    undefined,
-    { initialData: initialCategories, initialDataUpdatedAt: Date.now() }
-  );
-  const { data: allAllergens = initialAllergens } = api.ingredients.getAllAllergens.useQuery(
-    undefined,
-    { initialData: initialAllergens, initialDataUpdatedAt: Date.now() }
-  );
+  const { data: categories = [] } = api.ingredients.getCategories.useQuery();
+  const { data: allAllergens = [] } = api.ingredients.getAllAllergens.useQuery();
 
   const create = api.ingredients.create.useMutation({
     onSuccess: () => { utils.ingredients.getAll.invalidate(); onClose(); },
@@ -153,22 +132,11 @@ function AddIngredientForm({
   );
 }
 
-export default function IngredientsClient({
-  initialIngredients,
-  initialCategories,
-  initialAllergens,
-}: {
-  initialIngredients: IngredientsData;
-  initialCategories: CategoriesData;
-  initialAllergens: AllergensData;
-}) {
+export default function IngredientsClient() {
   const t = useTranslations("ingredients");
   const [showAdd, setShowAdd] = useState(false);
 
-  const { data: ingredients = [] } = api.ingredients.getAll.useQuery(
-    { limit: 200 },
-    { initialData: initialIngredients, initialDataUpdatedAt: Date.now() }
-  );
+  const { data: ingredients = [] } = api.ingredients.getAll.useQuery({ limit: 200 });
 
   const grouped = ingredients.reduce<Record<string, typeof ingredients>>(
     (acc, ing) => {
@@ -204,8 +172,6 @@ export default function IngredientsClient({
       {showAdd && (
         <AddIngredientForm
           onClose={() => setShowAdd(false)}
-          initialCategories={initialCategories}
-          initialAllergens={initialAllergens}
         />
       )}
 
