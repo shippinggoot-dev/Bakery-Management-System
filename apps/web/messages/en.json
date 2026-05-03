@@ -69,7 +69,9 @@
     "operations": "Operations",
     "production": "Production Schedule",
     "sales": "Sales Dashboard",
-    "social": "Instagram"
+    "social": "Instagram",
+    "overview": "Overview",
+    "kitchenStock": "Kitchen & Stock"
   },
   "planner": {
     "title": "Order Planner",

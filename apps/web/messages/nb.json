@@ -69,7 +69,9 @@
     "operations": "Drift",
     "production": "Produksjonsplan",
     "sales": "Salgsdashboard",
-    "social": "Instagram"
+    "social": "Instagram",
+    "overview": "Oversikt",
+    "kitchenStock": "Kjøkken & Lager"
   },
   "planner": {
     "title": "Bestillingsplanlegger",
