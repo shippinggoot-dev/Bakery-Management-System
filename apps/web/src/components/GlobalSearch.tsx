@@ -11,7 +11,6 @@ const SEARCH_ITEMS = [
   { label: "Customer Orders",       href: "/planner",               icon: "🎂" },
   { label: "Recipes",               href: "/recipes",               icon: "📖" },
   { label: "Nutrition Labels",      href: "/nutrients",             icon: "🏷️" },
-  { label: "My Library",            href: "/library",               icon: "📚" },
   { label: "Inventory",             href: "/inventory",             icon: "📊" },
   { label: "Suppliers",             href: "/suppliers",             icon: "🤝" },
   { label: "Price Sync",            href: "/price-ingestion",       icon: "💹" },

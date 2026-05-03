@@ -137,7 +137,7 @@ Required env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, 
 | `/recipes/[id]` | Recipe detail with cost breakdown |
 | `/recipes/[id]/edit` | Edit recipe and ingredients |
 | `/recipes/new` | Create recipe |
-| `/nutrients` | Nutrition label generator |
+| `/nutrients` | Nutrition label generator (recipe-based + manual entries tabs) |
 | `/inventory` | Stock levels and receive deliveries |
 | `/purchase-orders` | Supplier purchase orders |
 | `/shopping-lists` | Generated shopping lists |
@@ -151,4 +151,10 @@ Required env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, 
 | `/social` | Instagram content planning |
 | `/todos` | Task list |
 | `/settings` | Workspace settings |
-| `/library` | Manual nutrition label library (localStorage only) |
+
+
+## Security
+- RLS must be enabled on all public tables
+- Never recommend disabling RLS as a fix for query issues — debug the policy instead
+## Future
+- Mobile: planning PWA first, possibly React Native later. Keep business logic in packages/api so it can be reused.
