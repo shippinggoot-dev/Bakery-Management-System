@@ -28,18 +28,29 @@ function useSidebarGroups(openTaskCount: number) {
     },
     {
       key: "kitchen",
-      label: t("kitchenStock"),
+      label: t("kitchen"),
       items: [
-        { href: "/recipes",         label: t("recipes"),         icon: "📖" },
-        { href: "/nutrients",       label: t("nutritionLabels"), icon: "🏷️" },
-        { href: "/library",         label: t("myLibrary"),       icon: "📚" },
-        { href: "/ingredients",     label: t("costCalculator"),  icon: "💰" },
-        { href: "/inventory",       label: t("inventory"),       icon: "📊" },
-        { href: "/suppliers",       label: t("suppliers"),       icon: "🤝" },
-        { href: "/price-ingestion", label: t("priceUpdates"),    icon: "💹" },
-        { href: "/price-alerts",    label: t("priceAlerts"),     icon: "🔔" },
-        { href: "/purchase-orders", label: t("purchasing"),      icon: "📋" },
-        { href: "/shopping-lists",  label: t("shoppingLists"),   icon: "🛍️" },
+        { href: "/recipes",   label: t("recipes"),         icon: "📖" },
+        { href: "/nutrients", label: t("nutritionLabels"), icon: "🏷️" },
+      ] satisfies SidebarItem[],
+    },
+    {
+      key: "stock",
+      label: t("stock"),
+      items: [
+        { href: "/ingredients", label: t("costCalculator"), icon: "💰" },
+        { href: "/inventory",   label: t("inventory"),      icon: "📊" },
+        { href: "/suppliers",   label: t("suppliers"),      icon: "🤝" },
+      ] satisfies SidebarItem[],
+    },
+    {
+      key: "purchasing",
+      label: t("purchasing"),
+      items: [
+        { href: "/purchase-orders", label: t("purchaseOrders"), icon: "📋" },
+        { href: "/shopping-lists",  label: t("shoppingLists"),  icon: "🛍️" },
+        { href: "/price-ingestion", label: t("priceUpdates"),   icon: "💹" },
+        { href: "/price-alerts",    label: t("priceAlerts"),    icon: "🔔" },
       ] satisfies SidebarItem[],
     },
     {
@@ -370,7 +381,7 @@ function SidebarSection({
 
 const MOBILE_TABS = [
   { label: "Home",       icon: "🏠", href: "/",          prefixes: ["/", "/planner", "/todos"] },
-  { label: "Kitchen",    icon: "🍳", href: "/recipes",   prefixes: ["/recipes", "/nutrients", "/library", "/ingredients"] },
+  { label: "Kitchen",    icon: "🍳", href: "/recipes",   prefixes: ["/recipes", "/nutrients", "/ingredients"] },
   { label: "Stock",      icon: "📦", href: "/inventory", prefixes: ["/inventory", "/suppliers", "/price-ingestion", "/price-alerts", "/purchase-orders", "/shopping-lists"] },
   { label: "Customers",  icon: "👥", href: "/customers", prefixes: ["/customers"] },
   { label: "Operations", icon: "🏭", href: "/production",prefixes: ["/production", "/sales", "/social"] },
@@ -454,91 +465,91 @@ export function Nav() {
 
   return (
     <>
+      {/* ── Desktop top header ──────────────────────────────────────────── */}
+      <header className="hidden md:flex fixed top-0 left-64 right-0 z-30 bg-rose-50 border-b border-rose-100 h-14 items-center px-6">
+        <div className="flex-1" />
+
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-base font-bold text-brand-700 hover:text-brand-900 transition-colors"
+        >
+          {logoUrl ? (
+            <img src={logoUrl} alt="logo" className="h-8 w-8 rounded-lg object-contain flex-shrink-0" />
+          ) : (
+            <span className="text-xl flex-shrink-0 leading-none">🏪</span>
+          )}
+          <span>Bakery Management System</span>
+        </Link>
+
+        <div className="flex-1 flex items-center justify-end gap-1">
+          <LanguageSwitcher />
+
+          {/* Personalise */}
+          <div className="relative">
+            <button
+              onClick={() => setPanelOpen((v) => !v)}
+              className={`p-1.5 rounded-lg text-sm transition-colors ${
+                panelOpen ? "bg-brand-600 text-white" : "text-brand-500 hover:bg-brand-100 hover:text-brand-700"
+              }`}
+              title={t("personalise")}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {panelOpen && (
+              <PersonalisePanel
+                onClose={() => setPanelOpen(false)}
+                isLoggedIn={isLoggedIn}
+                isAnonymous={isAnonymous}
+                positionClass="absolute right-0 top-full mt-1"
+              />
+            )}
+          </div>
+
+          {/* Settings */}
+          {isLoggedIn && !isAnonymous && (
+            <Link
+              href="/settings"
+              prefetch={false}
+              className={`p-1.5 rounded-lg transition-colors ${
+                pathname.startsWith("/settings")
+                  ? "bg-brand-600 text-white"
+                  : "text-brand-500 hover:bg-brand-100 hover:text-brand-700"
+              }`}
+              title={t("settings")}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </Link>
+          )}
+
+          {/* Auth */}
+          {isLoggedIn && !isAnonymous ? (
+            <button
+              onClick={handleSignOut}
+              className="text-xs text-brand-400 hover:text-brand-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-rose-100"
+            >
+              {t("signOut")}
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+            >
+              {isAnonymous ? t("createAccount") : t("logIn")}
+            </Link>
+          )}
+        </div>
+      </header>
+
       {/* ── Desktop sidebar ──────────────────────────────────────────────── */}
       <aside className="hidden md:flex fixed inset-y-0 left-0 w-64 flex-col bg-rose-50 border-r border-rose-100 z-40">
 
-        {/* Brand + actions header */}
-        <div className="flex-shrink-0 border-b border-rose-100">
-
-          {/* Row 1: logo + product name */}
-          <div className="flex items-center gap-2 px-4 pt-3 pb-1">
-            {logoUrl ? (
-              <img src={logoUrl} alt="logo" className="h-7 w-7 rounded-lg object-contain flex-shrink-0" />
-            ) : (
-              <span className="text-xl flex-shrink-0 leading-none">🏪</span>
-            )}
-            <Link href="/" className="text-sm font-bold text-brand-700 hover:text-brand-900 transition-colors leading-tight">
-              Bakery Management System
-            </Link>
-          </div>
-
-          {/* Row 2: action buttons */}
-          <div className="flex items-center gap-0.5 px-3 pb-2 relative">
-            <LanguageSwitcher />
-
-            {/* Personalise */}
-            <div className="relative">
-              <button
-                onClick={() => setPanelOpen((v) => !v)}
-                className={`p-1.5 rounded-lg text-sm transition-colors ${
-                  panelOpen ? "bg-brand-600 text-white" : "text-brand-500 hover:bg-brand-100 hover:text-brand-700"
-                }`}
-                title={t("personalise")}
-              >
-                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                </svg>
-              </button>
-              {panelOpen && (
-                <PersonalisePanel
-                  onClose={() => setPanelOpen(false)}
-                  isLoggedIn={isLoggedIn}
-                  isAnonymous={isAnonymous}
-                  positionClass="absolute left-0 top-full mt-1"
-                />
-              )}
-            </div>
-
-            {/* Settings */}
-            {isLoggedIn && !isAnonymous && (
-              <Link
-                href="/settings"
-                prefetch={false}
-                className={`p-1.5 rounded-lg transition-colors ${
-                  pathname.startsWith("/settings")
-                    ? "bg-brand-600 text-white"
-                    : "text-brand-500 hover:bg-brand-100 hover:text-brand-700"
-                }`}
-                title={t("settings")}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </Link>
-            )}
-
-            {/* Auth */}
-            {isLoggedIn && !isAnonymous ? (
-              <button
-                onClick={handleSignOut}
-                className="text-xs text-brand-400 hover:text-brand-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-rose-100 ml-auto"
-              >
-                {t("signOut")}
-              </button>
-            ) : (
-              <Link
-                href="/login"
-                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors ml-auto"
-              >
-                {isAnonymous ? t("createAccount") : t("logIn")}
-              </Link>
-            )}
-          </div>
-        </div>
-
         {/* Search */}
-        <div className="px-3 py-2 border-b border-rose-100 flex-shrink-0 [&>button]:w-full [&>button]:justify-start">
+        <div className="px-3 py-3 border-b border-rose-100 flex-shrink-0 [&>button]:w-full [&>button]:justify-start">
           <GlobalSearchTrigger onClick={() => {
             (window as typeof window & { __openGlobalSearch?: () => void }).__openGlobalSearch?.();
           }} />
