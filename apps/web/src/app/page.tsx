@@ -80,36 +80,35 @@ function KpiCard({
   );
 }
 
-function DashboardSkeleton() {
+function TodaySkeleton() {
   return (
-    <div className="space-y-8 max-w-5xl animate-pulse">
-      <section>
-        <div className="h-3 bg-rose-100 rounded w-16 mb-3" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {[...Array(2)].map((_, i) => (
-            <div key={i} className="card p-5 space-y-3">
-              <div className="h-4 bg-rose-100 rounded w-24" />
-              <div className="h-8 bg-rose-100 rounded w-16" />
-              <div className="h-3 bg-rose-100 rounded w-32" />
-            </div>
-          ))}
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 animate-pulse">
+      {[...Array(2)].map((_, i) => (
+        <div key={i} className="card p-5 space-y-3">
+          <div className="h-4 bg-rose-100 rounded w-24" />
+          <div className="h-8 bg-rose-100 rounded w-16" />
+          <div className="h-3 bg-rose-100 rounded w-32" />
         </div>
-      </section>
-      <section>
-        <div className="h-3 bg-rose-100 rounded w-20 mb-3" />
-        <div className="card px-6 py-5 space-y-2">
-          <div className="h-3 bg-rose-100 rounded w-16" />
-          <div className="h-12 bg-rose-100 rounded w-48" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="card px-5 py-4 space-y-2">
-              <div className="h-3 bg-rose-100 rounded w-16" />
-              <div className="h-6 bg-rose-100 rounded w-24" />
-            </div>
-          ))}
-        </div>
-      </section>
+      ))}
+    </div>
+  );
+}
+
+function WeekSkeleton() {
+  return (
+    <div className="space-y-3 animate-pulse">
+      <div className="card px-6 py-5 space-y-2">
+        <div className="h-3 bg-rose-100 rounded w-16" />
+        <div className="h-12 bg-rose-100 rounded w-48" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="card px-5 py-4 space-y-2">
+            <div className="h-3 bg-rose-100 rounded w-16" />
+            <div className="h-6 bg-rose-100 rounded w-24" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -117,8 +116,6 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
   const { data: today, isLoading: loadingToday } = api.dashboard.getTodaySummary.useQuery();
   const { data: week,  isLoading: loadingWeek  } = api.dashboard.getWeekSummary.useQuery();
-
-  if (loadingToday || loadingWeek) return <DashboardSkeleton />;
 
   const showDeliveries = (today?.deliveriesToday.length ?? 0) > 0;
   const showBatches    = (today?.batchesToday.length    ?? 0) > 0;
@@ -129,6 +126,7 @@ export default function DashboardPage() {
       <section>
         <ZoneHeading>Today</ZoneHeading>
 
+        {loadingToday ? <TodaySkeleton /> : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
           <TodayCard title="Open tasks" href="/todos" linkLabel="All tasks →">
@@ -223,11 +221,13 @@ export default function DashboardPage() {
             </TodayCard>
           )}
         </div>
+        )}
       </section>
 
       <section>
         <ZoneHeading>This week</ZoneHeading>
 
+        {loadingWeek ? <WeekSkeleton /> : (
         <div className="space-y-3">
 
           <div className="card px-6 py-5">
@@ -283,6 +283,7 @@ export default function DashboardPage() {
             />
           </div>
         </div>
+        )}
       </section>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -290,7 +291,7 @@ export default function DashboardPage() {
           { label: "New order",       href: "/purchase-orders" },
           { label: "Cost check",      href: "/ingredients"     },
           { label: "Customers",       href: "/customers"       },
-          { label: "Content planner", href: "/recipes"         },
+          { label: "Content planner", href: "/social"          },
         ] as const).map(({ label, href }) => (
           <Link
             key={href}
