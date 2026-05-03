@@ -1,9 +1,8 @@
-import Link from "next/link";
-import { api } from "@/trpc/server";
+"use client";
 
-// ── Currency formatting ───────────────────────────────────────────────────────
-// TODO: replace hardcoded locale/currency with per-workspace settings when
-//       multi-currency support is added.
+import Link from "next/link";
+import { api } from "@/trpc/react";
+
 const NOK = new Intl.NumberFormat("nb-NO", {
   style:                 "currency",
   currency:              "NOK",
@@ -13,7 +12,6 @@ const NOK = new Intl.NumberFormat("nb-NO", {
 
 function fmtNOK(value: number) { return NOK.format(value); }
 
-// ── Stock status colours ──────────────────────────────────────────────────────
 const STOCK_DOT: Record<string, string> = {
   low:      "bg-amber-400",
   critical: "bg-red-500",
@@ -25,11 +23,8 @@ const STOCK_LABEL: Record<string, string> = {
   out:      "text-gray-600  bg-gray-100  border-gray-200",
 };
 
-// ── Shift display ─────────────────────────────────────────────────────────────
 const SHIFT_ICON: Record<string, string>  = { morning: "🌅", afternoon: "☀️",  evening: "🌙" };
 const SHIFT_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon", evening: "Evening" };
-
-// ── Sub-components (all server-safe — no hooks) ───────────────────────────────
 
 function ZoneHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -56,6 +51,7 @@ function TodayCard({
         <h3 className="section-title">{title}</h3>
         <Link
           href={href}
+          prefetch={false}
           className="text-xs text-brand-500 hover:text-brand-700 font-medium flex-shrink-0 transition-colors"
         >
           {linkLabel}
@@ -84,13 +80,45 @@ function KpiCard({
   );
 }
 
-// ── Page (server component) ───────────────────────────────────────────────────
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-8 max-w-5xl animate-pulse">
+      <section>
+        <div className="h-3 bg-rose-100 rounded w-16 mb-3" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="card p-5 space-y-3">
+              <div className="h-4 bg-rose-100 rounded w-24" />
+              <div className="h-8 bg-rose-100 rounded w-16" />
+              <div className="h-3 bg-rose-100 rounded w-32" />
+            </div>
+          ))}
+        </div>
+      </section>
+      <section>
+        <div className="h-3 bg-rose-100 rounded w-20 mb-3" />
+        <div className="card px-6 py-5 space-y-2">
+          <div className="h-3 bg-rose-100 rounded w-16" />
+          <div className="h-12 bg-rose-100 rounded w-48" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="card px-5 py-4 space-y-2">
+              <div className="h-3 bg-rose-100 rounded w-16" />
+              <div className="h-6 bg-rose-100 rounded w-24" />
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
 
-export default async function DashboardPage() {
-  const [today, week] = await Promise.all([
-    api.dashboard.getTodaySummary(),
-    api.dashboard.getWeekSummary(),
-  ]);
+export default function DashboardPage() {
+  const { data: today, isLoading: loadingToday } = api.dashboard.getTodaySummary.useQuery();
+  const { data: week,  isLoading: loadingWeek  } = api.dashboard.getWeekSummary.useQuery();
+
+  if (loadingToday || loadingWeek) return <DashboardSkeleton />;
 
   const showDeliveries = (today?.deliveriesToday.length ?? 0) > 0;
   const showBatches    = (today?.batchesToday.length    ?? 0) > 0;
@@ -98,15 +126,11 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8 max-w-5xl">
 
-      {/* ════════════════════════════════════════════════════════════
-          TODAY
-      ════════════════════════════════════════════════════════════ */}
       <section>
         <ZoneHeading>Today</ZoneHeading>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
-          {/* Tasks — always present */}
           <TodayCard title="Open tasks" href="/todos" linkLabel="All tasks →">
             <div>
               <p className="text-4xl font-bold text-brand-700 leading-none">
@@ -137,7 +161,6 @@ export default async function DashboardPage() {
             )}
           </TodayCard>
 
-          {/* Stock alerts — always present */}
           <TodayCard title="Stock alerts" href="/inventory" linkLabel="Inventory →">
             {today && today.stockAlerts.length > 0 ? (
               <ul className="space-y-2.5">
@@ -156,7 +179,6 @@ export default async function DashboardPage() {
             )}
           </TodayCard>
 
-          {/* Deliveries expected — conditional */}
           {showDeliveries && (
             <TodayCard title="Deliveries today" href="/purchase-orders" linkLabel="Orders →">
               <ul className="space-y-3">
@@ -179,7 +201,6 @@ export default async function DashboardPage() {
             </TodayCard>
           )}
 
-          {/* Batches to bake — conditional */}
           {showBatches && (
             <TodayCard title="Batches to bake" href="/production" linkLabel="Production →">
               <ul className="space-y-3">
@@ -204,15 +225,11 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {/* ════════════════════════════════════════════════════════════
-          THIS WEEK
-      ════════════════════════════════════════════════════════════ */}
       <section>
         <ZoneHeading>This week</ZoneHeading>
 
         <div className="space-y-3">
 
-          {/* Revenue — hero card, visually dominant */}
           <div className="card px-6 py-5">
             <p className="text-[10px] font-bold text-brand-400 uppercase tracking-widest">
               Revenue
@@ -234,7 +251,6 @@ export default async function DashboardPage() {
             )}
           </div>
 
-          {/* Smaller KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <KpiCard
               label="Orders"
@@ -269,9 +285,6 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {/* ════════════════════════════════════════════════════════════
-          QUICK ACTIONS
-      ════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {([
           { label: "New order",       href: "/purchase-orders" },
@@ -282,6 +295,7 @@ export default async function DashboardPage() {
           <Link
             key={href}
             href={href}
+            prefetch={false}
             className="bg-white border border-rose-200 rounded-2xl px-4 py-3 text-sm font-medium text-brand-600 hover:bg-rose-50 hover:border-brand-300 transition-all text-center shadow-sm"
           >
             {label}

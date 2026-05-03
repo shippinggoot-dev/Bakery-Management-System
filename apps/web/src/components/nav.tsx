@@ -328,6 +328,7 @@ function TodoSidebar({ open, onClose }: { open: boolean; onClose: () => void }) 
           <Link
             href="/todos"
             onClick={onClose}
+            prefetch={false}
             className="block text-center text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
           >
             {t("seeAllTasks")}
@@ -365,6 +366,7 @@ function BottomTabBar() {
           <Link
             key={tab.href}
             href={tab.href}
+            prefetch={false}
             className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold transition-colors min-h-[56px] ${
               active
                 ? "text-brand-700"
@@ -509,6 +511,7 @@ export function Nav() {
             {isLoggedIn && !isAnonymous && (
               <Link
                 href="/settings"
+                prefetch={false}
                 className={`hidden sm:flex p-2 rounded-lg transition-colors ${
                   pathname.startsWith("/settings")
                     ? "bg-brand-600 text-white"
@@ -589,6 +592,7 @@ export function Nav() {
                         <Link
                           key={item.href}
                           href={item.href}
+                          prefetch={false}
                           className={`flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
                             active
                               ? "bg-brand-50 text-brand-700 font-medium"
