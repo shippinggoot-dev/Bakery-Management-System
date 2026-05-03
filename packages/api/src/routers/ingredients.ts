@@ -28,6 +28,16 @@ export const ingredientsRouter = createTRPCRouter({
     });
   }),
 
+  createCategory: protectedProcedure
+    .input(z.object({ name: z.string().min(1).max(100) }))
+    .mutation(async ({ ctx, input }) => {
+      const [category] = await ctx.db
+        .insert(ingredientCategories)
+        .values({ name: input.name.trim() })
+        .returning();
+      return category;
+    }),
+
   getAllAllergens: publicProcedure.query(async ({ ctx }) => {
     return ctx.db.query.allergens.findMany({
       orderBy: (a, { asc }) => [asc(a.name)],

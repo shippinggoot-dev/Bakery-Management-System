@@ -7,6 +7,7 @@ import { api } from "@/trpc/react";
 import { TrashIcon, PlusIcon } from "@/components/icons";
 import { parseRecipeText } from "@/lib/recipe-parser";
 import { TagCombobox } from "@/components/TagCombobox";
+import { CategorySelect } from "@/components/CategorySelect";
 
 type IngredientRow = {
   ingredientId: string;
@@ -125,6 +126,7 @@ export default function NewRecipePage() {
   const [importBanner, setImportBanner] = useState<string | null>(null);
 
   const { data: categories = [] } = api.recipes.getCategories.useQuery();
+  const createCategory = api.recipes.createCategory.useMutation();
   const { data: allIngredients = [] } = api.ingredients.getAll.useQuery({ limit: 200 });
 
   const recordUsage = api.customOptions.recordUsage.useMutation();
@@ -295,16 +297,12 @@ export default function NewRecipePage() {
 
           <div>
             <label className="form-label">Category</label>
-            <select
-              className="form-input"
+            <CategorySelect
+              categories={categories}
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-            >
-              <option value="">— No category —</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+              onChange={setCategoryId}
+              onCreate={(name) => createCategory.mutateAsync({ name }).then((c) => c!)}
+            />
           </div>
         </div>
 

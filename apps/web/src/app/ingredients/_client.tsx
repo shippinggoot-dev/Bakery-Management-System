@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 import { PlusIcon } from "@/components/icons";
+import { CategorySelect } from "@/components/CategorySelect";
 
 const allergenColour: Record<string, string> = {
   Gluten:      "bg-yellow-50 text-yellow-700 border-yellow-200",
@@ -30,6 +31,7 @@ function AddIngredientForm({ onClose }: { onClose: () => void }) {
 
   const { data: categories = [] } = api.ingredients.getCategories.useQuery();
   const { data: allAllergens = [] } = api.ingredients.getAllAllergens.useQuery();
+  const createCategory = api.ingredients.createCategory.useMutation();
 
   const create = api.ingredients.create.useMutation({
     onSuccess: () => { utils.ingredients.getAll.invalidate(); onClose(); },
@@ -89,10 +91,13 @@ function AddIngredientForm({ onClose }: { onClose: () => void }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="form-label">{t("categoryLabel")}</label>
-            <select className="form-input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">{t("noCategory")}</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <CategorySelect
+              categories={categories}
+              value={categoryId}
+              onChange={setCategoryId}
+              onCreate={(name) => createCategory.mutateAsync({ name }).then((c) => c!)}
+              placeholder={t("noCategory")}
+            />
           </div>
           <div>
             <label className="form-label">{t("notesLabel")}</label>
