@@ -14,7 +14,8 @@ const categoryColour: Record<string, string> = {
   "Brownie":  "bg-orange-50 text-orange-700 border-orange-200",
   "Cookies":  "bg-yellow-50 text-yellow-700 border-yellow-200",
   "Cupcakes": "bg-rose-50 text-rose-700 border-rose-200",
-  "Entremet": "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "Entremet":    "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "Decorations": "bg-teal-50 text-teal-700 border-teal-200",
 };
 
 function RecipesPageSkeleton() {

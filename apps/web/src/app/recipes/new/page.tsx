@@ -118,6 +118,7 @@ export default function NewRecipePage() {
   const [bakeTime, setBakeTime]       = useState("");
   const [instructions, setInstructions] = useState("");
   const [notes, setNotes]             = useState("");
+  const [flavours, setFlavours]       = useState("");
   const [rows, setRows]               = useState<IngredientRow[]>([]);
   const [error, setError]             = useState<string | null>(null);
   const [importBanner, setImportBanner] = useState<string | null>(null);
@@ -213,6 +214,7 @@ export default function NewRecipePage() {
         bakeTimeMinutes: bakeTime ? parseInt(bakeTime) : null,
         instructions: instructions.trim() || null,
         notes: notes.trim() || null,
+        flavours: flavours.trim() || null,
         isActive: true,
       },
       ingredients: validRows.map((r, i) => ({
@@ -274,6 +276,17 @@ export default function NewRecipePage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+
+          <div>
+            <label className="form-label">Flavours</label>
+            <input
+              className="form-input"
+              placeholder="e.g. Chocolate, Vanilla, Strawberry"
+              value={flavours}
+              onChange={(e) => setFlavours(e.target.value)}
+            />
+            <p className="text-xs text-gray-400 mt-1">Separate multiple flavours with a comma</p>
           </div>
 
           <div>

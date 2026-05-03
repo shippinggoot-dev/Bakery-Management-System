@@ -21,6 +21,7 @@ const recipeInputSchema = z.object({
   notes: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
   sellingPrice: z.string().optional().nullable(),
+  flavours: z.string().optional().nullable(),
 });
 
 const recipeIngredientInputSchema = z.object({

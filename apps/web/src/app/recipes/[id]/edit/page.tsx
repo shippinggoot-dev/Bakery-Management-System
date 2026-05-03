@@ -36,6 +36,7 @@ export default function EditRecipePage() {
   const [bakeTime,     setBakeTime]     = useState("");
   const [instructions, setInstructions] = useState("");
   const [notes,        setNotes]        = useState("");
+  const [flavours,     setFlavours]     = useState("");
   const [rows,         setRows]         = useState<IngredientRow[]>([]);
   const [removedIds,   setRemovedIds]   = useState<string[]>([]);
   const [error,        setError]        = useState<string | null>(null);
@@ -64,6 +65,7 @@ export default function EditRecipePage() {
     setBakeTime(recipe.bakeTimeMinutes ? String(recipe.bakeTimeMinutes) : "");
     setInstructions(recipe.instructions ?? "");
     setNotes(recipe.notes ?? "");
+    setFlavours(recipe.flavours ?? "");
     setRows(
       recipe.ingredients.map((ri) => ({
         rowKey:       nextKey(),
@@ -134,6 +136,7 @@ export default function EditRecipePage() {
           bakeTimeMinutes: bakeTime ? parseInt(bakeTime) : null,
           instructions:    instructions.trim() || null,
           notes:           notes.trim() || null,
+          flavours:        flavours.trim() || null,
         },
       });
 
@@ -218,6 +221,16 @@ export default function EditRecipePage() {
           <div>
             <label className="form-label">Description</label>
             <textarea className="form-input resize-none" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Flavours</label>
+            <input
+              className="form-input"
+              placeholder="e.g. Chocolate, Vanilla, Strawberry"
+              value={flavours}
+              onChange={(e) => setFlavours(e.target.value)}
+            />
+            <p className="text-xs text-gray-400 mt-1">Separate multiple flavours with a comma</p>
           </div>
           <div>
             <label className="form-label">Category</label>

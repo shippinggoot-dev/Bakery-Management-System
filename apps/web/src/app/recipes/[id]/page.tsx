@@ -1,7 +1,8 @@
-import { Suspense } from "react";
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { api } from "@/trpc/server";
+import { useParams } from "next/navigation";
+import { api } from "@/trpc/react";
 import { DeleteRecipeButton } from "./delete-button";
 import { SellingPricePanel } from "./SellingPricePanel";
 
@@ -15,9 +16,32 @@ const allergenColour: Record<string, string> = {
   Sesame:      "bg-stone-50 text-stone-700 border-stone-200",
 };
 
-type Recipe = NonNullable<Awaited<ReturnType<typeof api.recipes.getById>>>;
+export default function RecipeDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { data: recipe, isLoading } = api.recipes.getById.useQuery(id);
 
-function computeCost(recipe: Recipe) {
+  if (isLoading) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        <Link href="/recipes" className="text-sm text-gray-500 hover:text-gray-700">
+          ← Back to Recipes
+        </Link>
+        <RecipeDetailSkeleton />
+      </div>
+    );
+  }
+
+  if (!recipe) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        <Link href="/recipes" className="text-sm text-gray-500 hover:text-gray-700">
+          ← Back to Recipes
+        </Link>
+        <div className="text-center py-16 text-gray-400">Recipe not found.</div>
+      </div>
+    );
+  }
+
   let totalCost = 0;
   const lineItems = recipe.ingredients.map((ri) => {
     const preferred = ri.ingredient.supplierPrices[0];
@@ -33,37 +57,8 @@ function computeCost(recipe: Recipe) {
       hasPricing:     !!preferred,
     };
   });
-  return { lineItems, totalCost: parseFloat(totalCost.toFixed(4)) };
-}
+  const cost = { lineItems, totalCost: parseFloat(totalCost.toFixed(4)) };
 
-export default async function RecipeDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
-  return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Back link streams immediately — no data needed */}
-      <div className="flex items-center justify-between">
-        <Link href="/recipes" className="text-sm text-gray-500 hover:text-gray-700">
-          ← Back to Recipes
-        </Link>
-      </div>
-
-      <Suspense fallback={<RecipeDetailSkeleton />}>
-        <RecipeDetailContent id={id} />
-      </Suspense>
-    </div>
-  );
-}
-
-async function RecipeDetailContent({ id }: { id: string }) {
-  const recipe = await api.recipes.getById(id);
-  if (!recipe) notFound();
-
-  const cost      = computeCost(recipe);
   const totalTime = (recipe.prepTimeMinutes ?? 0) + (recipe.bakeTimeMinutes ?? 0);
 
   const allergenSet = new Set<string>();
@@ -73,11 +68,19 @@ async function RecipeDetailContent({ id }: { id: string }) {
     }
   }
   const allergens = [...allergenSet].filter(Boolean);
-
   const hasCost = cost.lineItems.some((li) => li.hasPricing);
+  const flavours = recipe.flavours
+    ? recipe.flavours.split(",").map((f) => f.trim()).filter(Boolean)
+    : [];
 
   return (
-    <>
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <Link href="/recipes" className="text-sm text-gray-500 hover:text-gray-700">
+          ← Back to Recipes
+        </Link>
+      </div>
+
       <div className="flex items-center justify-between print:hidden">
         <Link
           href={`/recipes/${id}/edit`}
@@ -111,6 +114,20 @@ async function RecipeDetailContent({ id }: { id: string }) {
             )}
           </div>
         </div>
+
+        {/* Flavours */}
+        {flavours.length > 0 && (
+          <div>
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1.5">Flavours</p>
+            <div className="flex flex-wrap gap-1.5">
+              {flavours.map((f) => (
+                <span key={f} className="badge bg-pink-50 text-pink-700 border-pink-200">
+                  {f}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Meta grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2 border-t border-rose-100">
@@ -240,7 +257,7 @@ async function RecipeDetailContent({ id }: { id: string }) {
           <p className="text-sm text-amber-900/70">{recipe.notes}</p>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

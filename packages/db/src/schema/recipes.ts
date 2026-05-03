@@ -21,6 +21,8 @@ export const recipes = pgTable("recipes", {
   isActive: boolean("is_active").notNull().default(true),
   /** Retail / selling price (stored as text to preserve decimals, e.g. "12.50") */
   sellingPrice: text("selling_price"),
+  /** Comma-separated flavour tags, e.g. "Chocolate,Vanilla,Strawberry" */
+  flavours: text("flavours"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
