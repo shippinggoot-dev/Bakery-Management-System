@@ -116,6 +116,16 @@ Loading skeletons: `animate-pulse` wrapper with `bg-rose-100` placeholder divs.
 
 Translation keys live in `apps/web/src/messages/`. In server components use `getTranslations("namespace")` (async). In client components use `useTranslations("namespace")` (hook, import from `"next-intl"` not `"next-intl/server"`).
 
+### Rule — every change must work in both English and Norsk
+
+Users can switch between EN and NB at any time. When adding or modifying a feature, both languages must work end-to-end. Concretely:
+
+1. **UI text** — never hardcode user-facing strings. Add a key to both `en.json` and `nb.json` and reference it via `useTranslations` / `getTranslations`. If you add an English key without its Norsk pair, treat the change as incomplete.
+2. **Text-processing logic** — parsers, regex matchers, search/sort, NLP-style heuristics, etc. must recognise both languages' vocabulary. Examples already in the codebase: the recipe parser (`apps/web/src/lib/recipe-parser.ts`) handles English and Norwegian section headers, cooking verbs, units (`ts`/`ss`/`stk`/`dl`), conjunctions (`and`/`og`), and time words (`minutes`/`minutter`).
+3. **Mental check before declaring done** — re-trace the change with a Norwegian input. If a Norwegian user pastes Norwegian text, switches the locale, or types in Norsk, does it still work?
+
+If a feature is genuinely English-only for a defensible reason (e.g. a third-party API that only returns English), state that explicitly in a code comment so it isn't mistaken for an oversight later.
+
 ## Running Locally
 
 ```bash
