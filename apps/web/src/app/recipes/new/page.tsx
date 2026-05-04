@@ -125,9 +125,46 @@ export default function NewRecipePage() {
   const [error, setError]             = useState<string | null>(null);
   const [importBanner, setImportBanner] = useState<string | null>(null);
 
+  // Inline ingredient creator
+  const [creatingIng,   setCreatingIng]   = useState(false);
+  const [newIngName,    setNewIngName]    = useState("");
+  const [newIngUnit,    setNewIngUnit]    = useState("g");
+  const [newIngError,   setNewIngError]   = useState<string | null>(null);
+
+  const utils = api.useUtils();
   const { data: categories = [] } = api.recipes.getCategories.useQuery();
   const createCategory = api.recipes.createCategory.useMutation();
   const { data: allIngredients = [] } = api.ingredients.getAll.useQuery({ limit: 200 });
+
+  const createIngredient = api.ingredients.create.useMutation({
+    onSuccess: (created) => {
+      utils.ingredients.getAll.invalidate();
+      // Pre-fill a recipe row with the new ingredient already selected
+      setRows((r) => [
+        ...r,
+        {
+          ingredientId: created!.id,
+          importedName: "",
+          quantity:     "",
+          unit:         created!.unit,
+          notes:        "",
+        },
+      ]);
+      setNewIngName("");
+      setNewIngUnit("g");
+      setCreatingIng(false);
+      setNewIngError(null);
+    },
+    onError: (err) => setNewIngError(err.message),
+  });
+
+  function handleCreateIngredient() {
+    const name = newIngName.trim();
+    const unit = newIngUnit.trim() || "g";
+    if (!name || createIngredient.isPending) return;
+    setNewIngError(null);
+    createIngredient.mutate({ ingredient: { name, unit } });
+  }
 
   const recordUsage = api.customOptions.recordUsage.useMutation();
   const createMutation = api.recipes.create.useMutation({
@@ -425,14 +462,74 @@ export default function NewRecipePage() {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={addRow}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-400 transition-colors"
-          >
-            <PlusIcon />
-            Add ingredient
-          </button>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+            <button
+              type="button"
+              onClick={addRow}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-400 transition-colors"
+            >
+              <PlusIcon />
+              Add row
+            </button>
+
+            {!creatingIng ? (
+              <button
+                type="button"
+                onClick={() => { setCreatingIng(true); setNewIngError(null); }}
+                className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-400 transition-colors"
+              >
+                <PlusIcon />
+                Create new ingredient
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  autoFocus
+                  className="form-input text-sm py-1.5 w-44"
+                  placeholder="Ingredient name"
+                  value={newIngName}
+                  onChange={(e) => setNewIngName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleCreateIngredient();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      setCreatingIng(false);
+                      setNewIngName("");
+                      setNewIngError(null);
+                    }
+                  }}
+                />
+                <input
+                  className="form-input text-sm py-1.5 w-16"
+                  placeholder="g"
+                  value={newIngUnit}
+                  onChange={(e) => setNewIngUnit(e.target.value)}
+                  title="Canonical unit for this ingredient (e.g. g, ml, piece). You can edit it later in /ingredients."
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateIngredient}
+                  disabled={!newIngName.trim() || createIngredient.isPending}
+                  className="px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-600 border border-brand-500/30 text-xs font-semibold hover:bg-brand-500/30 disabled:opacity-50 transition-colors whitespace-nowrap"
+                >
+                  {createIngredient.isPending ? "Creating…" : "Create"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCreatingIng(false); setNewIngName(""); setNewIngError(null); }}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
+          {newIngError && (
+            <p className="text-xs text-red-500">{newIngError}</p>
+          )}
         </div>
 
         {/* Instructions */}
