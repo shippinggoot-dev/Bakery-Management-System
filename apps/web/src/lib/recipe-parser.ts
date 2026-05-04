@@ -88,7 +88,7 @@ function convertQuantity(raw: string): string {
 // English + Norwegian headers
 const INGREDIENT_HEADERS = /^(ingredients?|ingredienser|ingredient list|what you('ll| will)? need|you('ll| will)? need):?\s*$/i;
 const INSTRUCTION_HEADERS = /^(instructions?|method|directions?|steps?|preparation|fremgangsmåte|tilberedning|slik gjør du|slik lager du|slik baker du|how to (make|bake|cook|prepare)|to make|procedure):?\s*$/i;
-const NOTES_HEADERS = /^(notes?|baker'?s? notes?|tips?|tips og triks|storage|make.?ahead|variations?|serving suggestions?):?\s*$/i;
+const NOTES_HEADERS = /^(notes?|baker'?s? notes?|tips?|tips og triks|storage|make.?ahead|variations?|serving suggestions?|equipment|tools|special equipment|utstyr|verktøy):?\s*$/iu;
 const META_LINE = /^(prep\s*time|bake\s*time|cook\s*time|total\s*time|serves?|makes?|yields?|portions?|difficulty|author|source|course|cuisine|calories)/i;
 
 function findSections(lines: string[]): { ingredients: number | null; instructions: number | null; notes: number | null } {
@@ -306,8 +306,20 @@ const INLINE_SECTION_MARKERS = /(?<=\S)\s*(?=\b(?:Ingredients?|Method|Instructio
 
 function normaliseInlineText(raw: string): string {
   let out = raw.replace(INLINE_SECTION_MARKERS, "\n");
-  if (out.split(/\r?\n/).length <= 3) {
-    out = out.replace(/(?<=[.!?])\s+(?=[A-Z])/g, "\n");
+
+  // For dense single-paragraph pastes (≤5 line breaks), apply structural splits
+  // that recover line breaks from run-on text where ingredients and section
+  // labels were concatenated with no separators (e.g. "flour120 g UnsaltedSugar…").
+  if (out.split(/\r?\n/).length <= 5) {
+    // Rule A — letter or closing paren immediately before a digit (start of a quantity).
+    //   "flour120 g" → "flour\n120 g",  "treacle)100 g" → "treacle)\n100 g"
+    out = out.replace(/(?<=[a-z\)])(?=\d)/g, "\n");
+    // Rule B — letter or closing paren immediately before a capital letter (camelCase split).
+    //   "MilkPinch" → "Milk\nPinch",  "SaltSyrup" → "Salt\nSyrup",  ")Instructions" → ")\nInstructions"
+    out = out.replace(/(?<=[a-z\)])(?=[A-Z])/g, "\n");
+    // Rule C — sentence/clause-end punctuation before a capital, with optional whitespace.
+    //   "1 hour.Make" → "1 hour.\nMake",  "Cool: Allow" → "Cool:\nAllow",  ". Keep" → ".\nKeep"
+    out = out.replace(/(?<=[.!?:])\s*(?=[A-Z])/g, "\n");
   }
   return out;
 }
