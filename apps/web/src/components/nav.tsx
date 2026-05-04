@@ -9,58 +9,80 @@ import { createClientSupabase } from "@/lib/supabase/client";
 import { usePersonalization, THEMES, type ThemeId } from "@/components/ThemeProvider";
 import { GlobalSearchTrigger } from "@/components/GlobalSearch";
 
-// ── Sidebar nav structure ─────────────────────────────────────────────────────
+// ── Nav data ──────────────────────────────────────────────────────────────────
 
-type SidebarItem = { href: string; label: string; icon: string; badge?: number };
+type NavItem    = { href: string; label: string };
+type NavSection = {
+  key:      string;
+  label:    string;
+  href:     string;        // landing page when clicking the section pill
+  items:    NavItem[];     // sub-pages (empty for Home)
+  prefixes: string[];      // pathname prefixes that count as "this section is active"
+};
 
-function useSidebarGroups(openTaskCount: number) {
+function useNavSections(): NavSection[] {
   const t = useTranslations("nav");
   return [
     {
-      key: "overview",
-      label: t("overview"),
-      items: [
-        { href: "/",          label: t("home"),           icon: "🏠" },
-        { href: "/planner",   label: t("customerOrders"), icon: "🎂" },
-        { href: "/customers", label: t("customerList"),   icon: "👥" },
-        { href: "/todos",     label: t("tasks"),          icon: "✅", badge: openTaskCount || undefined },
-      ] satisfies SidebarItem[],
+      key: "home",
+      label: t("home"),
+      href: "/",
+      items: [],
+      prefixes: ["/"],
     },
     {
       key: "kitchen",
       label: t("kitchen"),
+      href: "/recipes",
       items: [
-        { href: "/recipes",   label: t("recipes"),         icon: "📖" },
-        { href: "/nutrients", label: t("nutritionLabels"), icon: "🏷️" },
-      ] satisfies SidebarItem[],
+        { href: "/recipes",   label: t("recipes") },
+        { href: "/nutrients", label: t("nutritionLabels") },
+      ],
+      prefixes: ["/recipes", "/nutrients"],
     },
     {
       key: "stock",
       label: t("stock"),
+      href: "/ingredients",
       items: [
-        { href: "/ingredients", label: t("costCalculator"), icon: "💰" },
-        { href: "/inventory",   label: t("inventory"),      icon: "📊" },
-        { href: "/suppliers",   label: t("suppliers"),      icon: "🤝" },
-      ] satisfies SidebarItem[],
+        { href: "/ingredients", label: t("costCalculator") },
+        { href: "/inventory",   label: t("inventory") },
+        { href: "/suppliers",   label: t("suppliers") },
+      ],
+      prefixes: ["/ingredients", "/inventory", "/suppliers"],
     },
     {
       key: "purchasing",
       label: t("purchasing"),
+      href: "/purchase-orders",
       items: [
-        { href: "/purchase-orders", label: t("purchaseOrders"), icon: "📋" },
-        { href: "/shopping-lists",  label: t("shoppingLists"),  icon: "🛍️" },
-        { href: "/price-ingestion", label: t("priceUpdates"),   icon: "💹" },
-        { href: "/price-alerts",    label: t("priceAlerts"),    icon: "🔔" },
-      ] satisfies SidebarItem[],
+        { href: "/purchase-orders", label: t("purchaseOrders") },
+        { href: "/shopping-lists",  label: t("shoppingLists") },
+        { href: "/price-ingestion", label: t("priceUpdates") },
+        { href: "/price-alerts",    label: t("priceAlerts") },
+      ],
+      prefixes: ["/purchase-orders", "/shopping-lists", "/price-ingestion", "/price-alerts"],
+    },
+    {
+      key: "customers",
+      label: t("customers"),
+      href: "/planner",
+      items: [
+        { href: "/planner",   label: t("customerOrders") },
+        { href: "/customers", label: t("customerList") },
+      ],
+      prefixes: ["/planner", "/customers"],
     },
     {
       key: "operations",
       label: t("operations"),
+      href: "/production",
       items: [
-        { href: "/production", label: t("production"), icon: "🗓️" },
-        { href: "/sales",      label: t("sales"),      icon: "💰" },
-        { href: "/social",     label: t("social"),     icon: "📸" },
-      ] satisfies SidebarItem[],
+        { href: "/production", label: t("production") },
+        { href: "/sales",      label: t("sales") },
+        { href: "/social",     label: t("social") },
+      ],
+      prefixes: ["/production", "/sales", "/social"],
     },
   ];
 }
@@ -68,6 +90,10 @@ function useSidebarGroups(openTaskCount: number) {
 function isActive(href: string, pathname: string) {
   if (href === "/") return pathname === "/";
   return pathname.startsWith(href);
+}
+
+function isSectionActive(section: NavSection, pathname: string): boolean {
+  return section.prefixes.some((p) => (p === "/" ? pathname === "/" : pathname.startsWith(p)));
 }
 
 // ── Language switcher ─────────────────────────────────────────────────────────
@@ -311,84 +337,79 @@ function TodoSidebar({ open, onClose }: { open: boolean; onClose: () => void }) 
   );
 }
 
-// ── Collapsible sidebar section ───────────────────────────────────────────────
+// ── Section pill (top-row) ────────────────────────────────────────────────────
 
-function SidebarSection({
-  label,
-  items,
-  pathname,
-}: {
-  label: string;
-  items: SidebarItem[];
-  pathname: string;
-}) {
-  const hasActive = items.some((item) => isActive(item.href, pathname));
-  const [open, setOpen] = useState(true);
-
-  useEffect(() => {
-    if (hasActive) setOpen(true);
-  }, [hasActive]);
-
+function SectionPill({ section, pathname }: { section: NavSection; pathname: string }) {
+  const active = isSectionActive(section, pathname);
   return (
-    <div>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className={`w-full flex items-center justify-between px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-          hasActive ? "text-brand-600" : "text-brand-400 hover:text-brand-600"
+    <div className="relative group">
+      <Link
+        href={section.href}
+        prefetch={false}
+        className={`relative inline-flex items-center px-3 py-1.5 text-sm font-medium transition-colors ${
+          active ? "text-brand-700" : "text-gray-600 hover:text-brand-600"
         }`}
       >
-        <span>{label}</span>
-        <svg
-          className={`w-3 h-3 transition-transform duration-200 ${open ? "rotate-0" : "-rotate-90"}`}
-          fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+        {section.label}
+        {active && (
+          <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1/2 h-[2px] bg-brand-600 rounded-full" />
+        )}
+      </Link>
 
-      {open && (
-        <div className="mt-0.5 space-y-0.5">
-          {items.map((item) => {
-            const active = isActive(item.href, pathname);
-            return (
+      {/* Hover preview — small dropdown listing the section's sub-pages */}
+      {section.items.length > 0 && (
+        <div className="hidden group-hover:block absolute left-1/2 top-full -translate-x-1/2 z-50 pt-2">
+          <div className="min-w-[180px] bg-white rounded-xl border border-rose-100 shadow-lg py-1.5">
+            {section.items.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 prefetch={false}
-                className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors mx-1 ${
-                  active
-                    ? "bg-brand-100 text-brand-700 font-medium"
-                    : "text-gray-600 hover:bg-rose-100 hover:text-brand-700"
-                }`}
+                className="block px-4 py-1.5 text-sm text-gray-700 hover:bg-rose-50 hover:text-brand-700 transition-colors whitespace-nowrap"
               >
-                <span className="text-base w-5 text-center flex-shrink-0 leading-none">{item.icon}</span>
-                <span className="flex-1 truncate">{item.label}</span>
-                {item.badge !== undefined && item.badge > 0 && (
-                  <span className="min-w-[18px] h-[18px] rounded-full bg-brand-600 text-white text-[9px] font-bold flex items-center justify-center px-1 leading-none flex-shrink-0">
-                    {item.badge > 99 ? "99+" : item.badge}
-                  </span>
-                )}
+                {item.label}
               </Link>
-            );
-          })}
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ── Bottom tab bar (mobile only) ─────────────────────────────────────────────
+// ── Sub-nav link (second row) ─────────────────────────────────────────────────
+
+function SubNavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const active = isActive(item.href, pathname);
+  return (
+    <Link
+      href={item.href}
+      prefetch={false}
+      className={`relative px-3 py-1 text-sm transition-colors ${
+        active ? "text-brand-700 font-medium" : "text-gray-500 hover:text-brand-600"
+      }`}
+    >
+      {item.label}
+      {active && (
+        <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1/2 h-[2px] bg-brand-500 rounded-full" />
+      )}
+    </Link>
+  );
+}
+
+// ── Bottom tab bar (mobile only) ──────────────────────────────────────────────
 
 const MOBILE_TABS = [
-  { label: "Home",       icon: "🏠", href: "/",          prefixes: ["/", "/planner", "/todos"] },
-  { label: "Kitchen",    icon: "🍳", href: "/recipes",   prefixes: ["/recipes", "/nutrients", "/ingredients"] },
-  { label: "Stock",      icon: "📦", href: "/inventory", prefixes: ["/inventory", "/suppliers", "/price-ingestion", "/price-alerts", "/purchase-orders", "/shopping-lists"] },
-  { label: "Customers",  icon: "👥", href: "/customers", prefixes: ["/customers"] },
-  { label: "Operations", icon: "🏭", href: "/production",prefixes: ["/production", "/sales", "/social"] },
+  { labelKey: "home",       icon: "🏠", href: "/",          prefixes: ["/", "/planner", "/todos"] },
+  { labelKey: "kitchen",    icon: "🍳", href: "/recipes",   prefixes: ["/recipes", "/nutrients", "/ingredients"] },
+  { labelKey: "stock",      icon: "📦", href: "/inventory", prefixes: ["/inventory", "/suppliers", "/price-ingestion", "/price-alerts", "/purchase-orders", "/shopping-lists"] },
+  { labelKey: "customers",  icon: "👥", href: "/customers", prefixes: ["/customers"] },
+  { labelKey: "operations", icon: "🏭", href: "/production",prefixes: ["/production", "/sales", "/social"] },
 ] as const;
 
 function BottomTabBar() {
   const pathname = usePathname();
+  const t        = useTranslations("nav");
 
   function isTabActive(prefixes: readonly string[]) {
     return prefixes.some((p) => p === "/" ? pathname === "/" : pathname.startsWith(p));
@@ -416,7 +437,7 @@ function BottomTabBar() {
             <span className={`text-xl leading-none transition-transform ${active ? "scale-110" : ""}`}>
               {tab.icon}
             </span>
-            <span>{tab.label}</span>
+            <span>{t(tab.labelKey)}</span>
           </Link>
         );
       })}
@@ -455,7 +476,9 @@ export function Nav() {
     { select: (td) => td.filter((x) => !x.completed).length }
   );
 
-  const sidebarGroups = useSidebarGroups(openTaskCount);
+  const sections      = useNavSections();
+  const activeSection = sections.find((s) => isSectionActive(s, pathname));
+  const showSubNav    = !!activeSection && activeSection.items.length > 0;
 
   async function handleSignOut() {
     const supabase = createClientSupabase();
@@ -463,130 +486,137 @@ export function Nav() {
     router.refresh();
   }
 
+  function openSearch() {
+    (window as typeof window & { __openGlobalSearch?: () => void }).__openGlobalSearch?.();
+  }
+
   return (
     <>
       {/* ── Desktop top header ──────────────────────────────────────────── */}
-      <header className="hidden md:flex fixed top-0 left-64 right-0 z-30 bg-rose-50 border-b border-rose-100 h-14 items-center px-6">
-        <div className="flex-1" />
+      <header className="hidden md:block fixed top-0 inset-x-0 z-30 bg-rose-50 border-b border-rose-100">
 
-        <Link
-          href="/"
-          className="flex items-center gap-2 text-base font-bold text-brand-700 hover:text-brand-900 transition-colors"
-        >
-          {logoUrl ? (
-            <img src={logoUrl} alt="logo" className="h-8 w-8 rounded-lg object-contain flex-shrink-0" />
-          ) : (
-            <span className="text-xl flex-shrink-0 leading-none">🏪</span>
-          )}
-          <span>Bakery Management System</span>
-        </Link>
-
-        <div className="flex-1 flex items-center justify-end gap-1">
-          <LanguageSwitcher />
-
-          {/* Personalise */}
-          <div className="relative">
-            <button
-              onClick={() => setPanelOpen((v) => !v)}
-              className={`p-1.5 rounded-lg text-sm transition-colors ${
-                panelOpen ? "bg-brand-600 text-white" : "text-brand-500 hover:bg-brand-100 hover:text-brand-700"
-              }`}
-              title={t("personalise")}
-            >
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-              </svg>
-            </button>
-            {panelOpen && (
-              <PersonalisePanel
-                onClose={() => setPanelOpen(false)}
-                isLoggedIn={isLoggedIn}
-                isAnonymous={isAnonymous}
-                positionClass="absolute right-0 top-full mt-1"
-              />
-            )}
+        {/* Row 1 — search · brand · controls. 3 equal columns guarantee the brand is at viewport-center. */}
+        <div className="grid grid-cols-3 items-center px-6 pt-2 pb-1.5 gap-4">
+          <div className="justify-self-start">
+            <GlobalSearchTrigger onClick={openSearch} />
           </div>
 
-          {/* Settings */}
-          {isLoggedIn && !isAnonymous && (
-            <Link
-              href="/settings"
-              prefetch={false}
-              className={`p-1.5 rounded-lg transition-colors ${
-                pathname.startsWith("/settings")
-                  ? "bg-brand-600 text-white"
-                  : "text-brand-500 hover:bg-brand-100 hover:text-brand-700"
+          <Link
+            href="/"
+            className="justify-self-center flex items-center gap-2 text-base font-bold text-brand-700 hover:text-brand-900 transition-colors"
+          >
+            {logoUrl ? (
+              <img src={logoUrl} alt="logo" className="h-8 w-8 rounded-lg object-contain flex-shrink-0" />
+            ) : (
+              <span className="text-xl flex-shrink-0 leading-none">🏪</span>
+            )}
+            <span>Bakery Management System</span>
+          </Link>
+
+          <div className="justify-self-end flex items-center gap-1">
+            <LanguageSwitcher />
+
+            {/* Personalise */}
+            <div className="relative">
+              <button
+                onClick={() => setPanelOpen((v) => !v)}
+                className={`p-1.5 rounded-lg text-sm transition-colors ${
+                  panelOpen ? "bg-brand-600 text-white" : "text-brand-500 hover:bg-brand-100 hover:text-brand-700"
+                }`}
+                title={t("personalise")}
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {panelOpen && (
+                <PersonalisePanel
+                  onClose={() => setPanelOpen(false)}
+                  isLoggedIn={isLoggedIn}
+                  isAnonymous={isAnonymous}
+                  positionClass="absolute right-0 top-full mt-1"
+                />
+              )}
+            </div>
+
+            {/* Settings */}
+            {isLoggedIn && !isAnonymous && (
+              <Link
+                href="/settings"
+                prefetch={false}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  pathname.startsWith("/settings")
+                    ? "bg-brand-600 text-white"
+                    : "text-brand-500 hover:bg-brand-100 hover:text-brand-700"
+                }`}
+                title={t("settings")}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </Link>
+            )}
+
+            {/* Tasks */}
+            <button
+              onClick={() => setTodoOpen((v) => !v)}
+              className={`relative p-1.5 rounded-lg transition-colors ${
+                todoOpen ? "bg-brand-600 text-white" : "text-brand-500 hover:bg-brand-100 hover:text-brand-700"
               }`}
-              title={t("settings")}
+              title={t("tasks")}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
-            </Link>
-          )}
-
-          {/* Auth */}
-          {isLoggedIn && !isAnonymous ? (
-            <button
-              onClick={handleSignOut}
-              className="text-xs text-brand-400 hover:text-brand-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-rose-100"
-            >
-              {t("signOut")}
+              {openTaskCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-brand-600 text-white text-[9px] font-bold flex items-center justify-center px-1 leading-none ring-2 ring-rose-50">
+                  {openTaskCount > 99 ? "99+" : openTaskCount}
+                </span>
+              )}
             </button>
-          ) : (
-            <Link
-              href="/login"
-              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors"
-            >
-              {isAnonymous ? t("createAccount") : t("logIn")}
-            </Link>
-          )}
+
+            {/* Auth */}
+            {isLoggedIn && !isAnonymous ? (
+              <button
+                onClick={handleSignOut}
+                className="text-xs text-brand-400 hover:text-brand-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-rose-100"
+              >
+                {t("signOut")}
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+              >
+                {isAnonymous ? t("createAccount") : t("logIn")}
+              </Link>
+            )}
+          </div>
         </div>
-      </header>
 
-      {/* ── Desktop sidebar ──────────────────────────────────────────────── */}
-      <aside className="hidden md:flex fixed inset-y-0 left-0 w-64 flex-col bg-rose-50 border-r border-rose-100 z-40">
-
-        {/* Search */}
-        <div className="px-3 py-3 border-b border-rose-100 flex-shrink-0 [&>button]:w-full [&>button]:justify-start">
-          <GlobalSearchTrigger onClick={() => {
-            (window as typeof window & { __openGlobalSearch?: () => void }).__openGlobalSearch?.();
-          }} />
-        </div>
-
-        {/* Nav sections */}
-        <nav className="flex-1 overflow-y-auto py-3 space-y-4">
-          {sidebarGroups.map((group) => (
-            <SidebarSection
-              key={group.key}
-              label={group.label}
-              items={group.items}
-              pathname={pathname}
-            />
+        {/* Row 2 — section pills, centered */}
+        <nav className="flex justify-center items-center gap-1 px-4 pb-2">
+          {sections.map((section) => (
+            <SectionPill key={section.key} section={section} pathname={pathname} />
           ))}
         </nav>
 
-        {/* Bottom: quick tasks slide-out */}
-        <div className="flex-shrink-0 border-t border-rose-100 px-3 py-2">
-          <button
-            onClick={() => setTodoOpen((v) => !v)}
-            className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-              todoOpen ? "bg-brand-100 text-brand-700 font-medium" : "text-gray-600 hover:bg-rose-100 hover:text-brand-700"
-            }`}
-          >
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-            </svg>
-            <span className="flex-1 text-left text-sm">{t("tasks")}</span>
-            {openTaskCount > 0 && (
-              <span className="min-w-[18px] h-[18px] rounded-full bg-brand-600 text-white text-[9px] font-bold flex items-center justify-center px-1 leading-none">
-                {openTaskCount > 99 ? "99+" : openTaskCount}
-              </span>
-            )}
-          </button>
-        </div>
-      </aside>
+        {/* Row 3 — sub-nav. Only renders when active section has sub-pages. */}
+        {showSubNav && (
+          <div className="border-t border-rose-100/60 flex items-center justify-center">
+            <nav className="flex items-center gap-3 px-4 py-1.5">
+              {activeSection!.items.map((item) => (
+                <SubNavLink key={item.href} item={item} pathname={pathname} />
+              ))}
+            </nav>
+          </div>
+        )}
+      </header>
+
+      {/* Spacer to push page content below the fixed desktop header.
+          Two heights — one for when the sub-nav row is visible, one for when it isn't. */}
+      <div className={`hidden md:block ${showSubNav ? "h-[124px]" : "h-[88px]"}`} />
 
       {/* ── Mobile top bar ────────────────────────────────────────────────── */}
       <header className="md:hidden fixed inset-x-0 top-0 z-40 bg-rose-50 border-b border-rose-100 h-12 flex items-center px-4 gap-3">
@@ -598,9 +628,7 @@ export function Nav() {
           )}
         </Link>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <GlobalSearchTrigger onClick={() => {
-            (window as typeof window & { __openGlobalSearch?: () => void }).__openGlobalSearch?.();
-          }} />
+          <GlobalSearchTrigger onClick={openSearch} />
           <button
             onClick={() => setTodoOpen((v) => !v)}
             className={`relative p-2 rounded-lg transition-colors ${
