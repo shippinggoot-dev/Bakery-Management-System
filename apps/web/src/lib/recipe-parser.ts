@@ -261,15 +261,61 @@ function isIngredientLike(line: string): boolean {
   return false;
 }
 
-// Fallback: extract ingredient-looking lines from an unstructured text block
+// Try to expand a sentence like "Dough: Mix 245g flour, 10g yeast, 70g sugar, 1 egg, salt"
+// into individual ingredient fragments. Returns null when the line doesn't look like a list.
+function expandCommaIngredients(line: string): string[] | null {
+  // Strip a leading section label like "Dough:", "Filling:", "Ingredients & Method Highlights:"
+  let l = line.replace(/^[A-Za-z][\w\s&]{0,40}:\s*/, "");
+  // Strip a leading verb that often precedes an inline ingredient list (English + Norwegian)
+  l = l.replace(/^(?:Mix|Add|Combine|Melt|Whisk|Stir|Beat|Cream|Fold|Sift|Pour|Heat|Place|Put|Use|Take|Make|Bring|Soak|Pre.?heat|Bland|Tilsett|Visp|Rør|Pisk|Smelt|Hell|Legg|Sett|Bruk|Ta|Forvarm|Smør)\s+/i, "");
+
+  const parts = l
+    .split(/\s*,\s*|\s+(?:and|og)\s+/i)
+    .map((p) => p.replace(/\.\s+.*$/, "").replace(/\.$/, "").trim()) // drop trailing sentence after a period
+    .filter(Boolean);
+  if (parts.length < 2) return null;
+
+  // Require at least one fragment to carry an explicit quantity, otherwise this
+  // is probably an instruction sentence rather than an ingredient list.
+  const qtyHead = new RegExp(`^(?:${QTY_RE})(?:${UNITS_RE})?\\s+\\S`, "i");
+  if (!parts.some((p) => qtyHead.test(p))) return null;
+
+  return parts;
+}
+
+// Fallback: extract ingredient-looking lines from an unstructured text block.
+// Also expands inline comma-separated ingredient lists embedded in instruction sentences.
 function inferIngredientLines(lines: string[]): string[] {
-  return lines.filter(isIngredientLike);
+  const out: string[] = [];
+  for (const line of lines) {
+    if (isIngredientLike(line)) {
+      out.push(line);
+      continue;
+    }
+    const expanded = expandCommaIngredients(line);
+    if (expanded) out.push(...expanded);
+  }
+  return out;
+}
+
+// Insert line breaks before common section markers ("Dough:", "Method:", "Filling:",
+// "Ingredients:", etc.) when the source text smashes everything onto one line.
+// Also splits long single-line pastes on sentence boundaries so the title heuristic
+// has something reasonable to work with.
+const INLINE_SECTION_MARKERS = /(?<=\S)\s*(?=\b(?:Ingredients?|Method|Instructions?|Directions?|Steps?|Procedure|Preparation|Notes?|Tips?|Filling|Dough|Batter|Topping|Glaze|Frosting|Icing|Assembly|Garnish|Sauce|Servings?|Yields?|Makes?|Prep\s*Time|Bake\s*Time|Cook\s*Time|Total\s*Time|Ingredienser|Fremgangsmåte|Tilberedning|Notater|Fyll(?:ing)?|Deig|Glasur|Glasering|Pynt|Saus|Bunn|Porsjoner?|Stykker?)\s*:)/giu;
+
+function normaliseInlineText(raw: string): string {
+  let out = raw.replace(INLINE_SECTION_MARKERS, "\n");
+  if (out.split(/\r?\n/).length <= 3) {
+    out = out.replace(/(?<=[.!?])\s+(?=[A-Z])/g, "\n");
+  }
+  return out;
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function parseRecipeText(text: string): ParsedRecipe {
-  const lines = text.split(/\r?\n/).map((l) => l.trim());
+  const lines = normaliseInlineText(text).split(/\r?\n/).map((l) => l.trim());
   const sect  = findSections(lines);
 
   // ── Ingredient lines ─────────────────────────────────────────────────────
@@ -284,15 +330,37 @@ export function parseRecipeText(text: string): ParsedRecipe {
 
   // ── Title & description ──────────────────────────────────────────────────
   // Only look at lines BEFORE the ingredient/instruction section for the title.
-  // Also exclude lines that look like ingredients — they shouldn't become description text.
+  // Exclude ingredient-like lines, lines we expanded into inline ingredient lists,
+  // and instruction-style sentences (cooking verbs, section labels).
   const beforeIngredients = lines.slice(0, sect.ingredients ?? sect.instructions ?? lines.length);
+  // A line is "instruction-like" only when it pairs a cooking verb with an actual
+  // measurement (e.g. "Mix 245g flour", "Bake at 200°C"). The verb alone is not
+  // enough — recipe names like "Pour-Over Coffee Cake" or "Bake-at-Home Cookies"
+  // would otherwise be filtered out.
+  const COOKING_VERB = /\b(?:Mix|Add|Combine|Melt|Whisk|Stir|Beat|Cream|Fold|Sift|Pour|Heat|Place|Put|Bake|Cook|Fry|Boil|Simmer|Bring|Soak|Spread|Serve|Cool|Let|Pre.?heat|Knead|Roll|Cut|Slice|Brush|Sprinkle|Top|Bland|Tilsett|Visp|Rør|Pisk|Smelt|Stek|Kok|Hell|Legg|Sett|Sikt|Brett|Strø|Pensle|Skjær|Del|La|Forvarm|Elt|Kjevle|Server|Avkjøl|Spre|Smør|Bak)\b/iu;
+  const HAS_MEASUREMENT = new RegExp(`\\b\\d+(?:[.,]\\d+)?\\s*(?:${UNITS_RE}|°\\s*[CF]|min(?:utes?|utter?)?|hours?|h\\b|se[ck](?:onds?|under?)?|timer?)\\b`, "i");
+  const looksInstructional = (l: string) => COOKING_VERB.test(l) && HAS_MEASUREMENT.test(l);
+  const SECTION_HEAD = /^(?:Ingredients?|Method|Instructions?|Directions?|Steps?|Procedure|Preparation|Notes?|Tips?|Filling|Dough|Batter|Topping|Glaze|Frosting|Icing|Assembly|Garnish|Sauce|Ingredienser|Fremgangsmåte|Tilberedning|Notater|Fyll(?:ing)?|Deig|Glasur|Glasering|Pynt|Saus|Bunn)\b/iu;
   const titleLines = beforeIngredients.filter(
-    (l) => l && !META_LINE.test(l) && !isIngredientLike(l)
+    (l) =>
+      l &&
+      !META_LINE.test(l) &&
+      !isIngredientLike(l) &&
+      expandCommaIngredients(l) === null &&
+      !looksInstructional(l)
   );
 
   // If the whole paste was a bare ingredient list (no recipe name found), use a placeholder.
-  const name = titleLines[0]?.replace(/^#+\s*/, "").trim() || "Imported Recipe";
-  const description = titleLines.slice(1).join(" ").trim() || null;
+  // Also fall back when the candidate is suspiciously long or starts with a section
+  // keyword — that usually means the source had no real title.
+  const candidate = titleLines[0]?.replace(/^#+\s*/, "").replace(/:$/, "").trim() ?? "";
+  const looksLikeTitle =
+    candidate.length > 0 && candidate.length <= 100 && !SECTION_HEAD.test(candidate);
+  const name = looksLikeTitle ? candidate : "Imported Recipe";
+  const description = (looksLikeTitle
+    ? titleLines.slice(1).join(" ")
+    : titleLines.join(" ")
+  ).trim() || null;
 
   // ── Instructions ─────────────────────────────────────────────────────────
   const instrEnd   = sect.notes ?? lines.length;

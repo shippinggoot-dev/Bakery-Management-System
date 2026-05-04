@@ -29,10 +29,9 @@ export function CategorySelect({
 
   const allCategories = [...categories, ...extra].sort((a, b) => a.name.localeCompare(b.name));
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCreate() {
     const name = newName.trim();
-    if (!name) return;
+    if (!name || saving) return;
     setSaving(true);
     try {
       const created = await onCreate(name);
@@ -67,17 +66,27 @@ export function CategorySelect({
           + New category
         </button>
       ) : (
-        <form onSubmit={handleCreate} className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <input
             autoFocus
             className="form-input flex-1 text-sm py-1.5"
             placeholder="Category name…"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && (setAdding(false), setNewName(""))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleCreate();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setAdding(false);
+                setNewName("");
+              }
+            }}
           />
           <button
-            type="submit"
+            type="button"
+            onClick={handleCreate}
             disabled={saving || !newName.trim()}
             className="px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-600 border border-brand-500/30 text-xs font-semibold hover:bg-brand-500/30 disabled:opacity-50 transition-colors whitespace-nowrap"
           >
@@ -90,7 +99,7 @@ export function CategorySelect({
           >
             Cancel
           </button>
-        </form>
+        </div>
       )}
     </div>
   );
