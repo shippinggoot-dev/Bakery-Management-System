@@ -14,6 +14,12 @@ function makeQueryClient() {
         // Most bakery data changes infrequently, so aggressive refetching
         // only adds unnecessary latency.
         staleTime: 5 * 60 * 1000,
+        // Auto-retry transient failures (notably Supabase free-tier cold-start
+        // timeouts which take 5-15s to resolve). 2 retries with 500ms→1500ms→3000ms
+        // backoff covers the typical wake-up window without making genuine errors
+        // feel slow.
+        retry: 2,
+        retryDelay: (attempt) => Math.min(500 * 2 ** attempt, 3000),
       },
     },
   });
@@ -43,6 +49,10 @@ export function TRPCReactProvider({
         httpBatchLink({
           url: "/api/trpc",
           transformer: superjson,
+          // 15s per-request timeout. Fails fast on hung requests so React Query
+          // can retry, instead of leaving the user staring at skeletons forever.
+          fetch: (url, options) =>
+            fetch(url, { ...options, signal: AbortSignal.timeout(15_000) }),
         }),
       ],
     })
