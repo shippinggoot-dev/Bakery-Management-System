@@ -132,11 +132,20 @@ export default function NewRecipePage() {
   const [newIngError,        setNewIngError]        = useState<string | null>(null);
   // Index of the row whose ⚠ "Create" button is currently mid-create
   const [pendingCreateIndex, setPendingCreateIndex] = useState<number | null>(null);
+  // Bulk-resolve progress for "Create all unmatched"
+  const [bulkProgress,       setBulkProgress]       = useState<{ done: number; total: number } | null>(null);
 
   const utils = api.useUtils();
   const { data: categories = [] } = api.recipes.getCategories.useQuery();
   const createCategory = api.recipes.createCategory.useMutation();
   const { data: allIngredients = [] } = api.ingredients.getAll.useQuery({ limit: 200 });
+
+  // Look up an existing ingredient by case-insensitive trimmed name. Used to
+  // prevent creating duplicates like "Unsalted butter" vs "unsalted butter".
+  function findExistingByName(name: string) {
+    const lowered = name.toLowerCase().trim();
+    return allIngredients.find((ing) => ing.name.toLowerCase().trim() === lowered);
+  }
 
   // Mutation-level handler only invalidates the dropdown options. Per-call
   // onSuccess decides whether to add a new row (bottom form) or update an
@@ -150,6 +159,26 @@ export default function NewRecipePage() {
     const unit = newIngUnit.trim() || "g";
     if (!name || createIngredient.isPending) return;
     setNewIngError(null);
+
+    // Reuse existing ingredient if one matches case-insensitively — avoids duplicates.
+    const existing = findExistingByName(name);
+    if (existing) {
+      setRows((r) => [
+        ...r,
+        {
+          ingredientId: existing.id,
+          importedName: "",
+          quantity:     "",
+          unit:         existing.unit,
+          notes:        "",
+        },
+      ]);
+      setNewIngName("");
+      setNewIngUnit("g");
+      setCreatingIng(false);
+      return;
+    }
+
     createIngredient.mutate(
       { ingredient: { name, unit } },
       {
@@ -176,12 +205,20 @@ export default function NewRecipePage() {
   }
 
   // One-click "create as new ingredient" for an unmatched (⚠) row. Uses the
-  // row's imported name and current unit; once created the row is updated
-  // in-place to point at the new ingredient (clears the warning).
+  // row's imported name and current unit; once resolved (either matched to
+  // an existing ingredient or freshly created) the row is updated in-place.
   function handleQuickCreateForRow(rowIndex: number) {
     const row = rows[rowIndex];
     if (!row || !row.importedName || createIngredient.isPending) return;
     setError(null);
+
+    // Reuse existing if one matches case-insensitively.
+    const existing = findExistingByName(row.importedName);
+    if (existing) {
+      updateRow(rowIndex, { ingredientId: existing.id, importedName: "" });
+      return;
+    }
+
     setPendingCreateIndex(rowIndex);
     createIngredient.mutate(
       { ingredient: { name: row.importedName, unit: row.unit || "g" } },
@@ -197,6 +234,66 @@ export default function NewRecipePage() {
       },
     );
   }
+
+  // Bulk resolver — walk every unmatched row, dedupe against the existing library
+  // AND against ingredients we just created in this same batch (so duplicate
+  // imports like "5g ground cinnamon" appearing in both Dough and Filling sections
+  // share a single ingredient record), and create whatever's missing.
+  async function handleCreateAllUnmatched() {
+    const unmatchedIndices = rows
+      .map((r, i) => (!r.ingredientId && r.importedName ? i : -1))
+      .filter((i) => i !== -1);
+    if (unmatchedIndices.length === 0 || bulkProgress) return;
+
+    setError(null);
+    setBulkProgress({ done: 0, total: unmatchedIndices.length });
+
+    // Lower-case-trimmed name → ingredient id, populated as we go.
+    const batchCache = new Map<string, string>();
+
+    try {
+      for (let n = 0; n < unmatchedIndices.length; n++) {
+        const idx = unmatchedIndices[n]!;
+        const row = rows[idx];
+        if (!row || !row.importedName) continue;
+
+        const lowered = row.importedName.toLowerCase().trim();
+
+        // 1. Already created or resolved within this batch
+        const fromBatch = batchCache.get(lowered);
+        if (fromBatch) {
+          updateRow(idx, { ingredientId: fromBatch, importedName: "" });
+          setBulkProgress({ done: n + 1, total: unmatchedIndices.length });
+          continue;
+        }
+
+        // 2. Already in the library
+        const existing = findExistingByName(row.importedName);
+        if (existing) {
+          updateRow(idx, { ingredientId: existing.id, importedName: "" });
+          batchCache.set(lowered, existing.id);
+          setBulkProgress({ done: n + 1, total: unmatchedIndices.length });
+          continue;
+        }
+
+        // 3. Create new
+        const created = await createIngredient.mutateAsync({
+          ingredient: { name: row.importedName, unit: row.unit || "g" },
+        });
+        if (created) {
+          updateRow(idx, { ingredientId: created.id, importedName: "" });
+          batchCache.set(lowered, created.id);
+        }
+        setBulkProgress({ done: n + 1, total: unmatchedIndices.length });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create ingredients.");
+    } finally {
+      setBulkProgress(null);
+    }
+  }
+
+  const unmatchedCount = rows.filter((r) => !r.ingredientId && r.importedName).length;
 
   const recordUsage = api.customOptions.recordUsage.useMutation();
   const createMutation = api.recipes.create.useMutation({
@@ -455,7 +552,7 @@ export default function NewRecipePage() {
                       <button
                         type="button"
                         onClick={() => handleQuickCreateForRow(i)}
-                        disabled={pendingCreateIndex !== null}
+                        disabled={pendingCreateIndex !== null || bulkProgress !== null}
                         className="mt-1 text-xs text-brand-500 hover:text-brand-700 disabled:opacity-50 transition-colors"
                       >
                         {pendingCreateIndex === i
@@ -515,6 +612,20 @@ export default function NewRecipePage() {
               <PlusIcon />
               Add row
             </button>
+
+            {unmatchedCount > 0 && (
+              <button
+                type="button"
+                onClick={handleCreateAllUnmatched}
+                disabled={bulkProgress !== null || pendingCreateIndex !== null}
+                className="flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-800 disabled:opacity-50 transition-colors"
+              >
+                <PlusIcon />
+                {bulkProgress
+                  ? `Creating ${bulkProgress.done}/${bulkProgress.total}…`
+                  : `Create all ${unmatchedCount} unmatched`}
+              </button>
+            )}
 
             {!creatingIng ? (
               <button
