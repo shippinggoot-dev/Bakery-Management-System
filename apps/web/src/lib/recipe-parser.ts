@@ -320,6 +320,11 @@ function normaliseInlineText(raw: string): string {
     // Rule C — sentence/clause-end punctuation before a capital, with optional whitespace.
     //   "1 hour.Make" → "1 hour.\nMake",  "Cool: Allow" → "Cool:\nAllow",  ". Keep" → ".\nKeep"
     out = out.replace(/(?<=[.!?:])\s*(?=[A-Z])/g, "\n");
+    // Rule D — colon directly before a digit-led quantity (digit + optional decimal + letter).
+    // The trailing letter requirement distinguishes a quantity-with-unit from a bare ratio
+    // like "1:1" or a time stamp like "12:30".
+    //   "Dough:500g flour" → "Dough:\n500g flour",  "(Stroop):450g sugar" → "(Stroop):\n450g sugar"
+    out = out.replace(/(?<=:)\s*(?=\d+(?:[.,]\d+)?\s*[a-zA-Z])/g, "\n");
   }
   return out;
 }
@@ -359,7 +364,10 @@ export function parseRecipeText(text: string): ParsedRecipe {
       !META_LINE.test(l) &&
       !isIngredientLike(l) &&
       expandCommaIngredients(l) === null &&
-      !looksInstructional(l)
+      !looksInstructional(l) &&
+      // Lines ending with a colon are section labels ("For the Dough:",
+      // "Ingredients:", "Caramel Filling (Stroop):"), not recipe titles.
+      !l.endsWith(":")
   );
 
   // If the whole paste was a bare ingredient list (no recipe name found), use a placeholder.
