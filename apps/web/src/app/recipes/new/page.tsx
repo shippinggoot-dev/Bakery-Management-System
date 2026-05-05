@@ -125,37 +125,24 @@ export default function NewRecipePage() {
   const [error, setError]             = useState<string | null>(null);
   const [importBanner, setImportBanner] = useState<string | null>(null);
 
-  // Inline ingredient creator
-  const [creatingIng,   setCreatingIng]   = useState(false);
-  const [newIngName,    setNewIngName]    = useState("");
-  const [newIngUnit,    setNewIngUnit]    = useState("g");
-  const [newIngError,   setNewIngError]   = useState<string | null>(null);
+  // Inline ingredient creator (bottom-of-section form)
+  const [creatingIng,        setCreatingIng]        = useState(false);
+  const [newIngName,         setNewIngName]         = useState("");
+  const [newIngUnit,         setNewIngUnit]         = useState("g");
+  const [newIngError,        setNewIngError]        = useState<string | null>(null);
+  // Index of the row whose ⚠ "Create" button is currently mid-create
+  const [pendingCreateIndex, setPendingCreateIndex] = useState<number | null>(null);
 
   const utils = api.useUtils();
   const { data: categories = [] } = api.recipes.getCategories.useQuery();
   const createCategory = api.recipes.createCategory.useMutation();
   const { data: allIngredients = [] } = api.ingredients.getAll.useQuery({ limit: 200 });
 
+  // Mutation-level handler only invalidates the dropdown options. Per-call
+  // onSuccess decides whether to add a new row (bottom form) or update an
+  // existing ⚠ row (per-row quick-create).
   const createIngredient = api.ingredients.create.useMutation({
-    onSuccess: (created) => {
-      utils.ingredients.getAll.invalidate();
-      // Pre-fill a recipe row with the new ingredient already selected
-      setRows((r) => [
-        ...r,
-        {
-          ingredientId: created!.id,
-          importedName: "",
-          quantity:     "",
-          unit:         created!.unit,
-          notes:        "",
-        },
-      ]);
-      setNewIngName("");
-      setNewIngUnit("g");
-      setCreatingIng(false);
-      setNewIngError(null);
-    },
-    onError: (err) => setNewIngError(err.message),
+    onSuccess: () => utils.ingredients.getAll.invalidate(),
   });
 
   function handleCreateIngredient() {
@@ -163,7 +150,52 @@ export default function NewRecipePage() {
     const unit = newIngUnit.trim() || "g";
     if (!name || createIngredient.isPending) return;
     setNewIngError(null);
-    createIngredient.mutate({ ingredient: { name, unit } });
+    createIngredient.mutate(
+      { ingredient: { name, unit } },
+      {
+        onSuccess: (created) => {
+          if (!created) return;
+          setRows((r) => [
+            ...r,
+            {
+              ingredientId: created.id,
+              importedName: "",
+              quantity:     "",
+              unit:         created.unit,
+              notes:        "",
+            },
+          ]);
+          setNewIngName("");
+          setNewIngUnit("g");
+          setCreatingIng(false);
+          setNewIngError(null);
+        },
+        onError: (err) => setNewIngError(err.message),
+      },
+    );
+  }
+
+  // One-click "create as new ingredient" for an unmatched (⚠) row. Uses the
+  // row's imported name and current unit; once created the row is updated
+  // in-place to point at the new ingredient (clears the warning).
+  function handleQuickCreateForRow(rowIndex: number) {
+    const row = rows[rowIndex];
+    if (!row || !row.importedName || createIngredient.isPending) return;
+    setError(null);
+    setPendingCreateIndex(rowIndex);
+    createIngredient.mutate(
+      { ingredient: { name: row.importedName, unit: row.unit || "g" } },
+      {
+        onSuccess: (created) => {
+          setPendingCreateIndex(null);
+          if (created) updateRow(rowIndex, { ingredientId: created.id, importedName: "" });
+        },
+        onError: (err) => {
+          setPendingCreateIndex(null);
+          setError(err.message);
+        },
+      },
+    );
   }
 
   const recordUsage = api.customOptions.recordUsage.useMutation();
@@ -419,6 +451,18 @@ export default function NewRecipePage() {
                         <option key={ing.id} value={ing.id}>{ing.name}</option>
                       ))}
                     </select>
+                    {!row.ingredientId && row.importedName && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickCreateForRow(i)}
+                        disabled={pendingCreateIndex !== null}
+                        className="mt-1 text-xs text-brand-500 hover:text-brand-700 disabled:opacity-50 transition-colors"
+                      >
+                        {pendingCreateIndex === i
+                          ? "Creating…"
+                          : `+ Create "${row.importedName}" as new ingredient`}
+                      </button>
+                    )}
                   </div>
                   <div>
                     {i === 0 && <p className="form-label mb-1">Amount</p>}
