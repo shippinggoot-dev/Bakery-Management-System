@@ -22,6 +22,8 @@ export const THEMES: Record<ThemeId, {
 interface Ctx {
   theme: ThemeId;
   setTheme: (t: ThemeId) => void;
+  dark: boolean;
+  setDark: (d: boolean) => void;
   bakeryName: string;
   setBakeryName: (n: string) => void;
   logoUrl: string | null;
@@ -30,12 +32,14 @@ interface Ctx {
 
 const PersonalizationCtx = createContext<Ctx>({
   theme: "rose",      setTheme: () => {},
+  dark: false,        setDark: () => {},
   bakeryName: "My Bakery", setBakeryName: () => {},
   logoUrl: null,      setLogoUrl: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme,      setThemeState]     = useState<ThemeId>("rose");
+  const [dark,       setDarkState]      = useState<boolean>(false);
   const [bakeryName, setBakeryNameState] = useState("My Bakery");
   const [logoUrl,    setLogoUrlState]   = useState<string | null>(null);
 
@@ -43,18 +47,29 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const t = localStorage.getItem("bms-theme") as ThemeId | null;
     const n = localStorage.getItem("bms-bakery-name");
     const l = localStorage.getItem("bms-logo");
+    const d = localStorage.getItem("bms-dark");
     if (t && t in THEMES) {
       setThemeState(t);
       document.documentElement.setAttribute("data-theme", t);
     }
     if (n) setBakeryNameState(n);
     if (l) setLogoUrlState(l);
+    // Dark mode: light by default; only enabled if the user has opted in
+    const initialDark = d === "1";
+    setDarkState(initialDark);
+    document.documentElement.classList.toggle("dark", initialDark);
   }, []);
 
   const setTheme = (t: ThemeId) => {
     setThemeState(t);
     localStorage.setItem("bms-theme", t);
     document.documentElement.setAttribute("data-theme", t);
+  };
+
+  const setDark = (d: boolean) => {
+    setDarkState(d);
+    localStorage.setItem("bms-dark", d ? "1" : "0");
+    document.documentElement.classList.toggle("dark", d);
   };
 
   const setBakeryName = (n: string) => {
@@ -69,7 +84,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <PersonalizationCtx.Provider value={{ theme, setTheme, bakeryName, setBakeryName, logoUrl, setLogoUrl }}>
+    <PersonalizationCtx.Provider value={{ theme, setTheme, dark, setDark, bakeryName, setBakeryName, logoUrl, setLogoUrl }}>
       {children}
     </PersonalizationCtx.Provider>
   );

@@ -4,7 +4,11 @@
       "Bash(pnpm install:*)",
       "Bash(\"/c/Program Files/nodejs/npm.cmd\" install -g pnpm)",
       "Bash(pnpm add:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(rm \"c:/Users/tim_v/Desktop/Bakery Management System/apps/web/src/app/library/page.tsx\")",
+      "Bash(rmdir \"c:/Users/tim_v/Desktop/Bakery Management System/apps/web/src/app/library\")",
+      "WebFetch(domain:www.sucre.no)",
+      "Bash(pnpm -F @bakery/db exec tsc --noEmit)"
     ]
   }
 }

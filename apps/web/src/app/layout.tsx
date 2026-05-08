@@ -21,8 +21,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
-        {/* Apply saved theme before first paint to prevent flash */}
-        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('bms-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}` }} />
+        {/* Apply saved theme + dark mode before first paint to prevent flash */}
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('bms-theme');if(t)document.documentElement.setAttribute('data-theme',t);if(localStorage.getItem('bms-dark')==='1')document.documentElement.classList.add('dark');}catch(e){}` }} />
       </head>
       <body>
         <NextIntlClientProvider locale={locale} messages={messages}>

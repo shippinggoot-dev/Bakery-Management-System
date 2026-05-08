@@ -35,10 +35,11 @@ function useNavSections(): NavSection[] {
       label: t("kitchen"),
       href: "/recipes",
       items: [
-        { href: "/recipes",   label: t("recipes") },
-        { href: "/nutrients", label: t("nutritionLabels") },
+        { href: "/recipes",       label: t("recipes") },
+        { href: "/premade-cakes", label: t("premadeCakes") },
+        { href: "/nutrients",     label: t("nutritionLabels") },
       ],
-      prefixes: ["/recipes", "/nutrients"],
+      prefixes: ["/recipes", "/premade-cakes", "/nutrients"],
     },
     {
       key: "stock",
@@ -122,6 +123,36 @@ function LanguageSwitcher() {
   );
 }
 
+// ── Dark mode toggle ──────────────────────────────────────────────────────────
+
+function DarkModeToggle({ compact = false }: { compact?: boolean }) {
+  const t = useTranslations("nav");
+  const { dark, setDark } = usePersonalization();
+  const label = dark ? t("lightMode") : t("darkMode");
+
+  return (
+    <button
+      onClick={() => setDark(!dark)}
+      aria-label={label}
+      title={label}
+      className={`${compact ? "p-2" : "p-1.5"} rounded-lg text-brand-500 hover:bg-brand-100 hover:text-brand-700 transition-colors`}
+    >
+      {dark ? (
+        // Sun (we're in dark — clicking switches to light)
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+          <circle cx="12" cy="12" r="4" />
+          <path strokeLinecap="round" d="M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21M5.6 5.6l1.1 1.1M17.3 17.3l1.1 1.1M5.6 18.4l1.1-1.1M17.3 6.7l1.1-1.1" />
+        </svg>
+      ) : (
+        // Moon (we're in light — clicking switches to dark)
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 // ── Personalisation panel ─────────────────────────────────────────────────────
 
 function PersonalisePanel({ onClose, isLoggedIn, isAnonymous, positionClass = "absolute right-0 top-full mt-2" }: {
@@ -164,7 +195,7 @@ function PersonalisePanel({ onClose, isLoggedIn, isAnonymous, positionClass = "a
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none">✕</button>
       </div>
 
-      <div className="px-4 py-4 space-y-5 max-h-[80vh] overflow-y-auto">
+      <div className="px-4 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
         {isLoggedIn && !isAnonymous && (
           <div>
             <p className="form-label">{t("bakeryLogo")}</p>
@@ -238,6 +269,26 @@ function PersonalisePanel({ onClose, isLoggedIn, isAnonymous, positionClass = "a
           </div>
         </div>
       </div>
+
+      {isLoggedIn && !isAnonymous && (
+        <div className="border-t border-rose-100 px-4 py-3 bg-rose-50/40">
+          <Link
+            href="/settings"
+            prefetch={false}
+            onClick={onClose}
+            className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-rose-100 text-sm font-semibold text-brand-700 hover:bg-brand-50 hover:border-brand-300 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {t("openFullSettings")}
+            </span>
+            <span className="text-brand-400">→</span>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
@@ -401,7 +452,7 @@ function SubNavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 
 const MOBILE_TABS = [
   { labelKey: "home",       icon: "🏠", href: "/",          prefixes: ["/", "/planner", "/todos"] },
-  { labelKey: "kitchen",    icon: "🍳", href: "/recipes",   prefixes: ["/recipes", "/nutrients", "/ingredients"] },
+  { labelKey: "kitchen",    icon: "🍳", href: "/recipes",   prefixes: ["/recipes", "/nutrients", "/ingredients", "/premade-cakes"] },
   { labelKey: "stock",      icon: "📦", href: "/inventory", prefixes: ["/inventory", "/suppliers", "/price-ingestion", "/price-alerts", "/purchase-orders", "/shopping-lists"] },
   { labelKey: "customers",  icon: "👥", href: "/customers", prefixes: ["/customers"] },
   { labelKey: "operations", icon: "🏭", href: "/production",prefixes: ["/production", "/sales", "/social"] },
@@ -515,6 +566,7 @@ export function Nav() {
 
           <div className="justify-self-end flex items-center gap-1">
             <LanguageSwitcher />
+            <DarkModeToggle />
 
             {/* Personalise */}
             <div className="relative">
@@ -525,8 +577,8 @@ export function Nav() {
                 }`}
                 title={t("personalise")}
               >
-                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z" />
                 </svg>
               </button>
               {panelOpen && (
@@ -538,25 +590,6 @@ export function Nav() {
                 />
               )}
             </div>
-
-            {/* Settings */}
-            {isLoggedIn && !isAnonymous && (
-              <Link
-                href="/settings"
-                prefetch={false}
-                className={`p-1.5 rounded-lg transition-colors ${
-                  pathname.startsWith("/settings")
-                    ? "bg-brand-600 text-white"
-                    : "text-brand-500 hover:bg-brand-100 hover:text-brand-700"
-                }`}
-                title={t("settings")}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </Link>
-            )}
 
             {/* Tasks */}
             <button
@@ -629,6 +662,7 @@ export function Nav() {
         </Link>
         <div className="flex items-center gap-1 flex-shrink-0">
           <GlobalSearchTrigger onClick={openSearch} />
+          <DarkModeToggle compact />
           <button
             onClick={() => setTodoOpen((v) => !v)}
             className={`relative p-2 rounded-lg transition-colors ${

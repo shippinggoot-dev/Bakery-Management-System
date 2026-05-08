@@ -147,6 +147,10 @@ Required env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, 
 | `/recipes/[id]` | Recipe detail with cost breakdown |
 | `/recipes/[id]/edit` | Edit recipe and ingredients |
 | `/recipes/new` | Create recipe |
+| `/premade-cakes` | Catalog of pre-priced premade cakes (separate from recipes) |
+| `/premade-cakes/[id]` | Premade cake detail with margin breakdown if linked to a recipe |
+| `/premade-cakes/[id]/edit` | Edit premade cake |
+| `/premade-cakes/new` | Create premade cake |
 | `/nutrients` | Nutrition label generator (recipe-based + manual entries tabs) |
 | `/inventory` | Stock levels and receive deliveries |
 | `/purchase-orders` | Supplier purchase orders |

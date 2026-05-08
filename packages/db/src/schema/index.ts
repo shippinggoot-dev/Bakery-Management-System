@@ -34,6 +34,7 @@ export * from "./production-schedules";
 export * from "./other-deliveries";
 export * from "./instagram";
 export * from "./custom-options";
+export * from "./premade-cakes";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.
@@ -69,6 +70,14 @@ import { customerSales } from "./customer-sales";
 import { cakeOrders } from "./cake-orders";
 import { productionSchedules } from "./production-schedules";
 import { otherDeliveries } from "./other-deliveries";
+import {
+  premadeCakes,
+  premadeCakeSizes,
+  flavours,
+  premadeCakeFlavours,
+  cakeAddons,
+  premadeCakeAddons,
+} from "./premade-cakes";
 
 export const allergensRelations = relations(allergens, ({ many }) => ({
   ingredientAllergens: many(ingredientAllergens),
@@ -367,3 +376,52 @@ export const otherDeliveriesRelations = relations(otherDeliveries, ({ one }) => 
 // ─── Instagram ────────────────────────────────────────────────────────────────
 // instagramConnections and instagramPosts are standalone per-owner tables with no cross-table
 // foreign keys, so no Drizzle relations are needed here.
+
+// ─── Premade cakes catalog ────────────────────────────────────────────────────
+
+export const premadeCakesRelations = relations(premadeCakes, ({ one, many }) => ({
+  recipe:   one(recipes, {
+    fields:     [premadeCakes.recipeId],
+    references: [recipes.id],
+  }),
+  sizes:    many(premadeCakeSizes),
+  flavours: many(premadeCakeFlavours),
+  addons:   many(premadeCakeAddons),
+}));
+
+export const premadeCakeSizesRelations = relations(premadeCakeSizes, ({ one }) => ({
+  cake: one(premadeCakes, {
+    fields:     [premadeCakeSizes.cakeId],
+    references: [premadeCakes.id],
+  }),
+}));
+
+export const flavoursRelations = relations(flavours, ({ many }) => ({
+  cakes: many(premadeCakeFlavours),
+}));
+
+export const premadeCakeFlavoursRelations = relations(premadeCakeFlavours, ({ one }) => ({
+  cake:    one(premadeCakes, {
+    fields:     [premadeCakeFlavours.cakeId],
+    references: [premadeCakes.id],
+  }),
+  flavour: one(flavours, {
+    fields:     [premadeCakeFlavours.flavourId],
+    references: [flavours.id],
+  }),
+}));
+
+export const cakeAddonsRelations = relations(cakeAddons, ({ many }) => ({
+  cakes: many(premadeCakeAddons),
+}));
+
+export const premadeCakeAddonsRelations = relations(premadeCakeAddons, ({ one }) => ({
+  cake:  one(premadeCakes, {
+    fields:     [premadeCakeAddons.cakeId],
+    references: [premadeCakes.id],
+  }),
+  addon: one(cakeAddons, {
+    fields:     [premadeCakeAddons.addonId],
+    references: [cakeAddons.id],
+  }),
+}));
