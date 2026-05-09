@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@bakery/db";
-import { shopifySettings, cakeOrders, recipes, emailSettings } from "@bakery/db";
-import { eq } from "drizzle-orm";
+import { shopifySettings, cakeOrders, recipes, emailSettings, productionSchedules } from "@bakery/db";
+import { eq, and, inArray } from "drizzle-orm";
 import { sendOrderConfirmation } from "@/lib/email";
 
 // ── Types for Shopify order webhook payload ───────────────────────────────────
@@ -182,11 +182,77 @@ export async function POST(request: NextRequest) {
     };
   });
 
+  let insertedOrders: { id: string; recipeId: string | null; quantity: string; dueDate: string | null; customerName: string | null; notes: string | null }[] = [];
   if (ordersToInsert.length > 0) {
-    await db.insert(cakeOrders).values(ordersToInsert);
+    insertedOrders = await db.insert(cakeOrders).values(ordersToInsert).returning({
+      id:           cakeOrders.id,
+      recipeId:     cakeOrders.recipeId,
+      quantity:     cakeOrders.quantity,
+      dueDate:      cakeOrders.dueDate,
+      customerName: cakeOrders.customerName,
+      notes:        cakeOrders.notes,
+    });
   }
 
-  console.log(`[shopify-webhook] Created ${ordersToInsert.length} order(s) from ${shopifyOrderNumber} (shop: ${shopDomain})`);
+  // Auto-flip to "planned" for orders where every line item resolved to a
+  // recipe. The user's preference is to skip the manual planner step when
+  // there's nothing to disambiguate. Unmatched line items still need human
+  // review and stay "pending".
+  const allMatched = ordersToInsert.length > 0
+    && ordersToInsert.every((o) => o.recipeId !== null);
+
+  if (allMatched && insertedOrders.length > 0) {
+    const ids = insertedOrders.map((o) => o.id);
+    await db.update(cakeOrders)
+      .set({ status: "planned", updatedAt: new Date() })
+      .where(and(
+        inArray(cakeOrders.id, ids),
+        eq(cakeOrders.ownerId, ownerId),
+      ));
+
+    // Mirror the side-effect from cakeOrders.update: when a cake order moves
+    // to "planned" we auto-create a production_schedules entry so the baker
+    // sees the order on the scheduler. We can't call the tRPC router from
+    // here so we replicate the logic inline.
+    for (const o of insertedOrders) {
+      if (!o.recipeId) continue;
+      const existing = await db.query.productionSchedules.findFirst({
+        where: and(
+          eq(productionSchedules.cakeOrderId, o.id),
+          eq(productionSchedules.ownerId, ownerId),
+        ),
+        columns: { id: true },
+      });
+      if (existing) continue;
+
+      const recipe = await db.query.recipes.findFirst({
+        where: and(eq(recipes.id, o.recipeId), eq(recipes.ownerId, ownerId)),
+        columns: { name: true, yieldAmount: true },
+      });
+
+      const scheduledDate = o.dueDate ?? new Date().toISOString().slice(0, 10);
+      const recipeYield   = recipe?.yieldAmount ? parseFloat(recipe.yieldAmount) : 1;
+      const orderQty      = parseFloat(o.quantity || "1");
+      const batchCount    = recipeYield > 0 ? orderQty / recipeYield : orderQty;
+
+      await db.insert(productionSchedules).values({
+        ownerId,
+        recipeId:    o.recipeId,
+        recipeName:  recipe?.name ?? null,
+        scheduledDate,
+        shift:       "morning",
+        batchCount:  String(batchCount),
+        notes:       `Shopify order ${shopifyOrderNumber} · ${o.customerName ?? "customer"}${o.notes ? ` — ${o.notes}` : ""}`.slice(0, 500),
+        status:      "planned",
+        cakeOrderId: o.id,
+      });
+    }
+  }
+
+  console.log(
+    `[shopify-webhook] Created ${ordersToInsert.length} order(s) from ${shopifyOrderNumber}` +
+    `${allMatched ? " · auto-planned" : " · pending review"} (shop: ${shopDomain})`
+  );
 
   // Send order confirmation email if the owner has email notifications enabled
   if (customerEmail && ordersToInsert.length > 0) {

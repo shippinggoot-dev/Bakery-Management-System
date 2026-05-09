@@ -191,12 +191,15 @@ function ConnectedPanel({
     lastSyncAt: Date | null;
     lastCustomerImportAt: Date | null;
     lastOrderImportAt: Date | null;
+    lastInventorySyncAt: Date | null;
+    shopifyLocationId: string | null;
   };
   onDisconnect: () => void;
 }) {
   const utils = api.useUtils();
 
   const [syncResult,       setSyncResult]       = useState<{ synced: number; total: number; errors: string[] } | null>(null);
+  const [inventoryResult,  setInventoryResult]  = useState<{ pushed: number; errors: string[] } | null>(null);
   const [customerResult,   setCustomerResult]   = useState<{ count: number; total: number; skipped: number; errors: string[] } | null>(null);
   const [orderResult,      setOrderResult]      = useState<{ count: number; total: number; errors: string[] } | null>(null);
   const [ordersOpen,       setOrdersOpen]       = useState(false);
@@ -216,6 +219,20 @@ function ConnectedPanel({
   const syncRecipes = api.shopify.syncRecipes.useMutation({
     onSuccess: (data) => {
       setSyncResult(data);
+      utils.shopify.getSettings.invalidate();
+    },
+  });
+
+  const syncProducts = api.shopify.syncProducts.useMutation({
+    onSuccess: (data) => {
+      setSyncResult(data);
+      utils.shopify.getSettings.invalidate();
+    },
+  });
+
+  const pushInventory = api.shopify.pushInventory.useMutation({
+    onSuccess: (data) => {
+      setInventoryResult(data);
       utils.shopify.getSettings.invalidate();
     },
   });
@@ -295,8 +312,8 @@ function ConnectedPanel({
             className="w-4 h-4 rounded accent-brand-500"
           />
           <div className="flex-1">
-            <p className="text-sm text-gray-700">Sync recipes → Shopify products</p>
-            <p className="text-xs text-gray-500">Push active recipes to your product catalog</p>
+            <p className="text-sm text-gray-700">Sync products to Shopify</p>
+            <p className="text-xs text-gray-500">Push active recipes and premade cakes to your product catalog. Inventory levels also update in the background.</p>
           </div>
         </label>
         <label className="flex items-center gap-3 cursor-pointer">
@@ -313,40 +330,78 @@ function ConnectedPanel({
         </label>
       </div>
 
-      {/* Actions */}
+      {/* Actions — products + inventory */}
       {settings.syncProducts && (
         <div className="card overflow-hidden">
           <div className="px-5 py-3 border-b border-rose-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Products
+            Products & inventory
           </div>
-          <div className="px-5 py-4 space-y-3">
-            {syncResult && (
-              <div className={`rounded-lg px-3 py-2.5 text-sm border ${
-                syncResult.errors.length > 0
-                  ? "bg-amber-50 border-amber-200 text-amber-700"
-                  : "bg-emerald-50 border-emerald-200 text-emerald-700"
-              }`}>
-                {syncResult.synced} of {syncResult.total} recipes synced to Shopify.
-                {syncResult.errors.length > 0 && (
-                  <ul className="mt-1.5 text-xs text-amber-600 space-y-0.5">
-                    {syncResult.errors.slice(0, 5).map((e, i) => <li key={i}>• {e}</li>)}
-                  </ul>
-                )}
-              </div>
-            )}
-            {syncRecipes.error && (
-              <p className="text-sm text-red-400">{syncRecipes.error.message}</p>
-            )}
-            <p className="text-sm text-gray-500">
-              Creates new Shopify products for each of your active recipes. Existing Shopify products are not modified.
-            </p>
-            <button
-              onClick={() => syncRecipes.mutate()}
-              disabled={syncRecipes.isPending}
-              className="w-full py-2.5 rounded-xl bg-[#96bf48]/15 text-[#96bf48] border border-[#96bf48]/25 hover:bg-[#96bf48]/25 text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              {syncRecipes.isPending ? "Syncing…" : "Push recipes to Shopify"}
-            </button>
+          <div className="px-5 py-4 space-y-4">
+
+            {/* Product sync */}
+            <div className="space-y-2">
+              {syncResult && (
+                <div className={`rounded-lg px-3 py-2.5 text-sm border ${
+                  syncResult.errors.length > 0
+                    ? "bg-amber-50 border-amber-200 text-amber-700"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                }`}>
+                  {syncResult.synced} of {syncResult.total} products synced to Shopify.
+                  {syncResult.errors.length > 0 && (
+                    <ul className="mt-1.5 text-xs text-amber-600 space-y-0.5">
+                      {syncResult.errors.slice(0, 5).map((e, i) => <li key={i}>• {e}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {syncProducts.error && (
+                <p className="text-sm text-red-400">{syncProducts.error.message}</p>
+              )}
+              <p className="text-sm text-gray-500">
+                Pushes recipes <em>and</em> premade cakes to Shopify. Items already on Shopify get updated (title, price, status); new items get created. Selling price flows through to the Shopify variant.
+              </p>
+              <button
+                onClick={() => syncProducts.mutate()}
+                disabled={syncProducts.isPending}
+                className="w-full py-2.5 rounded-xl bg-[#96bf48]/15 text-[#96bf48] border border-[#96bf48]/25 hover:bg-[#96bf48]/25 text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {syncProducts.isPending ? "Syncing…" : "Push products to Shopify"}
+              </button>
+            </div>
+
+            {/* Inventory push */}
+            <div className="space-y-2 pt-3 border-t border-rose-100">
+              {inventoryResult && (
+                <div className={`rounded-lg px-3 py-2.5 text-sm border ${
+                  inventoryResult.errors.length > 0
+                    ? "bg-amber-50 border-amber-200 text-amber-700"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                }`}>
+                  {inventoryResult.pushed} inventory level(s) pushed to Shopify.
+                  {inventoryResult.errors.length > 0 && (
+                    <ul className="mt-1.5 text-xs text-amber-600 space-y-0.5">
+                      {inventoryResult.errors.slice(0, 5).map((e, i) => <li key={i}>• {e}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {pushInventory.error && (
+                <p className="text-sm text-red-400">{pushInventory.error.message}</p>
+              )}
+              <p className="text-sm text-gray-500">
+                Recalculates how many units of each product can be made from current ingredient stock and sets that as the Shopify inventory level. Levels also push automatically on every stock change in the background.
+              </p>
+              {settings.lastInventorySyncAt && (
+                <p className="text-xs text-gray-700">Last pushed {fmtDate(settings.lastInventorySyncAt)}</p>
+              )}
+              <button
+                onClick={() => pushInventory.mutate()}
+                disabled={pushInventory.isPending}
+                className="w-full py-2.5 rounded-xl bg-brand-500/15 text-brand-400 border border-brand-500/25 hover:bg-brand-500/25 text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {pushInventory.isPending ? "Pushing…" : "Push inventory now"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -556,6 +611,52 @@ const RESEND_STEPS = [
   { n: 3, text: "Go to API Keys → Create API Key. Copy the key — it's shown only once." },
   { n: 4, text: "Paste the key below along with the email address you want orders to be sent from." },
 ];
+
+// ── Workflow preferences ──────────────────────────────────────────────────────
+
+function WorkflowPreferencesSection() {
+  const utils = api.useUtils();
+  const { data: prefs } = api.preferences.get.useQuery();
+  const update = api.preferences.update.useMutation({
+    onSuccess: () => utils.preferences.get.invalidate(),
+  });
+
+  const confirmBatch = prefs?.confirmBatchCompletion ?? true;
+
+  return (
+    <div id="workflow" className="card overflow-hidden scroll-mt-6">
+      <div className="px-6 py-4 border-b border-rose-100 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 flex items-center justify-center text-base flex-shrink-0">
+          ⚙️
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-gray-800 text-sm">Workflow preferences</p>
+          <p className="text-xs text-gray-500">How the system behaves when you take destructive actions</p>
+        </div>
+      </div>
+      <div className="px-6 py-5 space-y-4">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={confirmBatch}
+            onChange={(e) => update.mutate({ confirmBatchCompletion: e.target.checked })}
+            disabled={update.isPending}
+            className="w-4 h-4 mt-0.5 rounded accent-brand-500"
+          />
+          <div className="flex-1">
+            <p className="text-sm text-gray-700 font-medium">
+              Confirm before recording a production batch
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+              When you mark a scheduled batch as &ldquo;done&rdquo;, the system shows a summary first
+              and waits for your confirmation. Turn this off if you prefer one-tap recording.
+            </p>
+          </div>
+        </label>
+      </div>
+    </div>
+  );
+}
 
 function EmailSettingsSection() {
   const utils = api.useUtils();
@@ -1005,6 +1106,9 @@ export default function SettingsPage() {
 
       {/* Personalisation — available to everyone */}
       <PersonalizationSection />
+
+      {/* Workflow preferences */}
+      {!isAnonymous && <WorkflowPreferencesSection />}
 
       {/* Must be signed in */}
       {isAnonymous && (

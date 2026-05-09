@@ -1,5 +1,6 @@
 import { pgTable, text, uuid, timestamp, index } from "drizzle-orm/pg-core";
 import { recipes } from "./recipes";
+import { customers } from "./customers";
 
 /**
  * Incoming customer orders for baked goods.
@@ -8,6 +9,12 @@ import { recipes } from "./recipes";
 export const cakeOrders = pgTable("cake_orders", {
   id:                  uuid("id").primaryKey().defaultRandom(),
   ownerId:             uuid("owner_id").notNull(),
+  /** Optional FK to the CRM customer record. Set when the order was placed
+   *  through the planner with a known customer; null for one-off cake orders
+   *  where the buyer chose not to register. Used to award loyalty points
+   *  on completion. */
+  customerId:          uuid("customer_id")
+                        .references(() => customers.id, { onDelete: "set null" }),
   customerName:        text("customer_name"),
   customerEmail:       text("customer_email"),
   /** Nullable — Shopify orders may arrive before being linked to a recipe */
@@ -44,6 +51,7 @@ export const cakeOrders = pgTable("cake_orders", {
   index("idx_cake_orders_due_date").on(t.dueDate),
   index("idx_cake_orders_status").on(t.status),
   index("idx_cake_orders_shopify_order_id").on(t.shopifyOrderId),
+  index("idx_cake_orders_customer_id").on(t.customerId),
 ]);
 
 export type CakeOrder    = typeof cakeOrders.$inferSelect;

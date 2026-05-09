@@ -23,6 +23,12 @@ export const recipes = pgTable("recipes", {
   sellingPrice: text("selling_price"),
   /** Comma-separated flavour tags, e.g. "Chocolate,Vanilla,Strawberry" */
   flavours: text("flavours"),
+  /** Shopify product/variant/inventory IDs once this recipe has been pushed
+   *  to Shopify as a product. Stored as text since Shopify uses 64-bit ints
+   *  that can lose precision in JS. Null = not yet synced. */
+  shopifyProductId:       text("shopify_product_id"),
+  shopifyVariantId:       text("shopify_variant_id"),
+  shopifyInventoryItemId: text("shopify_inventory_item_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
@@ -30,6 +36,7 @@ export const recipes = pgTable("recipes", {
   index("idx_recipes_category_id").on(t.categoryId),
   index("idx_recipes_is_active").on(t.isActive),
   index("idx_recipes_name").on(t.name),
+  index("idx_recipes_shopify_product_id").on(t.shopifyProductId),
 ]);
 
 export const recipeIngredients = pgTable("recipe_ingredients", {

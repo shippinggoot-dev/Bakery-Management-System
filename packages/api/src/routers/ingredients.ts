@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, like } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { ingredients, ingredientAllergens, ingredientCategories, allergens, supplierPrices } from "@bakery/db";
+import { ingredients, ingredientAllergens, ingredientCategories, allergens, ingredientSuppliers, supplierPrices, suppliers } from "@bakery/db";
 
 const ingredientInputSchema = z.object({
   name: z.string().min(1).max(255),
@@ -71,6 +71,11 @@ export const ingredientsRouter = createTRPCRouter({
             with: { supplier: true },
             limit: 1,
           },
+          ingredientSuppliers: {
+            where: eq(ingredientSuppliers.isPreferred, true),
+            with: { supplier: true },
+            limit: 1,
+          },
         },
         limit,
         offset,
@@ -135,6 +140,77 @@ export const ingredientsRouter = createTRPCRouter({
         .delete(ingredients)
         .where(and(eq(ingredients.id, input), eq(ingredients.ownerId, ctx.user.id)));
       return { success: true };
+    }),
+
+  /**
+   * Set the preferred supplier for an ingredient. Unmarks any other
+   * preferred row for the same ingredient. Pass supplierId=null to clear.
+   *
+   * Drives the auto-PO logic in inventoryService.checkReorder, the inline
+   * "Reorder" button on the inventory list, and the supplier-grouped
+   * shopping list view.
+   */
+  setPreferredSupplier: protectedProcedure
+    .input(
+      z.object({
+        ingredientId: z.string().uuid(),
+        supplierId:   z.string().uuid().nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Verify the ingredient belongs to this workspace
+      const ing = await ctx.db.query.ingredients.findFirst({
+        where: and(eq(ingredients.id, input.ingredientId), eq(ingredients.ownerId, ctx.user.id)),
+        columns: { id: true },
+      });
+      if (!ing) throw new Error("Ingredient not found.");
+
+      // If a supplier was passed, verify it belongs to this workspace too
+      if (input.supplierId) {
+        const sup = await ctx.db.query.suppliers.findFirst({
+          where: and(eq(suppliers.id, input.supplierId), eq(suppliers.ownerId, ctx.user.id)),
+          columns: { id: true },
+        });
+        if (!sup) throw new Error("Supplier not found.");
+      }
+
+      return ctx.db.transaction(async (tx) => {
+        // Clear any existing preferred flag for this ingredient
+        await tx
+          .update(ingredientSuppliers)
+          .set({ isPreferred: false, updatedAt: new Date() })
+          .where(
+            and(
+              eq(ingredientSuppliers.ingredientId, input.ingredientId),
+              eq(ingredientSuppliers.isPreferred, true)
+            )
+          );
+
+        if (!input.supplierId) {
+          return { ingredientId: input.ingredientId, supplierId: null };
+        }
+
+        // Upsert (ingredientId, supplierId) → preferred
+        const existing = await tx.query.ingredientSuppliers.findFirst({
+          where: and(
+            eq(ingredientSuppliers.ingredientId, input.ingredientId),
+            eq(ingredientSuppliers.supplierId, input.supplierId)
+          ),
+        });
+        if (existing) {
+          await tx
+            .update(ingredientSuppliers)
+            .set({ isPreferred: true, updatedAt: new Date() })
+            .where(eq(ingredientSuppliers.id, existing.id));
+        } else {
+          await tx.insert(ingredientSuppliers).values({
+            ingredientId: input.ingredientId,
+            supplierId:   input.supplierId,
+            isPreferred:  true,
+          });
+        }
+        return { ingredientId: input.ingredientId, supplierId: input.supplierId };
+      });
     }),
 
   setAllergens: protectedProcedure

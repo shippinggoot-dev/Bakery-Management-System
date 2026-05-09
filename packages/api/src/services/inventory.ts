@@ -22,6 +22,7 @@ import {
   recipeIngredients,
   recipes,
 } from "@bakery/db";
+import { pushInventoryForRecipesUsingIngredient } from "./shopify-sync";
 
 // ─── SSE broadcast ────────────────────────────────────────────────────────────
 // Global registry of active SSE response controllers, keyed by ownerId.
@@ -180,6 +181,10 @@ export class InventoryService {
     });
 
     broadcastStockUpdate(opts.ownerId, { type: "stock_updated", ingredientId: opts.ingredientId });
+    // Fire-and-forget Shopify inventory level push for any recipes that use
+    // this ingredient. Errors are logged inside the function — they never
+    // bubble back to the caller.
+    void pushInventoryForRecipesUsingIngredient(opts.ownerId, opts.ingredientId);
 
     return { lotId: lot!.id };
   }
@@ -304,6 +309,10 @@ export class InventoryService {
       ));
 
     broadcastStockUpdate(opts.ownerId, { type: "stock_updated", ingredientId: opts.ingredientId });
+    // Fire-and-forget Shopify inventory level push for any recipes that use
+    // this ingredient. Errors are logged inside the function — they never
+    // bubble back to the caller.
+    void pushInventoryForRecipesUsingIngredient(opts.ownerId, opts.ingredientId);
 
     return {
       ingredientId: opts.ingredientId,
@@ -389,6 +398,10 @@ export class InventoryService {
     });
 
     broadcastStockUpdate(opts.ownerId, { type: "stock_updated", ingredientId: opts.ingredientId });
+    // Fire-and-forget Shopify inventory level push for any recipes that use
+    // this ingredient. Errors are logged inside the function — they never
+    // bubble back to the caller.
+    void pushInventoryForRecipesUsingIngredient(opts.ownerId, opts.ingredientId);
   }
 
   // ── Reorder check → auto draft PO ────────────────────────────────────────

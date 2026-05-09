@@ -18,9 +18,14 @@ export const shopifySettings = pgTable("shopify_settings", {
   syncOrders: boolean("sync_orders").notNull().default(false),
   /** Webhook signing secret from Shopify — used to validate incoming payloads */
   webhookSecret:         text("webhook_secret"),
+  /** Shopify location ID where inventory levels are tracked. Auto-detected
+   *  on first inventory push, or set explicitly via settings UI for multi-
+   *  location stores. Stored as text since Shopify uses 64-bit ints. */
+  shopifyLocationId:     text("shopify_location_id"),
   lastSyncAt:            timestamp("last_sync_at"),
   lastCustomerImportAt:  timestamp("last_customer_import_at"),
   lastOrderImportAt:     timestamp("last_order_import_at"),
+  lastInventorySyncAt:   timestamp("last_inventory_sync_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

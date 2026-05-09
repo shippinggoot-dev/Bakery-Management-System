@@ -19,6 +19,7 @@ import { otherDeliveriesRouter } from "./routers/other-deliveries";
 import { instagramRouter } from "./routers/instagram";
 import { customOptionsRouter } from "./routers/custom-options";
 import { premadeCakesRouter } from "./routers/premade-cakes";
+import { preferencesRouter } from "./routers/preferences";
 
 export const appRouter = createTRPCRouter({
   recipes:        recipesRouter,
@@ -41,6 +42,7 @@ export const appRouter = createTRPCRouter({
   instagram:        instagramRouter,
   customOptions:    customOptionsRouter,
   premadeCakes:     premadeCakesRouter,
+  preferences:      preferencesRouter,
 });
 
 export type AppRouter = typeof appRouter;

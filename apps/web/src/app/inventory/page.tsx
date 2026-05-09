@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 
@@ -73,6 +74,7 @@ function daysUntil(dateStr: string): number {
 
 export default function InventoryPage() {
   const t = useTranslations("inventory");
+  const router = useRouter();
   const utils = api.useUtils();
   const { data: levels = [], isLoading } = api.inventory.getStockLevels.useQuery(undefined);
 
@@ -80,7 +82,19 @@ export default function InventoryPage() {
   const [search, setSearch]     = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [liveFlash, setLiveFlash] = useState<string | null>(null);
+  const [reorderError, setReorderError] = useState<string | null>(null);
   const flashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const quickReorder = api.purchaseOrders.quickReorder.useMutation({
+    onSuccess: (data) => router.push(`/purchase-orders/${data.id}`),
+    onError: (err) => {
+      if (err.message === "NO_PREFERRED_SUPPLIER") {
+        setReorderError(t("reorderNoPreferred"));
+      } else {
+        setReorderError(err.message);
+      }
+    },
+  });
 
   const statusLabels: Record<StockStatus, string> = {
     ok:       t("statusOk"),
@@ -308,13 +322,22 @@ export default function InventoryPage() {
                     <p className="text-xs text-brand-300 italic">{t("noIngredients")}</p>
                   )}
 
-                  <div className="flex gap-2 pt-1">
+                  <div className="flex gap-2 pt-1 flex-wrap">
                     <Link
                       href={`/inventory/receive?ingredientId=${item.ingredientId}`}
                       className="flex-1 text-center py-2 rounded-xl bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 transition-colors"
                     >
                       {t("receiveDelivery")}
                     </Link>
+                    {item.status !== "ok" && (
+                      <button
+                        onClick={() => quickReorder.mutate({ ingredientId: item.ingredientId })}
+                        disabled={quickReorder.isPending}
+                        className="flex-1 text-center py-2 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors disabled:opacity-50"
+                      >
+                        {quickReorder.isPending ? t("reorderPending") : t("reorderNow")}
+                      </button>
+                    )}
                     <Link
                       href={`/inventory/waste?ingredientId=${item.ingredientId}`}
                       className="flex-1 text-center py-2 rounded-xl bg-white border border-rose-200 text-brand-600 text-xs font-semibold hover:bg-rose-50 transition-colors"
@@ -328,6 +351,16 @@ export default function InventoryPage() {
           );
         })}
       </div>
+
+      {reorderError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm shadow-lg max-w-md flex items-start gap-3">
+          <span className="flex-1">{reorderError}</span>
+          <Link href="/ingredients" className="text-brand-500 underline whitespace-nowrap font-medium">
+            {t("setSupplier")}
+          </Link>
+          <button onClick={() => setReorderError(null)} className="text-red-400 hover:text-red-600">×</button>
+        </div>
+      )}
     </div>
   );
 }

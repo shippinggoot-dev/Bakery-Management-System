@@ -1,7 +1,12 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { shopifySettings, recipes, customers, customerSales } from "@bakery/db";
+import { shopifySettings, recipes, premadeCakes, customers, customerSales } from "@bakery/db";
+import {
+  syncProductFromRecipe,
+  syncProductFromPremadeCake,
+  pushAllInventory,
+} from "../services/shopify-sync";
 
 // ── Shopify Admin API helper ──────────────────────────────────────────────────
 
@@ -64,9 +69,11 @@ export const shopifyRouter = createTRPCRouter({
       syncProducts: row.syncProducts,
       syncOrders:   row.syncOrders,
       lastSyncAt:   row.lastSyncAt,
-      tokenPreview:          maskToken(row.accessToken),
-      lastCustomerImportAt:  row.lastCustomerImportAt,
-      lastOrderImportAt:     row.lastOrderImportAt,
+      tokenPreview:           maskToken(row.accessToken),
+      lastCustomerImportAt:   row.lastCustomerImportAt,
+      lastOrderImportAt:      row.lastOrderImportAt,
+      lastInventorySyncAt:    row.lastInventorySyncAt,
+      shopifyLocationId:      row.shopifyLocationId,
     };
   }),
 
@@ -145,9 +152,67 @@ export const shopifyRouter = createTRPCRouter({
   }),
 
   /**
-   * Push active recipes to Shopify as products.
-   * Creates new products — does not update or delete existing ones.
-   * Returns counts of synced and skipped items.
+   * Push active recipes AND premade cakes to Shopify as products.
+   *
+   * Upsert: if the local row already has a shopifyProductId, the matching
+   * Shopify product is *updated* (title, description, price, status). If
+   * not, a new Shopify product is created and the IDs are persisted back
+   * locally so the next sync updates rather than duplicates.
+   *
+   * Status maps from `isActive`: active local row → active Shopify product;
+   * inactive → draft. (Drafts are hidden from the storefront.)
+   */
+  syncProducts: protectedProcedure.mutation(async ({ ctx }) => {
+    const settings = await ctx.db.query.shopifySettings.findFirst({
+      where: eq(shopifySettings.ownerId, ctx.user.id),
+    });
+    if (!settings?.isConnected) throw new Error("Shopify is not connected.");
+
+    const ownerRecipes = await ctx.db.query.recipes.findMany({
+      where: and(eq(recipes.ownerId, ctx.user.id), eq(recipes.isActive, true)),
+      columns: { id: true, name: true },
+    });
+
+    const ownerCakes = await ctx.db.query.premadeCakes.findMany({
+      where: and(eq(premadeCakes.ownerId, ctx.user.id), eq(premadeCakes.isActive, true)),
+      columns: { id: true, name: true },
+    });
+
+    let synced = 0;
+    const errors: string[] = [];
+
+    for (const r of ownerRecipes) {
+      try {
+        const result = await syncProductFromRecipe(ctx.user.id, r.id);
+        if (result) synced++;
+      } catch (err) {
+        errors.push(`Recipe "${r.name}": ${err instanceof Error ? err.message : "failed"}`);
+      }
+    }
+
+    for (const c of ownerCakes) {
+      try {
+        const result = await syncProductFromPremadeCake(ctx.user.id, c.id);
+        if (result) synced++;
+      } catch (err) {
+        errors.push(`Cake "${c.name}": ${err instanceof Error ? err.message : "failed"}`);
+      }
+    }
+
+    await ctx.db.update(shopifySettings)
+      .set({ lastSyncAt: new Date(), updatedAt: new Date() })
+      .where(eq(shopifySettings.ownerId, ctx.user.id));
+
+    return {
+      synced,
+      total: ownerRecipes.length + ownerCakes.length,
+      errors,
+    };
+  }),
+
+  /**
+   * Backwards-compatibility alias for the older syncRecipes name. The UI
+   * still calls this in some places — both names point at the same upsert.
    */
   syncRecipes: protectedProcedure.mutation(async ({ ctx }) => {
     const settings = await ctx.db.query.shopifySettings.findFirst({
@@ -156,48 +221,19 @@ export const shopifyRouter = createTRPCRouter({
     if (!settings?.isConnected) throw new Error("Shopify is not connected.");
 
     const ownerRecipes = await ctx.db.query.recipes.findMany({
-      where: (r, { eq: eqFn, and }) => and(
-        eqFn(r.ownerId, ctx.user.id),
-        eqFn(r.isActive, true)
-      ),
-      with: { category: true },
+      where: and(eq(recipes.ownerId, ctx.user.id), eq(recipes.isActive, true)),
+      columns: { id: true, name: true },
     });
 
     let synced = 0;
     const errors: string[] = [];
 
-    for (const recipe of ownerRecipes) {
-      const descriptionParts = [
-        recipe.description ?? "",
-        recipe.instructions ? `Instructions:\n${recipe.instructions}` : "",
-        recipe.notes ? `Notes:\n${recipe.notes}` : "",
-      ].filter(Boolean);
-
-      const bodyHtml = descriptionParts
-        .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-        .join("\n");
-
+    for (const r of ownerRecipes) {
       try {
-        await shopifyFetch(settings.shopDomain, settings.accessToken, "/products.json", {
-          method: "POST",
-          body: JSON.stringify({
-            product: {
-              title:        recipe.name,
-              body_html:    bodyHtml || `<p>${recipe.name}</p>`,
-              product_type: recipe.category?.name ?? "Bakery",
-              status:       "active",
-              variants: [{
-                title:             `${recipe.yieldAmount} ${recipe.yieldUnit}`,
-                requires_shipping: true,
-                taxable:           true,
-                inventory_management: null,
-              }],
-            },
-          }),
-        });
-        synced++;
+        const result = await syncProductFromRecipe(ctx.user.id, r.id);
+        if (result) synced++;
       } catch (err) {
-        errors.push(`${recipe.name}: ${err instanceof Error ? err.message : "failed"}`);
+        errors.push(`${r.name}: ${err instanceof Error ? err.message : "failed"}`);
       }
     }
 
@@ -207,6 +243,59 @@ export const shopifyRouter = createTRPCRouter({
 
     return { synced, total: ownerRecipes.length, errors };
   }),
+
+  /**
+   * Manually push current inventory levels for every Shopify-linked recipe
+   * and cake. Useful after a fresh connect, after bulk receiving, or to
+   * recover from any push that errored out previously.
+   */
+  pushInventory: protectedProcedure.mutation(async ({ ctx }) => {
+    const settings = await ctx.db.query.shopifySettings.findFirst({
+      where: eq(shopifySettings.ownerId, ctx.user.id),
+    });
+    if (!settings?.isConnected) throw new Error("Shopify is not connected.");
+    return pushAllInventory(ctx.user.id);
+  }),
+
+  /**
+   * List Shopify locations and let the user pick the primary. Multi-location
+   * stores need this; single-location stores have it auto-detected on first
+   * inventory push.
+   */
+  getLocations: protectedProcedure.query(async ({ ctx }) => {
+    const settings = await ctx.db.query.shopifySettings.findFirst({
+      where: eq(shopifySettings.ownerId, ctx.user.id),
+    });
+    if (!settings?.isConnected) return [];
+
+    const url = `https://${settings.shopDomain}/admin/api/2024-10/locations.json`;
+    const res = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": settings.accessToken,
+      },
+    });
+    if (!res.ok) return [];
+
+    const json = await res.json() as {
+      locations: { id: number; name: string; active: boolean }[];
+    };
+    return json.locations.map((l) => ({
+      id:     String(l.id),
+      name:   l.name,
+      active: l.active,
+    }));
+  }),
+
+  /** Set the primary Shopify location for inventory pushes. */
+  setLocation: protectedProcedure
+    .input(z.object({ locationId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.update(shopifySettings)
+        .set({ shopifyLocationId: input.locationId, updatedAt: new Date() })
+        .where(eq(shopifySettings.ownerId, ctx.user.id));
+      return { ok: true };
+    }),
 
   /**
    * Import Shopify customers into the local customers table.

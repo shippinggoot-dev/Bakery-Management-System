@@ -6,6 +6,41 @@ import { api } from "@/trpc/react";
 import { PlusIcon } from "@/components/icons";
 import { CategorySelect } from "@/components/CategorySelect";
 
+function PreferredSupplierPicker({
+  ingredientId,
+  currentSupplierId,
+  suppliers,
+}: {
+  ingredientId: string;
+  currentSupplierId: string | null;
+  suppliers: { id: string; name: string }[];
+}) {
+  const t = useTranslations("ingredients");
+  const utils = api.useUtils();
+  const setPreferred = api.ingredients.setPreferredSupplier.useMutation({
+    onSuccess: () => utils.ingredients.getAll.invalidate(),
+  });
+
+  return (
+    <select
+      value={currentSupplierId ?? ""}
+      onChange={(e) =>
+        setPreferred.mutate({
+          ingredientId,
+          supplierId: e.target.value || null,
+        })
+      }
+      disabled={setPreferred.isPending}
+      className="text-xs border border-rose-200 rounded-lg px-2 py-1 bg-white text-gray-700 hover:border-brand-300 focus:outline-none focus:border-brand-400 disabled:opacity-50"
+    >
+      <option value="">{t("noPreferredSupplier")}</option>
+      {suppliers.map((s) => (
+        <option key={s.id} value={s.id}>{s.name}</option>
+      ))}
+    </select>
+  );
+}
+
 const allergenColour: Record<string, string> = {
   Gluten:      "bg-yellow-50 text-yellow-700 border-yellow-200",
   Milk:        "bg-blue-50 text-blue-700 border-blue-200",
@@ -141,7 +176,8 @@ export default function IngredientsClient() {
   const t = useTranslations("ingredients");
   const [showAdd, setShowAdd] = useState(false);
 
-  const { data: ingredients = [] } = api.ingredients.getAll.useQuery({ limit: 200 });
+  const { data: ingredients = [] }    = api.ingredients.getAll.useQuery({ limit: 200 });
+  const { data: suppliersList = [] }  = api.suppliers.getAll.useQuery({ isActive: true, limit: 100 });
 
   const grouped = ingredients.reduce<Record<string, typeof ingredients>>(
     (acc, ing) => {
@@ -193,10 +229,13 @@ export default function IngredientsClient() {
                 <th className="table-header px-6 py-3">{t("unitCol")}</th>
                 <th className="table-header px-6 py-3">{t("allergensCol")}</th>
                 <th className="table-header px-6 py-3">{t("supplierPriceCol")}</th>
+                <th className="table-header px-6 py-3">{t("preferredSupplierCol")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-rose-50">
-              {grouped[cat]!.map((ing) => (
+              {grouped[cat]!.map((ing) => {
+                const preferredSup = ing.ingredientSuppliers?.[0]?.supplier ?? null;
+                return (
                 <tr key={ing.id} className="hover:bg-rose-50/50">
                   <td className="px-6 py-3 font-medium text-gray-800">{ing.name}</td>
                   <td className="px-6 py-3 text-gray-500 text-sm">{ing.unit}</td>
@@ -224,8 +263,16 @@ export default function IngredientsClient() {
                       <span className="text-gray-700">—</span>
                     )}
                   </td>
+                  <td className="px-6 py-3">
+                    <PreferredSupplierPicker
+                      ingredientId={ing.id}
+                      currentSupplierId={preferredSup?.id ?? null}
+                      suppliers={suppliersList}
+                    />
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           </div>

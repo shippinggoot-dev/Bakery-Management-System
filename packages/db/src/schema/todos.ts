@@ -12,11 +12,18 @@ export const todos = pgTable("todos", {
   /** YYYY-MM-DD */
   dueDate:     text("due_date"),
   priority:    text("priority").notNull().default("medium"),
+  /** When a todo is auto-created by another system event (e.g. a confirmed
+   *  purchase order), sourceType identifies the kind of source. Combined
+   *  with sourceId this lets us dedupe and clear linked todos when the
+   *  source moves on (PO delivered → mark todo done). */
+  sourceType:  text("source_type"),
+  sourceId:    uuid("source_id"),
   createdAt:   timestamp("created_at").notNull().defaultNow(),
   updatedAt:   timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("idx_todos_owner_id").on(t.ownerId),
   index("idx_todos_completed").on(t.completed),
+  index("idx_todos_source").on(t.sourceType, t.sourceId),
 ]);
 
 export type Todo    = typeof todos.$inferSelect;

@@ -1,18 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 import { TagCombobox } from "@/components/TagCombobox";
 
+type SourceMode = "custom" | "catalog";
+
 function AddOrderForm({ onClose }: { onClose: () => void }) {
   const t = useTranslations("planner");
   const utils = api.useUtils();
-  const { data: recipes = [] } = api.recipes.getAll.useQuery({ limit: 100 });
+  const { data: recipes  = [] } = api.recipes.getAll.useQuery({ limit: 100 });
+  const { data: premades = [] } = api.premadeCakes.list.useQuery({ isActive: true });
 
+  const [sourceMode,     setSourceMode]     = useState<SourceMode>("custom");
+  const [premadeCakeId,  setPremadeCakeId]  = useState("");
   const [recipeId,       setRecipeId]       = useState("");
+  const [salePrice,      setSalePrice]      = useState("");
+  const [customerId,     setCustomerId]     = useState<string | null>(null);
+  const [customerSearch, setCustomerSearch] = useState("");
   const [customerName,   setCustomerName]   = useState("");
+  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
   const [quantity,       setQuantity]       = useState("1");
   const [dueDate,        setDueDate]        = useState("");
   const [notes,          setNotes]          = useState("");
@@ -24,8 +33,50 @@ function AddOrderForm({ onClose }: { onClose: () => void }) {
   const [error,          setError]          = useState<string | null>(null);
 
   const selectedRecipe = recipes.find((r) => r.id === recipeId);
+  const selectedCake   = premades.find((c) => c.id === premadeCakeId);
 
   const recordUsage = api.customOptions.recordUsage.useMutation();
+  const lookupCustomer = api.customers.lookup.useMutation();
+
+  // When picking a premade cake, auto-fill recipe + price
+  function pickPremade(id: string) {
+    setPremadeCakeId(id);
+    const cake = premades.find((c) => c.id === id);
+    if (cake) {
+      if (cake.recipeId) setRecipeId(cake.recipeId);
+      if (!salePrice && cake.basePrice) setSalePrice(cake.basePrice);
+    }
+  }
+
+  // Customer search — debounced
+  useEffect(() => {
+    const q = customerSearch.trim();
+    // Don't search if the user has already linked a customer (avoid re-triggering)
+    if (!q || customerId) return;
+    const timer = setTimeout(async () => {
+      try {
+        const result = await lookupCustomer.mutateAsync({ query: q });
+        if (result) {
+          setShowCustomerSuggestions(true);
+        }
+      } catch { /* ignore */ }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [customerSearch, customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function selectCustomerFromLookup(c: { id: string; firstName: string; lastName: string }) {
+    setCustomerId(c.id);
+    setCustomerName(`${c.firstName} ${c.lastName}`);
+    setCustomerSearch(`${c.firstName} ${c.lastName}`);
+    setShowCustomerSuggestions(false);
+  }
+
+  function clearCustomer() {
+    setCustomerId(null);
+    setCustomerName("");
+    setCustomerSearch("");
+  }
+
   const create = api.cakeOrders.create.useMutation({
     onSuccess: () => {
       const fields: Array<[string, string[]]> = [
@@ -50,7 +101,9 @@ function AddOrderForm({ onClose }: { onClose: () => void }) {
     setError(null);
     create.mutate({
       recipeId,
+      customerId,
       customerName:   customerName.trim() || null,
+      salePrice:      salePrice.trim() || null,
       quantity:       quantity.trim() || "1",
       dueDate:        dueDate || null,
       notes:          notes.trim() || null,
@@ -68,11 +121,106 @@ function AddOrderForm({ onClose }: { onClose: () => void }) {
         <h3 className="font-semibold text-gray-900">{t("newOrder")}</h3>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
       </div>
+
+      {/* Source mode toggle: pick from catalog vs build custom */}
+      <div className="flex gap-2 p-1 bg-white rounded-lg border border-rose-200">
+        <button
+          type="button"
+          onClick={() => setSourceMode("custom")}
+          className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+            sourceMode === "custom"
+              ? "bg-brand-600 text-white"
+              : "text-brand-600 hover:bg-rose-50"
+          }`}
+        >
+          {t("sourceCustom")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setSourceMode("catalog")}
+          className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+            sourceMode === "catalog"
+              ? "bg-brand-600 text-white"
+              : "text-brand-600 hover:bg-rose-50"
+          }`}
+        >
+          🧁 {t("sourceCatalog")}
+        </button>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-3">
+        {/* Premade cake picker — only in catalog mode */}
+        {sourceMode === "catalog" && (
+          <div>
+            <label className="form-label">{t("pickFromCatalog")}</label>
+            <select
+              className="form-input"
+              value={premadeCakeId}
+              onChange={(e) => pickPremade(e.target.value)}
+              required={sourceMode === "catalog"}
+            >
+              <option value="">{t("selectPremade")}</option>
+              {premades.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} — kr {parseFloat(c.basePrice).toFixed(0)}
+                </option>
+              ))}
+            </select>
+            {selectedCake && !selectedCake.recipeId && (
+              <p className="text-xs text-amber-600 mt-1">
+                {t("premadeNoRecipe")}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Customer search with autocomplete — same in both modes */}
+        <div>
+          <label className="form-label">{t("customerLabel")}</label>
+          <div className="relative">
+            <input
+              type="text"
+              className="form-input"
+              value={customerSearch}
+              onChange={(e) => {
+                setCustomerSearch(e.target.value);
+                setCustomerName(e.target.value);
+                if (customerId) setCustomerId(null); // clear link when user types
+              }}
+              placeholder={t("customerSearchPlaceholder")}
+            />
+            {customerId && (
+              <button
+                type="button"
+                onClick={clearCustomer}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-semibold"
+              >
+                ✓ {t("customerLinked")} ×
+              </button>
+            )}
+          </div>
+          {showCustomerSuggestions && lookupCustomer.data && !customerId && (
+            <button
+              type="button"
+              onClick={() => selectCustomerFromLookup(lookupCustomer.data!)}
+              className="mt-1 w-full text-left text-xs px-3 py-2 rounded-lg bg-white border border-emerald-200 hover:bg-emerald-50 transition-colors"
+            >
+              {t("matchedCustomer").replace("{name}", `${lookupCustomer.data.firstName} ${lookupCustomer.data.lastName}`)}{" "}
+              <span className="text-emerald-600 font-semibold">— {t("clickToLink")}</span>
+            </button>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="form-label">{t("recipe")} *</label>
-            <select className="form-input" value={recipeId} onChange={(e) => setRecipeId(e.target.value)} required>
+            <select
+              className="form-input"
+              value={recipeId}
+              onChange={(e) => setRecipeId(e.target.value)}
+              required
+              disabled={sourceMode === "catalog" && !!selectedCake?.recipeId}
+            >
               <option value="">{t("selectRecipe")}</option>
               {recipes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
@@ -89,12 +237,19 @@ function AddOrderForm({ onClose }: { onClose: () => void }) {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="form-label">{t("customerName")}</label>
-            <input className="form-input" placeholder={t("cancel") === "Avbryt" ? "Valgfri" : "Optional"} value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-          </div>
-          <div>
             <label className="form-label">{t("dueDate")}</label>
             <input className="form-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">{t("salePriceLabel")}</label>
+            <input
+              className="form-input"
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={salePrice}
+              onChange={(e) => setSalePrice(e.target.value)}
+            />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

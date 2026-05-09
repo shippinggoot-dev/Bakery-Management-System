@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/trpc/react";
 
@@ -113,15 +114,56 @@ function WeekSkeleton() {
   );
 }
 
+const STOCKTAKE_NUDGE_THRESHOLD_DAYS = 30;
+
 export default function DashboardPage() {
-  const { data: today, isLoading: loadingToday } = api.dashboard.getTodaySummary.useQuery();
-  const { data: week,  isLoading: loadingWeek  } = api.dashboard.getWeekSummary.useQuery();
+  const { data: today,        isLoading: loadingToday } = api.dashboard.getTodaySummary.useQuery();
+  const { data: week,         isLoading: loadingWeek  } = api.dashboard.getWeekSummary.useQuery();
+  const { data: lastStocktake }                         = api.dashboard.getLastStocktake.useQuery();
 
   const showDeliveries = (today?.deliveriesToday.length ?? 0) > 0;
   const showBatches    = (today?.batchesToday.length    ?? 0) > 0;
 
+  // Show nudge if there's never been a stocktake, or it's been a while
+  const stocktakeOverdue =
+    lastStocktake?.daysSince === null ||
+    (lastStocktake?.daysSince !== undefined &&
+     lastStocktake?.daysSince !== null &&
+     lastStocktake.daysSince >= STOCKTAKE_NUDGE_THRESHOLD_DAYS);
+
+  const [stocktakeDismissed, setStocktakeDismissed] = useState(false);
+
   return (
     <div className="space-y-8 max-w-5xl">
+
+      {/* Stocktake nudge — appears when overdue or never done, dismissable */}
+      {stocktakeOverdue && !stocktakeDismissed && (
+        <div className="card p-4 border-amber-200 bg-amber-50 flex items-start gap-3">
+          <span className="text-xl flex-shrink-0">📋</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-amber-800 text-sm">
+              {lastStocktake?.lastAt
+                ? `Last stocktake: ${lastStocktake.daysSince} days ago`
+                : "No stocktake on record yet"}
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Stock counts drift over time. A quick recount keeps the system honest.
+            </p>
+          </div>
+          <Link
+            href="/inventory/stocktake"
+            prefetch={false}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex-shrink-0"
+          >
+            Start stocktake →
+          </Link>
+          <button
+            onClick={() => setStocktakeDismissed(true)}
+            className="text-amber-400 hover:text-amber-600 text-lg leading-none flex-shrink-0"
+            aria-label="Dismiss"
+          >×</button>
+        </div>
+      )}
 
       <section>
         <ZoneHeading>Today</ZoneHeading>

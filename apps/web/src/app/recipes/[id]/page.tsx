@@ -81,13 +81,21 @@ export default function RecipeDetailPage() {
         </Link>
       </div>
 
-      <div className="flex items-center justify-between print:hidden">
-        <Link
-          href={`/recipes/${id}/edit`}
-          className="px-4 py-2 rounded-lg border border-brand-200 text-brand-600 text-sm font-semibold hover:bg-brand-50 transition-colors"
-        >
-          ✏️ Edit recipe
-        </Link>
+      <div className="flex items-center justify-between print:hidden flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/inventory/produce?recipeId=${id}`}
+            className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors"
+          >
+            🥖 Make this now
+          </Link>
+          <Link
+            href={`/recipes/${id}/edit`}
+            className="px-4 py-2 rounded-lg border border-brand-200 text-brand-600 text-sm font-semibold hover:bg-brand-50 transition-colors"
+          >
+            ✏️ Edit recipe
+          </Link>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => window.print()}

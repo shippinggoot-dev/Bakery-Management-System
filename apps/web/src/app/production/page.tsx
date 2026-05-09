@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 
 type Shift = "morning" | "afternoon" | "evening";
@@ -73,12 +75,71 @@ export default function ProductionPage() {
   const from = toIso(days[0]!);
   const to   = toIso(days[6]!);
 
+  const t  = useTranslations("production");
+  const tc = useTranslations("common");
+
   const { data: schedule = [], refetch } = api.production.getSchedule.useQuery({ from, to });
   const { data: recipes  = [] }          = api.recipes.getAll.useQuery({ limit: 100 });
+  const { data: prefs }                  = api.preferences.get.useQuery();
 
-  const create = api.production.create.useMutation({ onSuccess: () => { refetch(); closeForm(); } });
-  const update = api.production.update.useMutation({ onSuccess: () => refetch() });
-  const remove = api.production.delete.useMutation({ onSuccess: () => refetch() });
+  const create   = api.production.create.useMutation({ onSuccess: () => { refetch(); closeForm(); } });
+  const update   = api.production.update.useMutation({ onSuccess: () => refetch() });
+  const remove   = api.production.delete.useMutation({ onSuccess: () => refetch() });
+  const markDone = api.production.markDone.useMutation({ onSuccess: () => refetch() });
+  const unlock   = api.production.unlock.useMutation({ onSuccess: () => refetch() });
+
+  // Mark-done confirmation modal state. Holds the entry being acted on.
+  type ScheduleEntry = (typeof schedule)[number];
+  const [confirmEntry,   setConfirmEntry]   = useState<ScheduleEntry | null>(null);
+  const [doneResult,     setDoneResult]     = useState<{
+    entryName: string;
+    deductions: { ingredientId: string; requested: number; deducted: number; insufficient: boolean }[];
+    reorderAlerts: string[];
+  } | null>(null);
+  const [actionError,    setActionError]    = useState<string | null>(null);
+
+  function requestMarkDone(entry: ScheduleEntry) {
+    setActionError(null);
+    if (!entry.recipeId) {
+      setActionError(t("markDoneNoRecipe"));
+      return;
+    }
+    if (prefs?.confirmBatchCompletion === false) {
+      // User has opted out of confirmation — fire immediately.
+      runMarkDone(entry);
+    } else {
+      setConfirmEntry(entry);
+    }
+  }
+
+  async function runMarkDone(entry: ScheduleEntry) {
+    setActionError(null);
+    try {
+      const res = await markDone.mutateAsync({ id: entry.id });
+      setConfirmEntry(null);
+      setDoneResult({
+        entryName: entry.recipeName ?? entry.recipe?.name ?? "—",
+        deductions: res.deductions,
+        reorderAlerts: res.reorderAlerts,
+      });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : t("markDoneFailed"));
+    }
+  }
+
+  function handleStatusClick(entry: ScheduleEntry, target: Status) {
+    setActionError(null);
+    if (target === "done") {
+      requestMarkDone(entry);
+      return;
+    }
+    if (entry.recordedBatchId && entry.status === "done") {
+      // Reverting from a recorded "done" requires unlock first.
+      setActionError(t("unlockFirst"));
+      return;
+    }
+    update.mutate({ id: entry.id, status: target });
+  }
 
   // Group schedule entries by date+shift
   const grouped = useMemo(() => {
@@ -189,31 +250,56 @@ export default function ProductionPage() {
 
                 return (
                   <div key={iso} className="min-h-[80px] bg-white border border-rose-100 rounded-xl p-1.5 flex flex-col gap-1">
-                    {entries.map((entry) => (
+                    {entries.map((entry) => {
+                      const isRecorded = !!entry.recordedBatchId;
+                      const fromOrder  = !!entry.cakeOrderId;
+                      return (
                       <div
                         key={entry.id}
                         className={`rounded-lg border text-[10px] px-1.5 py-1 leading-tight ${STATUS_STYLE[entry.status as Status]}`}
                       >
-                        <p className="font-semibold truncate">{entry.recipeName ?? entry.recipe?.name ?? "—"}</p>
-                        <p className="opacity-75">{entry.batchCount}× batch</p>
+                        <p className="font-semibold truncate flex items-center gap-1">
+                          {fromOrder && <span title={t("fromCakeOrder")}>🎂</span>}
+                          <span className="truncate">{entry.recipeName ?? entry.recipe?.name ?? "—"}</span>
+                        </p>
+                        <p className="opacity-75">{entry.batchCount}× {t("batch")}</p>
                         {entry.assignedTo && <p className="opacity-60 truncate">{entry.assignedTo}</p>}
+                        {isRecorded && (
+                          <p className="mt-0.5 inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700">
+                            🔒 {t("recordedBadge")}
+                          </p>
+                        )}
                         <div className="flex gap-1 mt-1 flex-wrap">
-                          {STATUS_LABELS.filter((s) => s !== entry.status).slice(0, 2).map((s) => (
+                          {isRecorded ? (
                             <button
-                              key={s}
-                              onClick={() => update.mutate({ id: entry.id, status: s })}
+                              onClick={() => {
+                                if (confirm(t("unlockConfirm"))) unlock.mutate({ id: entry.id });
+                              }}
                               className="underline opacity-60 hover:opacity-100 text-[9px]"
                             >
-                              {s === "done" ? "✓ done" : s === "in_progress" ? "▶ start" : s === "cancelled" ? "✕" : s}
+                              {t("unlockAction")}
                             </button>
-                          ))}
-                          <button
-                            onClick={() => { if (confirm("Remove this entry?")) remove.mutate(entry.id); }}
-                            className="opacity-40 hover:opacity-100 text-[9px] ml-auto"
-                          >✕</button>
+                          ) : (
+                            STATUS_LABELS.filter((s) => s !== entry.status).slice(0, 2).map((s) => (
+                              <button
+                                key={s}
+                                onClick={() => handleStatusClick(entry, s)}
+                                className="underline opacity-60 hover:opacity-100 text-[9px]"
+                              >
+                                {s === "done" ? "✓ " + t("doneShort") : s === "in_progress" ? "▶ " + t("startShort") : s === "cancelled" ? "✕" : s}
+                              </button>
+                            ))
+                          )}
+                          {!isRecorded && (
+                            <button
+                              onClick={() => { if (confirm(t("removeConfirm"))) remove.mutate(entry.id); }}
+                              className="opacity-40 hover:opacity-100 text-[9px] ml-auto"
+                            >✕</button>
+                          )}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
 
                     {/* Add button */}
                     <button
@@ -229,6 +315,111 @@ export default function ProductionPage() {
           ))}
         </div>
       </div>
+
+      {/* Inline error toast */}
+      {actionError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm shadow-lg max-w-md flex items-start gap-3">
+          <span className="font-medium">{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-600">×</button>
+        </div>
+      )}
+
+      {/* Mark-done confirmation modal */}
+      {confirmEntry && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm px-4"
+          onClick={() => setConfirmEntry(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-rose-100 p-6 w-full max-w-md space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold text-gray-800">{t("confirmDoneTitle")}</h3>
+            <div className="rounded-xl bg-rose-50 border border-rose-100 px-4 py-3 text-sm space-y-1">
+              <p className="font-medium text-gray-800">
+                {confirmEntry.recipeName ?? confirmEntry.recipe?.name ?? "—"}
+              </p>
+              <p className="text-brand-500">
+                {confirmEntry.batchCount}× {t("batch")}
+                {confirmEntry.recipe?.yieldAmount && (
+                  <span className="text-gray-500">
+                    {" "}· {(parseFloat(confirmEntry.recipe.yieldAmount) * parseFloat(confirmEntry.batchCount)).toFixed(2)}{" "}
+                    {confirmEntry.recipe.yieldUnit}
+                  </span>
+                )}
+              </p>
+            </div>
+            <p className="text-xs text-gray-500 leading-relaxed">{t("confirmDoneBody")}</p>
+
+            <div className="flex items-center justify-between pt-1">
+              <Link
+                href="/settings#workflow"
+                className="text-[11px] text-brand-400 hover:text-brand-600 underline"
+              >
+                {t("dontAskAgain")}
+              </Link>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmEntry(null)}
+                  className="px-4 py-2 rounded-lg border border-rose-200 text-sm text-gray-600 hover:bg-rose-50 transition-colors"
+                >
+                  {tc("cancel")}
+                </button>
+                <button
+                  onClick={() => runMarkDone(confirmEntry)}
+                  disabled={markDone.isPending}
+                  className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors disabled:opacity-40"
+                >
+                  {markDone.isPending ? t("recording") : t("recordAndDeduct")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Result modal — appears after mark-done completes */}
+      {doneResult && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm px-4"
+          onClick={() => setDoneResult(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-rose-100 p-6 w-full max-w-md space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold text-gray-800">{t("recordedTitle")}</h3>
+            <div className="rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 text-sm font-medium">
+              {t("recordedBody").replace("{name}", doneResult.entryName)}
+            </div>
+
+            {doneResult.deductions.some((d) => d.insufficient) && (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs space-y-1">
+                <p className="font-semibold text-amber-700">{t("insufficientStockHeader")}</p>
+                <p className="text-amber-600">{t("insufficientStockHint")}</p>
+              </div>
+            )}
+
+            {doneResult.reorderAlerts.length > 0 && (
+              <div className="rounded-xl bg-orange-50 border border-orange-200 px-4 py-3 text-xs">
+                <p className="font-semibold text-orange-700">
+                  {t("draftPosCreated").replace("{count}", String(doneResult.reorderAlerts.length))}
+                </p>
+                <Link href="/purchase-orders" className="text-orange-600 underline">
+                  {t("viewPurchaseOrders")} →
+                </Link>
+              </div>
+            )}
+
+            <button
+              onClick={() => setDoneResult(null)}
+              className="w-full py-2.5 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors"
+            >
+              {tc("close")}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Quick-add form overlay */}
       {addDay && (

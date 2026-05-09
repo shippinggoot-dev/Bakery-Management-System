@@ -1,7 +1,16 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { eq, and, desc } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { purchaseOrders, purchaseOrderItems, shoppingListItems } from "@bakery/db";
+import {
+  purchaseOrders,
+  purchaseOrderItems,
+  shoppingListItems,
+  ingredients,
+  ingredientSuppliers,
+  suppliers,
+  todos,
+} from "@bakery/db";
 
 const orderStatusSchema = z.enum(["draft", "sent", "confirmed", "delivered", "cancelled"]);
 
@@ -93,19 +102,158 @@ export const purchaseOrdersRouter = createTRPCRouter({
   updateStatus: protectedProcedure
     .input(z.object({ id: z.string().uuid(), status: orderStatusSchema, deliveredAt: z.date().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const before = await ctx.db.query.purchaseOrders.findFirst({
+        where: and(eq(purchaseOrders.id, input.id), eq(purchaseOrders.ownerId, ctx.user.id)),
+        with: { supplier: { columns: { name: true } } },
+      });
+      if (!before) throw new TRPCError({ code: "NOT_FOUND" });
+
       const [updated] = await ctx.db
         .update(purchaseOrders)
         .set({ status: input.status, deliveredAt: input.deliveredAt, updatedAt: new Date() })
         .where(and(eq(purchaseOrders.id, input.id), eq(purchaseOrders.ownerId, ctx.user.id)))
         .returning();
+      if (!updated) return updated;
+
+      // ── Auto-todo lifecycle ──────────────────────────────────────────────
+      // When a PO is confirmed by a supplier, create a "receive delivery" todo
+      // so the baker doesn't forget to log it on arrival. When the PO moves
+      // to delivered or cancelled, mark the linked todo done — it's no longer
+      // actionable.
+
+      const becameConfirmed = input.status === "confirmed" && before.status !== "confirmed";
+      const becameTerminal  = (input.status === "delivered" || input.status === "cancelled")
+                            && before.status !== input.status;
+
+      if (becameConfirmed) {
+        // Dedupe — don't create a second todo if one already exists for this PO
+        const existing = await ctx.db.query.todos.findFirst({
+          where: and(
+            eq(todos.ownerId, ctx.user.id),
+            eq(todos.sourceType, "purchase_order"),
+            eq(todos.sourceId, updated.id),
+          ),
+          columns: { id: true, completed: true },
+        });
+
+        if (!existing) {
+          const supplierName = before.supplier?.name ?? "supplier";
+          const orderRef     = updated.orderNumber ? ` ${updated.orderNumber}` : "";
+          // Keep the date in YYYY-MM-DD format that other todos use
+          const expectedDate = updated.expectedDeliveryAt
+            ? new Date(updated.expectedDeliveryAt).toISOString().slice(0, 10)
+            : null;
+
+          await ctx.db.insert(todos).values({
+            ownerId:     ctx.user.id,
+            title:       `Receive delivery from ${supplierName}${orderRef}`,
+            description: expectedDate
+              ? `Confirmed PO arriving on ${expectedDate}. Use Inventory → Receive when it arrives.`
+              : "Confirmed PO. Use Inventory → Receive when it arrives.",
+            dueDate:     expectedDate,
+            priority:    "medium",
+            sourceType:  "purchase_order",
+            sourceId:    updated.id,
+          });
+        } else if (existing.completed) {
+          // Re-open if the PO was re-confirmed after a previous completion
+          await ctx.db.update(todos)
+            .set({ completed: false, updatedAt: new Date() })
+            .where(eq(todos.id, existing.id));
+        }
+      }
+
+      if (becameTerminal) {
+        // Mark the linked todo done — the receive event has happened (or the
+        // PO was cancelled, in which case the action is no longer needed)
+        await ctx.db.update(todos)
+          .set({ completed: true, updatedAt: new Date() })
+          .where(and(
+            eq(todos.ownerId, ctx.user.id),
+            eq(todos.sourceType, "purchase_order"),
+            eq(todos.sourceId, updated.id),
+            eq(todos.completed, false),
+          ));
+      }
+
       return updated;
     }),
 
   delete: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
+      // Drop any auto-created todos linked to this PO before deleting
+      // the PO itself, since the source link will dangle otherwise.
+      await ctx.db.delete(todos).where(and(
+        eq(todos.ownerId, ctx.user.id),
+        eq(todos.sourceType, "purchase_order"),
+        eq(todos.sourceId, input),
+      ));
       await ctx.db.delete(purchaseOrders).where(and(eq(purchaseOrders.id, input), eq(purchaseOrders.ownerId, ctx.user.id)));
       return { success: true };
+    }),
+
+  /**
+   * One-click reorder for a single ingredient. Creates a draft purchase order
+   * with the ingredient's preferred supplier and a default quantity of
+   * (reorder_point × 3) — same heuristic the auto-reorder uses.
+   *
+   * Throws NO_PREFERRED_SUPPLIER if the ingredient has no preferred supplier
+   * configured; the UI catches this and prompts the user to set one.
+   */
+  quickReorder: protectedProcedure
+    .input(z.object({ ingredientId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const ing = await ctx.db.query.ingredients.findFirst({
+        where: and(eq(ingredients.id, input.ingredientId), eq(ingredients.ownerId, ctx.user.id)),
+        columns: { id: true, name: true, unit: true, reorderPoint: true, parLevel: true },
+      });
+      if (!ing) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const preferred = await ctx.db.query.ingredientSuppliers.findFirst({
+        where: and(
+          eq(ingredientSuppliers.ingredientId, input.ingredientId),
+          eq(ingredientSuppliers.isPreferred, true)
+        ),
+        with: { supplier: true },
+      });
+      if (!preferred) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "NO_PREFERRED_SUPPLIER",
+        });
+      }
+      // Defence in depth: confirm supplier ownership matches workspace
+      if (preferred.supplier.ownerId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      // Default quantity heuristic: reorder_point × 3, fall back to par,
+      // fall back to 1 unit. Matches inventoryService.checkReorder.
+      const reorderQty = ing.reorderPoint
+        ? (parseFloat(ing.reorderPoint) * 3).toString()
+        : ing.parLevel
+          ? ing.parLevel
+          : "1";
+
+      return ctx.db.transaction(async (tx) => {
+        const [po] = await tx
+          .insert(purchaseOrders)
+          .values({
+            ownerId:    ctx.user.id,
+            supplierId: preferred.supplierId,
+            status:     "draft",
+            notes:      `Quick reorder: ${ing.name}`,
+          })
+          .returning();
+        await tx.insert(purchaseOrderItems).values({
+          purchaseOrderId: po!.id,
+          ingredientId:    ing.id,
+          quantity:        reorderQty,
+          unit:            ing.unit,
+        });
+        return { id: po!.id, supplierId: preferred.supplierId, supplierName: preferred.supplier.name };
+      });
     }),
 
   generateFromShoppingList: protectedProcedure

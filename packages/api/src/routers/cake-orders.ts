@@ -1,7 +1,16 @@
 import { z } from "zod";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { cakeOrders, recipeIngredients, shoppingLists, shoppingListItems } from "@bakery/db";
+import {
+  cakeOrders,
+  recipeIngredients,
+  shoppingLists,
+  shoppingListItems,
+  productionSchedules,
+  recipes,
+} from "@bakery/db";
+import { inventoryService } from "../services/inventory";
+import { recordSale } from "../services/loyalty";
 
 const statusSchema = z.enum(["pending", "planned", "in_progress", "completed", "cancelled"]);
 
@@ -30,12 +39,14 @@ export const cakeOrdersRouter = createTRPCRouter({
   create: protectedProcedure
     .input(
       z.object({
+        customerId:     z.string().uuid().optional().nullable(),
         customerName:   z.string().optional().nullable(),
         customerEmail:  z.string().email().optional().nullable(),
         recipeId:       z.string().uuid().optional().nullable(),
         quantity:       z.string().min(1),
         dueDate:        z.string().optional().nullable(),
         notes:          z.string().optional().nullable(),
+        salePrice:      z.string().optional().nullable(),
         cakeStyle:      z.string().optional().nullable(),
         cakeFormat:     z.string().optional().nullable(),
         spongeFlavours: z.string().optional().nullable(),
@@ -51,6 +62,18 @@ export const cakeOrdersRouter = createTRPCRouter({
       return order;
     }),
 
+  /**
+   * Update a cake order. Side-effects on status transitions:
+   *
+   *   pending → planned: auto-create a production_schedules entry on or
+   *     before due_date so the baker sees the order on the scheduler.
+   *     Idempotent — does nothing if a schedule already linked.
+   *
+   *   * → completed: if the order has no linked schedule entry that has
+   *     already been recorded as a batch, deduct stock now. If a customer
+   *     is linked and salePrice is set, also record the sale through the
+   *     loyalty path so points get awarded.
+   */
   update: protectedProcedure
     .input(
       z.object({
@@ -61,6 +84,7 @@ export const cakeOrdersRouter = createTRPCRouter({
         notes:          z.string().optional().nullable(),
         dueDate:        z.string().optional().nullable(),
         quantity:       z.string().optional(),
+        customerId:     z.string().uuid().optional().nullable(),
         customerName:   z.string().optional().nullable(),
         customerEmail:  z.string().email().optional().nullable(),
         recipeId:       z.string().uuid().optional().nullable(),
@@ -73,11 +97,137 @@ export const cakeOrdersRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+
+      const before = await ctx.db.query.cakeOrders.findFirst({
+        where: and(eq(cakeOrders.id, id), eq(cakeOrders.ownerId, ctx.user.id)),
+      });
+      if (!before) throw new Error("Cake order not found.");
+
       const [updated] = await ctx.db
         .update(cakeOrders)
         .set({ ...data, updatedAt: new Date() })
         .where(and(eq(cakeOrders.id, id), eq(cakeOrders.ownerId, ctx.user.id)))
         .returning();
+      if (!updated) throw new Error("Update failed.");
+
+      // ── Status transition side-effects ───────────────────────────────────
+
+      const newStatus = data.status;
+      const oldStatus = before.status;
+
+      // 1) pending → planned: auto-create a production_schedules row
+      if (newStatus === "planned" && oldStatus !== "planned" && updated.recipeId) {
+        const existing = await ctx.db.query.productionSchedules.findFirst({
+          where: and(
+            eq(productionSchedules.cakeOrderId, updated.id),
+            eq(productionSchedules.ownerId, ctx.user.id),
+          ),
+          columns: { id: true },
+        });
+
+        if (!existing) {
+          const recipe = await ctx.db.query.recipes.findFirst({
+            where: and(eq(recipes.id, updated.recipeId), eq(recipes.ownerId, ctx.user.id)),
+            columns: { name: true, yieldAmount: true },
+          });
+
+          // Default to baking on the due date; if no due date, schedule for today
+          const scheduledDate = updated.dueDate ?? new Date().toISOString().slice(0, 10);
+
+          // Compute the batch count from the order quantity vs recipe yield.
+          // 1 cake order asking for 12 cookies, recipe yields 24 → batchCount = 0.5
+          const recipeYield = recipe?.yieldAmount ? parseFloat(recipe.yieldAmount) : 1;
+          const orderQty    = parseFloat(updated.quantity || "1");
+          const batchCount  = recipeYield > 0 ? orderQty / recipeYield : orderQty;
+
+          await ctx.db.insert(productionSchedules).values({
+            ownerId:       ctx.user.id,
+            recipeId:      updated.recipeId,
+            recipeName:    recipe?.name ?? null,
+            scheduledDate,
+            shift:         "morning",
+            batchCount:    String(batchCount),
+            notes:         `Order for ${updated.customerName ?? "customer"}${updated.notes ? ` — ${updated.notes}` : ""}`.slice(0, 500),
+            status:        "planned",
+            cakeOrderId:   updated.id,
+          });
+        }
+      }
+
+      // 2) → completed: deduct stock if no linked recorded batch yet, then
+      //    optionally award loyalty points
+      if (newStatus === "completed" && oldStatus !== "completed") {
+        const linkedSchedule = await ctx.db.query.productionSchedules.findFirst({
+          where: and(
+            eq(productionSchedules.cakeOrderId, updated.id),
+            eq(productionSchedules.ownerId, ctx.user.id),
+          ),
+          columns: { id: true, recordedBatchId: true },
+        });
+
+        // Deduct only if there's no schedule entry that's already been recorded.
+        // This prevents double deduction when the schedule entry's "mark done"
+        // flow has already run.
+        if (updated.recipeId && (!linkedSchedule || !linkedSchedule.recordedBatchId)) {
+          const recipe = await ctx.db.query.recipes.findFirst({
+            where: eq(recipes.id, updated.recipeId),
+            columns: { yieldAmount: true },
+          });
+          const recipeYield = recipe?.yieldAmount ? parseFloat(recipe.yieldAmount) : 1;
+          const orderQty    = parseFloat(updated.quantity || "1");
+          const scaleFactor = recipeYield > 0 ? orderQty / recipeYield : orderQty;
+
+          const batch = await inventoryService.recordProduction({
+            ownerId:     ctx.user.id,
+            recipeId:    updated.recipeId,
+            scaleFactor,
+            notes:       `Cake order completion: ${updated.customerName ?? "customer"}`,
+          });
+
+          // If we created a schedule entry earlier, link the batch back to it
+          // so the scheduler reflects the recorded state.
+          if (linkedSchedule) {
+            await ctx.db
+              .update(productionSchedules)
+              .set({
+                recordedBatchId: batch.batchId,
+                status:          "done",
+                updatedAt:       new Date(),
+              })
+              .where(eq(productionSchedules.id, linkedSchedule.id));
+          }
+        }
+
+        // Award loyalty points if a customer is on file and a sale price exists.
+        // Note: we don't double-award if the order was also rung up at the POS;
+        // assume cake-order completion is the canonical revenue event for
+        // pre-orders.
+        if (updated.customerId && updated.salePrice) {
+          const amount = parseFloat(updated.salePrice);
+          if (amount > 0) {
+            try {
+              await recordSale({
+                ownerId:    ctx.user.id,
+                customerId: updated.customerId,
+                currency:   "NOK",
+                items: [{
+                  description:   `Cake order: ${updated.recipeId ? "" : ""}${updated.customerName ? `for ${updated.customerName}` : "completed"}`.trim() || "Cake order",
+                  recipeId:      null, // already deducted above; don't double-deduct
+                  premadeCakeId: null,
+                  quantity:      parseFloat(updated.quantity || "1"),
+                  unitPrice:     amount / parseFloat(updated.quantity || "1"),
+                }],
+                notes:      `Auto-recorded from cake order ${updated.id}`,
+              });
+            } catch (err) {
+              // Don't fail the whole order completion if loyalty side-effects
+              // fail — the sale itself has already been recorded.
+              console.error("Loyalty award failed for cake order:", err);
+            }
+          }
+        }
+      }
+
       return updated;
     }),
 

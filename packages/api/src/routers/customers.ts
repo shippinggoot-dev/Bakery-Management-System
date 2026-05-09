@@ -15,6 +15,7 @@ import {
   generateCardNumber,
   getOwnerTiers,
   awardPoints,
+  recordSale,
   redeemReward,
   evaluateSegment,
   checkAndCreateRewards,
@@ -229,6 +230,37 @@ export const customersRouter = createTRPCRouter({
         amount:           input.amount,
         currency:         input.currency,
         items:            input.items ?? null,
+        notes:            input.notes ?? null,
+        rewardRedeemedId: input.rewardRedeemedId ?? null,
+      });
+    }),
+
+  /**
+   * Record a sale with structured line items. Lines linked to a recipe (or a
+   * premade cake whose backing recipe resolves) deduct stock via FEFO. If a
+   * customerId is supplied, loyalty points are awarded on the total. For
+   * cash sales, pass customerId: null.
+   */
+  recordSale: protectedProcedure
+    .input(z.object({
+      customerId:       z.string().uuid().nullable(),
+      currency:         z.string().default("NOK"),
+      notes:            z.string().optional().nullable(),
+      rewardRedeemedId: z.string().uuid().optional().nullable(),
+      items: z.array(z.object({
+        description:    z.string().min(1),
+        recipeId:       z.string().uuid().optional().nullable(),
+        premadeCakeId:  z.string().uuid().optional().nullable(),
+        quantity:       z.number().positive(),
+        unitPrice:      z.number().nullable(),
+      })).min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return recordSale({
+        ownerId:          ctx.user.id,
+        customerId:       input.customerId,
+        currency:         input.currency,
+        items:            input.items,
         notes:            input.notes ?? null,
         rewardRedeemedId: input.rewardRedeemedId ?? null,
       });

@@ -35,6 +35,8 @@ export * from "./other-deliveries";
 export * from "./instagram";
 export * from "./custom-options";
 export * from "./premade-cakes";
+export * from "./user-preferences";
+export * from "./customer-sale-items";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.
@@ -78,6 +80,7 @@ import {
   cakeAddons,
   premadeCakeAddons,
 } from "./premade-cakes";
+import { customerSaleItems } from "./customer-sale-items";
 
 export const allergensRelations = relations(allergens, ({ many }) => ({
   ingredientAllergens: many(ingredientAllergens),
@@ -306,6 +309,7 @@ export const customersRelations = relations(customers, ({ many }) => ({
   rewards:             many(rewards),
   sales:               many(customerSales),
   segmentMemberships:  many(customerSegmentMembers),
+  cakeOrders:          many(cakeOrders),
 }));
 
 export const loyaltyTransactionsRelations = relations(loyaltyTransactions, ({ one }) => ({
@@ -322,10 +326,26 @@ export const rewardsRelations = relations(rewards, ({ one }) => ({
   }),
 }));
 
-export const customerSalesRelations = relations(customerSales, ({ one }) => ({
+export const customerSalesRelations = relations(customerSales, ({ one, many }) => ({
   customer: one(customers, {
     fields: [customerSales.customerId],
     references: [customers.id],
+  }),
+  items: many(customerSaleItems),
+}));
+
+export const customerSaleItemsRelations = relations(customerSaleItems, ({ one }) => ({
+  sale: one(customerSales, {
+    fields: [customerSaleItems.saleId],
+    references: [customerSales.id],
+  }),
+  recipe: one(recipes, {
+    fields: [customerSaleItems.recipeId],
+    references: [recipes.id],
+  }),
+  premadeCake: one(premadeCakes, {
+    fields: [customerSaleItems.premadeCakeId],
+    references: [premadeCakes.id],
   }),
 }));
 
@@ -348,11 +368,16 @@ export const customerSegmentMembersRelations = relations(customerSegmentMembers,
 
 // ─── Cake orders ─────────────────────────────────────────────────────────────
 
-export const cakeOrdersRelations = relations(cakeOrders, ({ one }) => ({
+export const cakeOrdersRelations = relations(cakeOrders, ({ one, many }) => ({
   recipe: one(recipes, {
     fields: [cakeOrders.recipeId],
     references: [recipes.id],
   }),
+  customer: one(customers, {
+    fields: [cakeOrders.customerId],
+    references: [customers.id],
+  }),
+  productionSchedules: many(productionSchedules),
 }));
 
 // ─── Production schedules ─────────────────────────────────────────────────────
@@ -361,6 +386,14 @@ export const productionSchedulesRelations = relations(productionSchedules, ({ on
   recipe: one(recipes, {
     fields: [productionSchedules.recipeId],
     references: [recipes.id],
+  }),
+  recordedBatch: one(productionBatches, {
+    fields: [productionSchedules.recordedBatchId],
+    references: [productionBatches.id],
+  }),
+  cakeOrder: one(cakeOrders, {
+    fields: [productionSchedules.cakeOrderId],
+    references: [cakeOrders.id],
   }),
 }));
 

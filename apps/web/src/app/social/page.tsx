@@ -2,10 +2,35 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 import { createClientSupabase } from "@/lib/supabase/client";
 
 const MAX_CAPTION = 2200;
+
+/**
+ * Build a caption template from a recipe or premade-cake catalog entry.
+ * Appended/inserted into the composer when the user picks an item, then
+ * fully editable. The template is intentionally short — Instagram captions
+ * benefit from human voice, not auto-generated boilerplate.
+ */
+function buildCatalogTemplate(item: {
+  name:        string;
+  description: string | null;
+  price:       string | null;
+  allergens:   string[];
+}): string {
+  const lines: string[] = [];
+  lines.push(`✨ ${item.name}`);
+  if (item.description) lines.push(item.description);
+  if (item.price)       lines.push(`📍 ${item.price} kr`);
+  if (item.allergens.length > 0) {
+    lines.push(`Contains: ${item.allergens.join(", ")}`);
+  }
+  lines.push("");
+  lines.push("#bakery #freshbread");
+  return lines.join("\n");
+}
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -52,12 +77,16 @@ function ConnectPrompt() {
 }
 
 export default function SocialPage() {
+  const t = useTranslations("social");
   const utils = api.useUtils();
   const { data: conn, isLoading: connLoading } = api.instagram.getConnection.useQuery();
   const { data: posts = [], isLoading: postsLoading } = api.instagram.getPosts.useQuery(
     undefined,
     { enabled: conn?.connected === true },
   );
+  const { data: recipes  = [] } = api.recipes.getAll.useQuery({ limit: 200 });
+  const { data: premades = [] } = api.premadeCakes.list.useQuery({ isActive: true });
+
   const createPost = api.instagram.createPost.useMutation({
     onSuccess: () => {
       utils.instagram.getPosts.invalidate();
@@ -67,12 +96,51 @@ export default function SocialPage() {
     },
   });
 
-  const [caption,    setCaption]    = useState("");
-  const [imageUrl,   setImageUrl]   = useState("");
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [uploading,  setUploading]  = useState(false);
-  const [uploadErr,  setUploadErr]  = useState<string | null>(null);
+  const [caption,        setCaption]        = useState("");
+  const [imageUrl,       setImageUrl]       = useState("");
+  const [previewUrl,     setPreviewUrl]     = useState<string | null>(null);
+  const [uploading,      setUploading]      = useState(false);
+  const [uploadErr,      setUploadErr]      = useState<string | null>(null);
+  const [showCatalog,    setShowCatalog]    = useState(false);
+  const [catalogSearch,  setCatalogSearch]  = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  function insertFromRecipe(recipe: typeof recipes[number]) {
+    // recipes.getAll does not include nested ingredient.allergens — we'd need
+    // a richer query to surface them here. For now the template skips
+    // allergens for recipe-sourced posts; the user can edit before publishing.
+    const tmpl = buildCatalogTemplate({
+      name:        recipe.name,
+      description: recipe.description,
+      price:       recipe.sellingPrice,
+      allergens:   [],
+    });
+    setCaption((curr) => (curr.trim() ? `${curr.trimEnd()}\n\n${tmpl}` : tmpl));
+    setShowCatalog(false);
+  }
+
+  function insertFromPremade(cake: typeof premades[number]) {
+    // Premade cakes store allergens as a comma-separated string
+    const allergens = cake.allergens
+      ? cake.allergens.split(",").map((a) => a.trim()).filter(Boolean)
+      : [];
+    const tmpl = buildCatalogTemplate({
+      name:        cake.name,
+      description: cake.description,
+      price:       cake.basePrice,
+      allergens,
+    });
+    setCaption((curr) => (curr.trim() ? `${curr.trimEnd()}\n\n${tmpl}` : tmpl));
+    setShowCatalog(false);
+  }
+
+  const filterTerm = catalogSearch.toLowerCase().trim();
+  const filteredRecipes  = filterTerm
+    ? recipes.filter((r) => r.name.toLowerCase().includes(filterTerm))
+    : recipes.slice(0, 20);
+  const filteredPremades = filterTerm
+    ? premades.filter((c) => c.name.toLowerCase().includes(filterTerm))
+    : premades.slice(0, 20);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -211,6 +279,78 @@ export default function SocialPage() {
                 {caption.length} / {MAX_CAPTION}
               </span>
             </div>
+
+            {/* Catalog picker — collapses inline */}
+            <div className="mb-2">
+              <button
+                type="button"
+                onClick={() => setShowCatalog((v) => !v)}
+                className="text-xs px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-brand-600 hover:bg-rose-100 transition-colors font-medium"
+              >
+                {showCatalog ? `× ${t("hideCatalog")}` : `🧁 ${t("insertFromCatalog")}`}
+              </button>
+
+              {showCatalog && (
+                <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50/40 p-3 space-y-2 max-h-64 overflow-y-auto">
+                  <input
+                    type="search"
+                    placeholder={t("catalogSearchPlaceholder")}
+                    value={catalogSearch}
+                    onChange={(e) => setCatalogSearch(e.target.value)}
+                    className="form-input text-sm"
+                  />
+
+                  {filteredPremades.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-brand-400 uppercase tracking-wider mb-1">
+                        🧁 {t("premadeCakes")}
+                      </p>
+                      <div className="space-y-1">
+                        {filteredPremades.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => insertFromPremade(c)}
+                            className="w-full text-left px-2 py-1.5 rounded-md text-xs text-gray-700 hover:bg-white hover:text-brand-600 transition-colors"
+                          >
+                            {c.name}
+                            <span className="ml-2 text-brand-400">kr {parseFloat(c.basePrice).toFixed(0)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {filteredRecipes.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-brand-400 uppercase tracking-wider mb-1">
+                        📖 {t("recipes")}
+                      </p>
+                      <div className="space-y-1">
+                        {filteredRecipes.map((r) => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => insertFromRecipe(r)}
+                            className="w-full text-left px-2 py-1.5 rounded-md text-xs text-gray-700 hover:bg-white hover:text-brand-600 transition-colors"
+                          >
+                            {r.name}
+                            {r.sellingPrice && (
+                              <span className="ml-2 text-brand-400">kr {parseFloat(r.sellingPrice).toFixed(0)}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {filteredRecipes.length === 0 && filteredPremades.length === 0 && (
+                    <p className="text-xs text-gray-500 text-center py-2">{t("catalogNoResults")}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <textarea
               className="form-input resize-none"
               rows={5}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 import { PlusIcon } from "@/components/icons";
@@ -144,7 +145,9 @@ export default function ShoppingListsClient({
               {lists.map((list) => (
                 <tr key={list.id} className="hover:bg-rose-50/50">
                   <td className="px-6 py-4">
-                    <p className="font-medium text-gray-800">{list.name}</p>
+                    <Link href={`/shopping-lists/${list.id}`} className="font-medium text-gray-800 hover:text-brand-600 transition-colors">
+                      {list.name}
+                    </Link>
                     {list.description && <p className="text-xs text-gray-600 mt-0.5">{list.description}</p>}
                   </td>
                   <td className="px-6 py-4">

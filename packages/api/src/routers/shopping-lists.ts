@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { shoppingLists, shoppingListItems, recipeIngredients } from "@bakery/db";
+import { shoppingLists, shoppingListItems, recipeIngredients, ingredientSuppliers } from "@bakery/db";
 
 const listStatusSchema = z.enum(["draft", "in_progress", "completed"]);
 
@@ -46,7 +46,18 @@ export const shoppingListsRouter = createTRPCRouter({
         where: and(eq(shoppingLists.id, input), eq(shoppingLists.ownerId, ctx.user.id)),
         with: {
           items: {
-            with: { ingredient: { with: { category: true } } },
+            with: {
+              ingredient: {
+                with: {
+                  category: true,
+                  ingredientSuppliers: {
+                    where: eq(ingredientSuppliers.isPreferred, true),
+                    with: { supplier: true },
+                    limit: 1,
+                  },
+                },
+              },
+            },
             orderBy: (sli, { asc }) => [asc(sli.ingredientId)],
           },
         },

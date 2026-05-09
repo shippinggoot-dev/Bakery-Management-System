@@ -7,6 +7,7 @@ import {
   cakeOrders,
   customerSales,
   wasteLogs,
+  stockMovements,
   recipes,
 } from "@bakery/db";
 import { inventoryService } from "../services/inventory";
@@ -197,5 +198,27 @@ export const dashboardRouter = createTRPCRouter({
         : null,
       wasteEventCount: parseInt(wasteCountRows[0]?.count ?? "0", 10),
     };
+  }),
+
+  /**
+   * When did this workspace last do a full stocktake?
+   * Returns null if no recount movement has ever been logged.
+   * Drives the "Time for a stocktake" nudge on the dashboard.
+   */
+  getLastStocktake: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) return null;
+    const last = await ctx.db.query.stockMovements.findFirst({
+      where: and(
+        eq(stockMovements.ownerId, ctx.user.id),
+        eq(stockMovements.type, "recount"),
+      ),
+      orderBy: [desc(stockMovements.createdAt)],
+      columns: { createdAt: true },
+    });
+    if (!last) return { lastAt: null, daysSince: null };
+    const days = Math.floor(
+      (Date.now() - last.createdAt.getTime()) / (24 * 60 * 60 * 1000)
+    );
+    return { lastAt: last.createdAt, daysSince: days };
   }),
 });

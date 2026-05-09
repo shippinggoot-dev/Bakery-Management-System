@@ -20,11 +20,17 @@ export const premadeCakes = pgTable("premade_cakes", {
   allergens:    text("allergens"),
   isActive:     boolean("is_active").notNull().default(true),
   displayOrder: integer("display_order").notNull().default(0),
+  /** Shopify product/variant/inventory IDs once this cake has been pushed to
+   *  Shopify. Same shape as recipes.shopify*. Null = not yet synced. */
+  shopifyProductId:       text("shopify_product_id"),
+  shopifyVariantId:       text("shopify_variant_id"),
+  shopifyInventoryItemId: text("shopify_inventory_item_id"),
   createdAt:    timestamp("created_at").notNull().defaultNow(),
   updatedAt:    timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("idx_premade_cakes_owner_active").on(t.ownerId, t.isActive),
   index("idx_premade_cakes_recipe_id").on(t.recipeId),
+  index("idx_premade_cakes_shopify_product_id").on(t.shopifyProductId),
 ]);
 
 /**

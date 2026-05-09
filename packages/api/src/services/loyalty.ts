@@ -18,10 +18,13 @@ import {
   loyaltyTransactions,
   rewards,
   customerSales,
+  customerSaleItems,
   customerSegments,
   customerSegmentMembers,
+  premadeCakes,
   type SegmentCriteria,
 } from "@bakery/db";
+import { inventoryService, type DeductionResult } from "./inventory";
 
 // ─── Default tier config (used when owner has no custom tiers) ────────────────
 
@@ -137,6 +140,198 @@ export async function awardPoints(opts: {
   await checkAndCreateRewards(opts.customerId, opts.ownerId, newLifetime, newPoints);
 
   return { saleId: sale!.id, pointsAwarded: rawPoints, newBalance: newPoints, tierUpgraded };
+}
+
+// ─── Record a sale with line items + inventory deduction ─────────────────────
+
+export interface SaleItemInput {
+  description:   string;
+  recipeId?:     string | null;
+  premadeCakeId?: string | null;
+  quantity:      number;
+  unitPrice:     number | null;
+}
+
+export interface RecordSaleResult {
+  saleId:         string;
+  amount:         number;
+  pointsAwarded:  number;
+  newBalance:     number;
+  tierUpgraded:   string | null;
+  deductions:     { ingredientId: string; requested: number; deducted: number; insufficient: boolean }[];
+  reorderAlerts:  string[];
+}
+
+/**
+ * Record a sale with structured line items.
+ *
+ * Behaviour:
+ *   1. Insert customer_sales row (customerId may be null for cash sales)
+ *   2. Insert customer_sale_items rows
+ *   3. For each line with a recipeId (directly or via a linked premadeCake),
+ *      call inventoryService.recordProduction so stock deducts via FEFO and
+ *      reorder alerts fire automatically
+ *   4. If customerId is set, award loyalty points on the total amount
+ *
+ * Items without a recipe link record revenue but do not touch stock — there
+ * is nothing to deduct because they aren't tracked as ingredients.
+ */
+export async function recordSale(opts: {
+  ownerId:    string;
+  customerId: string | null;
+  currency:   string;
+  items:      SaleItemInput[];
+  notes:      string | null;
+  rewardRedeemedId?: string | null;
+}): Promise<RecordSaleResult> {
+  if (opts.items.length === 0) {
+    throw new Error("Sale must have at least one line item.");
+  }
+
+  // Resolve any premade-cake-only items to their backing recipe so deduction
+  // can fire. We do this once up-front so the database call is a single batch.
+  const premadeIds = opts.items
+    .filter((i) => i.premadeCakeId && !i.recipeId)
+    .map((i) => i.premadeCakeId!);
+
+  const premadeMap = new Map<string, { recipeId: string | null; basePrice: string }>();
+  if (premadeIds.length > 0) {
+    const cakes = await db.query.premadeCakes.findMany({
+      where: and(
+        inArray(premadeCakes.id, premadeIds),
+        eq(premadeCakes.ownerId, opts.ownerId),
+      ),
+      columns: { id: true, recipeId: true, basePrice: true },
+    });
+    for (const c of cakes) premadeMap.set(c.id, { recipeId: c.recipeId, basePrice: c.basePrice });
+  }
+
+  // Compute totals
+  let amount = 0;
+  const linesWithTotals = opts.items.map((item, idx) => {
+    const lineTotal = item.unitPrice !== null ? item.unitPrice * item.quantity : 0;
+    amount += lineTotal;
+    return { item, lineTotal, sortOrder: idx };
+  });
+
+  const itemsBlob = opts.items
+    .map((i) => `${i.quantity}× ${i.description}`)
+    .join(", ")
+    .slice(0, 1000);
+
+  // ── 1. Create the parent sale row ──────────────────────────────────────────
+  const [sale] = await db.insert(customerSales).values({
+    ownerId:          opts.ownerId,
+    customerId:       opts.customerId,
+    amount:           amount.toFixed(2),
+    currency:         opts.currency,
+    items:            itemsBlob,
+    pointsAwarded:    0, // updated below if customer is set
+    rewardRedeemedId: opts.rewardRedeemedId ?? null,
+    notes:            opts.notes,
+  }).returning();
+
+  // ── 2. Insert line items ───────────────────────────────────────────────────
+  if (linesWithTotals.length > 0) {
+    await db.insert(customerSaleItems).values(
+      linesWithTotals.map(({ item, lineTotal, sortOrder }) => ({
+        saleId:        sale!.id,
+        description:   item.description,
+        recipeId:      item.recipeId      ?? null,
+        premadeCakeId: item.premadeCakeId ?? null,
+        quantity:      String(item.quantity),
+        unitPrice:     item.unitPrice !== null ? item.unitPrice.toFixed(2) : null,
+        lineTotal:     lineTotal.toFixed(2),
+        sortOrder,
+      }))
+    );
+  }
+
+  // ── 3. Deduct stock for each recipe-linked line ────────────────────────────
+  const allDeductions: DeductionResult[] = [];
+  const reorderAlerts: string[]          = [];
+
+  for (const { item } of linesWithTotals) {
+    const recipeId = item.recipeId
+      ?? (item.premadeCakeId ? premadeMap.get(item.premadeCakeId)?.recipeId ?? null : null);
+    if (!recipeId) continue;
+
+    const result = await inventoryService.recordProduction({
+      ownerId:     opts.ownerId,
+      recipeId,
+      // Each unit sold = one yield-unit of the recipe
+      // (e.g. 1 cake = 1× yield, 6 cookies = 6× yield depending on recipe.yieldUnit)
+      // We use quantity directly as the scale factor here.
+      scaleFactor: item.quantity,
+      notes:       `POS sale: ${item.description}`,
+    });
+    allDeductions.push(...result.deductions);
+    reorderAlerts.push(...result.reorderAlerts);
+  }
+
+  // ── 4. Award loyalty points if a customer is on file ───────────────────────
+  let pointsAwarded = 0;
+  let newBalance    = 0;
+  let tierUpgraded: string | null = null;
+
+  if (opts.customerId && amount > 0) {
+    const customer = await db.query.customers.findFirst({
+      where: and(eq(customers.id, opts.customerId), eq(customers.ownerId, opts.ownerId)),
+    });
+    if (!customer) throw new Error("Customer not found.");
+
+    const tiers = await getOwnerTiers(opts.ownerId);
+    const tierRow = tiers.find((t) => t.slug === customer.tier) ?? tiers[tiers.length - 1];
+    const multiplier = parseFloat(tierRow?.multiplier ?? "1.0");
+
+    pointsAwarded     = Math.floor(amount * multiplier);
+    newBalance        = customer.points + pointsAwarded;
+    const newLifetime = customer.lifetimePoints + pointsAwarded;
+    const newSpend    = (parseFloat(customer.totalSpend) + amount).toFixed(2);
+    const newTier     = resolveTierFromList(tiers, newLifetime);
+    tierUpgraded      = newTier !== customer.tier ? newTier : null;
+
+    await db.update(customerSales)
+      .set({ pointsAwarded })
+      .where(eq(customerSales.id, sale!.id));
+
+    await db.update(customers).set({
+      points:         newBalance,
+      lifetimePoints: newLifetime,
+      totalSpend:     newSpend,
+      tier:           newTier,
+      lastVisitAt:    new Date(),
+      updatedAt:      new Date(),
+    }).where(eq(customers.id, opts.customerId));
+
+    await db.insert(loyaltyTransactions).values({
+      ownerId:       opts.ownerId,
+      customerId:    opts.customerId,
+      type:          "earn",
+      pointsDelta:   pointsAwarded,
+      balanceAfter:  newBalance,
+      referenceId:   sale!.id,
+      referenceType: "sale",
+      description:   `Earned ${pointsAwarded} pts on ${opts.currency} ${amount.toFixed(2)} purchase`,
+    });
+
+    await checkAndCreateRewards(opts.customerId, opts.ownerId, newLifetime, newBalance);
+  }
+
+  return {
+    saleId:        sale!.id,
+    amount:        parseFloat(amount.toFixed(2)),
+    pointsAwarded,
+    newBalance,
+    tierUpgraded,
+    deductions:    allDeductions.map((d) => ({
+      ingredientId: d.ingredientId,
+      requested:    d.requested,
+      deducted:     d.deducted,
+      insufficient: d.insufficient,
+    })),
+    reorderAlerts,
+  };
 }
 
 // ─── Automated reward checks ─────────────────────────────────────────────────
