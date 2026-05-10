@@ -65,6 +65,23 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
   const [showToken, setShowToken] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showFindUrl, setShowFindUrl] = useState(false);
+
+  // The "Where do I find my Shopify URL?" disclosure stays open across
+  // tab switches, route changes, and page reloads. Without this, a
+  // background query refetch can briefly unmount this form and reset
+  // the disclosure to closed — which surprised at least one user.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("bms-shopify-find-url-open") === "1") {
+        setShowFindUrl(true);
+      }
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("bms-shopify-find-url-open", showFindUrl ? "1" : "0");
+    } catch { /* ignore */ }
+  }, [showFindUrl]);
   const [syncProd,  setSyncProd]  = useState(true);
   const [syncOrd,   setSyncOrd]   = useState(false);
 
