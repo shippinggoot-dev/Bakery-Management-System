@@ -2,10 +2,66 @@
 
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink } from "@trpc/client";
+import { httpBatchLink, type TRPCLink } from "@trpc/client";
+import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
+import type { AppRouter } from "@bakery/api";
 import { api } from "./react";
 import { DiagnosticsRecorder } from "@/components/DiagnosticsRecorder";
+import { createClientSupabase } from "@/lib/supabase/client";
+
+/**
+ * Catches UNAUTHORIZED errors caused by an expired Supabase JWT,
+ * refreshes the session, and retries the operation once. Without this,
+ * a user whose token aged out (e.g. spent >1h pasting Shopify
+ * credentials) sees "You must be signed in to do that." even though
+ * the app shell still says they're logged in.
+ *
+ * Only retries once per call, and only for UNAUTHORIZED — every other
+ * error is forwarded as-is. If the refresh itself fails, the original
+ * error is forwarded so the user sees something rather than nothing.
+ */
+const authRetryLink: TRPCLink<AppRouter> = () => {
+  return ({ next, op }) => {
+    return observable((observer) => {
+      let retried = false;
+      let activeUnsub: (() => void) | null = null;
+
+      const run = () => {
+        const sub = next(op).subscribe({
+          next:     (value) => observer.next(value),
+          complete: ()      => observer.complete(),
+          error:    (err) => {
+            const isUnauthorized = err.data?.code === "UNAUTHORIZED";
+            if (!isUnauthorized || retried) {
+              observer.error(err);
+              return;
+            }
+            retried = true;
+            (async () => {
+              try {
+                const supabase = createClientSupabase();
+                const { error: refreshErr } = await supabase.auth.refreshSession();
+                if (refreshErr) {
+                  observer.error(err);
+                  return;
+                }
+              } catch {
+                observer.error(err);
+                return;
+              }
+              run();
+            })();
+          },
+        });
+        activeUnsub = () => sub.unsubscribe();
+      };
+
+      run();
+      return () => activeUnsub?.();
+    });
+  };
+};
 
 function makeQueryClient() {
   return new QueryClient({
@@ -47,6 +103,9 @@ export function TRPCReactProvider({
   const [trpcClient] = useState(() =>
     api.createClient({
       links: [
+        // Order matters: authRetryLink must wrap httpBatchLink so it sees
+        // the network error before it bubbles up to React Query.
+        authRetryLink,
         httpBatchLink({
           url: "/api/trpc",
           transformer: superjson,
