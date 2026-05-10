@@ -910,5 +910,57 @@
         "worthKnowing3": "Hvis noe slutter å fungere, kom tilbake til Innstillinger → Shopify for å kjøre oppsettet på nytt."
       }
     }
+  },
+  "diagnostics": {
+    "title": "Diagnostikk",
+    "subtitle": "Sanntidsdata for tRPC-prosedyrer og databasen. Hjelper med å finne ut hvorfor sider av og til henger eller ikke lastes.",
+    "loading": "Laster…",
+    "confirmClearServer": "Slett alle metrikker på serveren? Dette kan ikke angres.",
+    "probe": {
+      "title": "Databasens helsesjekk",
+      "description": "Kjører SELECT 1 tre ganger på rad. Første kall viser kaldstart-latens; senere kall viser varm basislinje.",
+      "run": "Kjør sjekk (3 kall)",
+      "running": "Kjører…",
+      "ok": "OK",
+      "fail": "Feilet",
+      "db": "DB",
+      "total": "totalt",
+      "ms": "ms",
+      "hint": "Hvis kall #1 er tregt, men #2 og #3 er raske, var databasen kald. Hvis alle tre er trege, ligger flaskehalsen et annet sted (nettverk, auth, eller databasen er overbelastet)."
+    },
+    "server": {
+      "title": "Trege og feilede spørringer (siste 24t)",
+      "description": "Lagret på serveren. Bare prosedyrer tregere enn 1500 ms eller som feilet logges.",
+      "clear": "Slett alle",
+      "empty": "Ingen trege eller feilede spørringer de siste 24 timene."
+    },
+    "recent": {
+      "title": "Siste tregge/feilede logg",
+      "description": "De 100 siste oppføringene fra serverloggen.",
+      "empty": "Ingenting logget enda."
+    },
+    "client": {
+      "title": "Denne nettleseren — per prosedyre",
+      "description": "Tidtaking fra ende til ende observert fra denne enheten, inkludert nettverk. Fanger hver spørring, rask eller treg.",
+      "clear": "Tøm lokal logg",
+      "empty": "Ingen spørringer logget enda fra denne nettleseren."
+    },
+    "clientRecent": {
+      "title": "Denne nettleseren — siste spørringer",
+      "description": "De 50 siste spørringene fra denne enheten.",
+      "empty": "Ingenting logget enda."
+    },
+    "table": {
+      "procedure": "Prosedyre",
+      "count": "Antall",
+      "errors": "Feil",
+      "p50": "p50 (ms)",
+      "p95": "p95 (ms)",
+      "max": "Maks (ms)",
+      "when": "Når",
+      "duration": "Varighet (ms)",
+      "status": "Status",
+      "error": "Feil"
+    }
   }
 }

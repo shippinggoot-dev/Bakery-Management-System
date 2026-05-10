@@ -37,6 +37,7 @@ export * from "./custom-options";
 export * from "./premade-cakes";
 export * from "./user-preferences";
 export * from "./customer-sale-items";
+export * from "./query-metrics";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.

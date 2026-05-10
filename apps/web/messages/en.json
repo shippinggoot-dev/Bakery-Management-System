@@ -910,5 +910,57 @@
         "worthKnowing3": "If something stops working, come back to Settings → Shopify to re-run setup."
       }
     }
+  },
+  "diagnostics": {
+    "title": "Diagnostics",
+    "subtitle": "Live timing data for tRPC procedures and the database. Helps pinpoint why pages occasionally hang or fail to load.",
+    "loading": "Loading…",
+    "confirmClearServer": "Delete all server-side metric rows? This cannot be undone.",
+    "probe": {
+      "title": "Database health probe",
+      "description": "Runs SELECT 1 three times in a row. The first call shows cold-start latency; later calls show the warm baseline.",
+      "run": "Run probe (3 calls)",
+      "running": "Running…",
+      "ok": "OK",
+      "fail": "Failed",
+      "db": "DB",
+      "total": "total",
+      "ms": "ms",
+      "hint": "If call #1 is slow but #2 and #3 are fast, the database was cold. If all three are slow, the bottleneck is elsewhere (network, auth, or the DB itself is overloaded)."
+    },
+    "server": {
+      "title": "Slow & failed queries (last 24h)",
+      "description": "Captured server-side. Only procedures slower than 1500 ms or that errored are logged.",
+      "clear": "Clear all",
+      "empty": "No slow or failed queries in the last 24 hours."
+    },
+    "recent": {
+      "title": "Recent slow/failed log",
+      "description": "Most recent 100 entries from the server log.",
+      "empty": "Nothing logged yet."
+    },
+    "client": {
+      "title": "This browser — per procedure",
+      "description": "End-to-end timings observed from this device, including network. Captures every query, fast or slow.",
+      "clear": "Clear local log",
+      "empty": "No queries logged yet from this browser."
+    },
+    "clientRecent": {
+      "title": "This browser — recent queries",
+      "description": "Most recent 50 queries fired from this device.",
+      "empty": "Nothing logged yet."
+    },
+    "table": {
+      "procedure": "Procedure",
+      "count": "Count",
+      "errors": "Errors",
+      "p50": "p50 (ms)",
+      "p95": "p95 (ms)",
+      "max": "Max (ms)",
+      "when": "When",
+      "duration": "Duration (ms)",
+      "status": "Status",
+      "error": "Error"
+    }
   }
 }

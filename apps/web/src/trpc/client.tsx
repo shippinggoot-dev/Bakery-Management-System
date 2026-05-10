@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import { api } from "./react";
+import { DiagnosticsRecorder } from "@/components/DiagnosticsRecorder";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -60,7 +61,10 @@ export function TRPCReactProvider({
 
   return (
     <api.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <DiagnosticsRecorder />
+        {children}
+      </QueryClientProvider>
     </api.Provider>
   );
 }
