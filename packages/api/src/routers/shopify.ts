@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { eq, and } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { shopifySettings, recipes, premadeCakes, customers, customerSales } from "@bakery/db";
@@ -12,6 +13,28 @@ import {
 
 const API_VERSION = "2024-10";
 
+/**
+ * Stable error codes shared with the client. The client maps each to a
+ * localized message. Codes prefix the TRPCError message so they survive
+ * the wire (e.g. "[NOT_MYSHOPIFY] www.sucre.no"). Anything not prefixed
+ * falls through to a generic error message.
+ */
+export const SHOPIFY_ERROR_CODES = {
+  NOT_MYSHOPIFY:        "NOT_MYSHOPIFY",
+  INVALID_DOMAIN:       "INVALID_DOMAIN",
+  INVALID_TOKEN_FORMAT: "INVALID_TOKEN_FORMAT",
+  AUTH_FAILED:          "AUTH_FAILED",
+  MISSING_SCOPES:       "MISSING_SCOPES",
+  CANNOT_REACH:         "CANNOT_REACH",
+} as const;
+
+function shopifyError(code: keyof typeof SHOPIFY_ERROR_CODES, detail: string): TRPCError {
+  return new TRPCError({
+    code:    "BAD_REQUEST",
+    message: `[${code}] ${detail}`,
+  });
+}
+
 async function shopifyFetch<T>(
   domain: string,
   token: string,
@@ -19,30 +42,82 @@ async function shopifyFetch<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `https://${domain}/admin/api/${API_VERSION}${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": token,
-      ...(options.headers as Record<string, string> | undefined),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token,
+        ...(options.headers as Record<string, string> | undefined),
+      },
+    });
+  } catch (err) {
+    // Network-level failure — DNS, connection refused, etc.
+    throw shopifyError(
+      "CANNOT_REACH",
+      err instanceof Error ? err.message : "network error",
+    );
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    if (res.status === 401) {
+      throw shopifyError("AUTH_FAILED", `${res.status}: ${body || res.statusText}`);
+    }
+    if (res.status === 403) {
+      throw shopifyError("MISSING_SCOPES", `${res.status}: ${body || res.statusText}`);
+    }
+    if (res.status === 404) {
+      throw shopifyError("CANNOT_REACH", `${res.status}: ${body || res.statusText}`);
+    }
     throw new Error(`Shopify API ${res.status}: ${body || res.statusText}`);
   }
   return res.json() as Promise<T>;
 }
 
-/** Normalize a user-entered store URL to the bare myshopify.com domain. */
+/**
+ * Normalize a user-entered store URL to the bare myshopify.com domain.
+ * Throws a typed shopifyError if the input is clearly not a Shopify
+ * admin domain (e.g. someone pasted their public storefront URL).
+ *
+ * Accepts:
+ *   "my-bakery"                          → "my-bakery.myshopify.com"
+ *   "my-bakery.myshopify.com"            → "my-bakery.myshopify.com"
+ *   "https://my-bakery.myshopify.com"    → "my-bakery.myshopify.com"
+ *   "https://www.my-bakery.myshopify.com/admin" → "my-bakery.myshopify.com"
+ *
+ * Rejects:
+ *   "www.sucre.no"        → NOT_MYSHOPIFY (storefront, not admin)
+ *   "sucre.no"            → NOT_MYSHOPIFY
+ *   "my bakery"           → INVALID_DOMAIN (whitespace/invalid chars)
+ */
 function normaliseDomain(raw: string): string {
   let domain = raw.trim().toLowerCase()
     .replace(/^https?:\/\//, "")
-    .replace(/\/.*$/, ""); // strip any path
-  // If user typed just the store name (no dots), append .myshopify.com
-  if (!domain.includes(".")) domain = `${domain}.myshopify.com`;
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "");
+
+  if (!domain) {
+    throw shopifyError("INVALID_DOMAIN", "empty");
+  }
+
+  // Bare handle: "my-bakery" → "my-bakery.myshopify.com"
+  if (!domain.includes(".")) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(domain)) {
+      throw shopifyError("INVALID_DOMAIN", raw);
+    }
+    return `${domain}.myshopify.com`;
+  }
+
+  // Has a dot — must be a *.myshopify.com domain
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(domain)) {
+    throw shopifyError("NOT_MYSHOPIFY", raw);
+  }
   return domain;
 }
+
+/** Shopify Admin API tokens look like shpat_<32+ chars> or shpca_<32+ chars>. */
+const SHOPIFY_TOKEN_RE = /^shp[a-z]{2}_[A-Za-z0-9]{20,}$/;
 
 /** Return a masked preview of the token — safe to send to the client. */
 function maskToken(token: string): string {
@@ -94,6 +169,9 @@ export const shopifyRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       const domain = normaliseDomain(input.shopDomain);
+      if (!SHOPIFY_TOKEN_RE.test(input.accessToken)) {
+        throw shopifyError("INVALID_TOKEN_FORMAT", "token format");
+      }
 
       // Validate credentials against Shopify before saving
       const { shop } = await shopifyFetch<{

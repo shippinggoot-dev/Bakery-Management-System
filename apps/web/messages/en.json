@@ -500,7 +500,32 @@
     "saveSecret": "Save secret",
     "secretSaved": "Saved!",
     "lastSynced": "Last synced {date}",
-    "tokenPreview": "Token:"
+    "tokenPreview": "Token:",
+    "shopifyForm": {
+      "domainHint": "Your Shopify admin URL, e.g.",
+      "domainWrong": "That doesn't look like a Shopify admin URL. It must end in .myshopify.com — that's not the same as your public store address.",
+      "domainOk": "Looks like a valid Shopify admin domain.",
+      "domainHandlePreview": "We'll connect to {canonical}",
+      "tokenWrongFormat": "That doesn't look like an Admin API token. It should start with \"shpat_\" and be copied from your custom app's API credentials page.",
+      "tokenOk": "Token format looks right.",
+      "showFindUrl": "Where do I find my Shopify URL?",
+      "hideFindUrl": "Hide help",
+      "findUrl": {
+        "title": "Your Shopify admin URL is the one ending in .myshopify.com",
+        "step1": "Open your Shopify admin (the page where you manage products and orders).",
+        "step2": "Click Settings → Domains.",
+        "step3": "Look for the domain marked as primary or the one ending in .myshopify.com — copy that whole URL.",
+        "openAdmin": "Open Shopify admin"
+      },
+      "errors": {
+        "notMyshopify": "{input} looks like your public store address, not your Shopify admin URL. Shopify needs the admin URL — the one ending in .myshopify.com. See \"Where do I find my Shopify URL?\" below.",
+        "invalidDomain": "That domain isn't valid. It should look like my-bakery.myshopify.com (only letters, numbers and hyphens).",
+        "invalidTokenFormat": "That doesn't look like an Admin API token. It should start with \"shpat_\" and be at least 20 characters long.",
+        "authFailed": "Shopify rejected the token. Double-check you copied the full Admin API access token, with no spaces.",
+        "missingScopes": "The token works, but it's missing some permissions. Re-install the custom app and tick: read_products, write_products, read_orders, read_customers.",
+        "cannotReach": "We couldn't reach that store. Check the domain ends in .myshopify.com and that the store is published."
+      }
+    }
   },
   "todos": {
     "title": "To-Do",

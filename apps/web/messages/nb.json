@@ -500,7 +500,32 @@
     "saveSecret": "Lagre hemmelighet",
     "secretSaved": "Lagret!",
     "lastSynced": "Sist synkronisert {date}",
-    "tokenPreview": "Token:"
+    "tokenPreview": "Token:",
+    "shopifyForm": {
+      "domainHint": "Shopify-admin-URL-en din, f.eks.",
+      "domainWrong": "Dette ser ikke ut som en Shopify-admin-URL. Den må slutte på .myshopify.com — det er ikke det samme som adressen kundene ser.",
+      "domainOk": "Ser ut som en gyldig Shopify-admin-adresse.",
+      "domainHandlePreview": "Vi kobler til {canonical}",
+      "tokenWrongFormat": "Dette ser ikke ut som en Admin API-nøkkel. Den skal begynne med «shpat_» og kopieres fra API-legitimasjon-siden i din egendefinerte app.",
+      "tokenOk": "Nøkkelformatet ser riktig ut.",
+      "showFindUrl": "Hvor finner jeg Shopify-URL-en min?",
+      "hideFindUrl": "Skjul hjelp",
+      "findUrl": {
+        "title": "Shopify-admin-URL-en din er den som slutter på .myshopify.com",
+        "step1": "Åpne Shopify-admin (siden der du administrerer produkter og bestillinger).",
+        "step2": "Klikk Innstillinger → Domener.",
+        "step3": "Se etter domenet merket som primært eller det som slutter på .myshopify.com — kopier hele URL-en.",
+        "openAdmin": "Åpne Shopify-admin"
+      },
+      "errors": {
+        "notMyshopify": "{input} ser ut som adressen kundene bruker, ikke Shopify-admin-URL-en din. Shopify trenger admin-URL-en — den som slutter på .myshopify.com. Se «Hvor finner jeg Shopify-URL-en min?» under.",
+        "invalidDomain": "Domenet er ikke gyldig. Det skal se ut som my-bakery.myshopify.com (bare bokstaver, tall og bindestreker).",
+        "invalidTokenFormat": "Dette ser ikke ut som en Admin API-nøkkel. Den skal begynne med «shpat_» og være minst 20 tegn lang.",
+        "authFailed": "Shopify avviste nøkkelen. Kontroller at du kopierte hele Admin API-tilgangstokenet, uten mellomrom.",
+        "missingScopes": "Nøkkelen virker, men mangler tilganger. Installer den egendefinerte appen på nytt og kryss av: read_products, write_products, read_orders, read_customers.",
+        "cannotReach": "Vi fant ikke butikken. Sjekk at domenet slutter på .myshopify.com og at butikken er publisert."
+      }
+    }
   },
   "todos": {
     "title": "Gjøremål",

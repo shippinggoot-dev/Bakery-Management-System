@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 import { createClientSupabase } from "@/lib/supabase/client";
 import { usePersonalization, THEMES, type ThemeId } from "@/components/ThemeProvider";
@@ -18,14 +19,52 @@ const SETUP_STEPS = [
   { n: 5, text: 'Click Install app, then copy the Admin API access token shown once.' },
 ];
 
+// ── Connect-form helpers ──────────────────────────────────────────────────────
+
+/**
+ * Mirror of server-side normaliseDomain — strips protocol/www/path and
+ * lowercases. Used for live preview so the user sees the cleaned-up
+ * value reflected back. Pure function, no validation throws here.
+ */
+function previewDomain(raw: string): string {
+  return raw.trim().toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "");
+}
+
+const MYSHOPIFY_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
+const HANDLE_RE    = /^[a-z0-9][a-z0-9-]*$/;
+const TOKEN_RE     = /^shp[a-z]{2}_[A-Za-z0-9]{20,}$/;
+
+type DomainState = { ok: boolean; canonical: string | null; reason: "empty" | "wrong" | "ok-handle" | "ok-domain" };
+
+function checkDomain(raw: string): DomainState {
+  const cleaned = previewDomain(raw);
+  if (!cleaned) return { ok: false, canonical: null, reason: "empty" };
+  if (MYSHOPIFY_RE.test(cleaned)) return { ok: true, canonical: cleaned, reason: "ok-domain" };
+  if (HANDLE_RE.test(cleaned))    return { ok: true, canonical: `${cleaned}.myshopify.com`, reason: "ok-handle" };
+  return { ok: false, canonical: null, reason: "wrong" };
+}
+
+/** Parse a "[CODE] detail" message thrown by the server. */
+function parseShopifyError(message: string | undefined): { code: string | null; detail: string } {
+  if (!message) return { code: null, detail: "" };
+  const m = message.match(/^\[([A-Z_]+)\]\s*(.*)$/);
+  if (!m) return { code: null, detail: message };
+  return { code: m[1] ?? null, detail: m[2] ?? "" };
+}
+
 // ── Connect form ──────────────────────────────────────────────────────────────
 
 function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
+  const t = useTranslations("settings.shopifyForm");
   const utils = api.useUtils();
   const [domain,    setDomain]    = useState("");
   const [token,     setToken]     = useState("");
   const [showToken, setShowToken] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showFindUrl, setShowFindUrl] = useState(false);
   const [syncProd,  setSyncProd]  = useState(true);
   const [syncOrd,   setSyncOrd]   = useState(false);
 
@@ -33,10 +72,44 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
     onSuccess: () => { utils.shopify.getSettings.invalidate(); onSuccess(); },
   });
 
+  const domainState = useMemo(() => checkDomain(domain), [domain]);
+  const tokenState  = useMemo(() => ({
+    ok: TOKEN_RE.test(token),
+    empty: token.length === 0,
+  }), [token]);
+  const formValid = domainState.ok && tokenState.ok;
+
+  /** Snap the input to the cleaned canonical form once the user blurs it. */
+  function handleDomainBlur() {
+    const state = checkDomain(domain);
+    if (state.canonical && state.canonical !== domain) {
+      setDomain(state.canonical);
+    } else if (!state.ok && state.reason === "wrong") {
+      // Show the cleaned (non-myshopify) value so the user sees what was rejected.
+      const cleaned = previewDomain(domain);
+      if (cleaned && cleaned !== domain) setDomain(cleaned);
+    }
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!formValid) return;
     connect.mutate({ shopDomain: domain, accessToken: token, syncProducts: syncProd, syncOrders: syncOrd });
   }
+
+  const error = parseShopifyError(connect.error?.message);
+  const errorText = (() => {
+    if (!connect.error) return null;
+    switch (error.code) {
+      case "NOT_MYSHOPIFY":        return t("errors.notMyshopify", { input: error.detail });
+      case "INVALID_DOMAIN":       return t("errors.invalidDomain");
+      case "INVALID_TOKEN_FORMAT": return t("errors.invalidTokenFormat");
+      case "AUTH_FAILED":          return t("errors.authFailed");
+      case "MISSING_SCOPES":       return t("errors.missingScopes");
+      case "CANNOT_REACH":         return t("errors.cannotReach");
+      default:                     return connect.error.message;
+    }
+  })();
 
   return (
     <div className="space-y-5">
@@ -70,34 +143,78 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
 
       {/* Credentials form */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        {connect.error && (
+        {errorText && (
           <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-            {connect.error.message.includes("Shopify API 401") || connect.error.message.includes("401")
-              ? "Invalid access token — make sure you copied the full token from Shopify."
-              : connect.error.message.includes("ENOTFOUND") || connect.error.message.includes("404")
-              ? "Store not found — check your store domain."
-              : connect.error.message}
+            {errorText}
           </div>
         )}
 
         <div>
           <label className="form-label">Store domain</label>
           <input
-            className="form-input"
+            className={`form-input ${
+              domain && !domainState.ok ? "border-red-300 focus:border-red-400" : ""
+            } ${domain && domainState.ok ? "border-emerald-300 focus:border-emerald-400" : ""}`}
             placeholder="my-bakery.myshopify.com"
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
+            onBlur={handleDomainBlur}
             autoFocus
             required
           />
-          <p className="text-xs text-gray-600 mt-1">Your Shopify store URL, e.g. <span className="font-mono">my-bakery.myshopify.com</span></p>
+          {/* Live validation feedback */}
+          {domain && domainState.reason === "wrong" && (
+            <p className="text-xs text-red-600 mt-1">{t("domainWrong")}</p>
+          )}
+          {domain && domainState.reason === "ok-handle" && (
+            <p className="text-xs text-emerald-700 mt-1">
+              ✓ {t("domainHandlePreview", { canonical: domainState.canonical ?? "" })}
+            </p>
+          )}
+          {domain && domainState.reason === "ok-domain" && (
+            <p className="text-xs text-emerald-700 mt-1">✓ {t("domainOk")}</p>
+          )}
+          {!domain && (
+            <p className="text-xs text-gray-600 mt-1">
+              {t("domainHint")} <span className="font-mono">my-bakery.myshopify.com</span>
+            </p>
+          )}
+
+          {/* Where do I find this? disclosure */}
+          <button
+            type="button"
+            onClick={() => setShowFindUrl((v) => !v)}
+            className="mt-2 text-xs text-brand-500 hover:text-brand-400 underline underline-offset-2"
+          >
+            {showFindUrl ? t("hideFindUrl") : t("showFindUrl")}
+          </button>
+          {showFindUrl && (
+            <div className="mt-2 rounded-lg bg-rose-50 border border-rose-100 p-3 text-xs text-gray-700 space-y-2">
+              <p className="font-semibold text-gray-800">{t("findUrl.title")}</p>
+              <ol className="space-y-1.5 list-decimal list-inside">
+                <li>{t("findUrl.step1")}</li>
+                <li>{t("findUrl.step2")}</li>
+                <li>{t("findUrl.step3")}</li>
+              </ol>
+              <a
+                href="https://admin.shopify.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-md bg-white border border-rose-200 text-brand-500 hover:bg-rose-50 text-xs font-medium transition-colors"
+              >
+                {t("findUrl.openAdmin")} ↗
+              </a>
+            </div>
+          )}
         </div>
 
         <div>
           <label className="form-label">Admin API access token</label>
           <div className="flex gap-2">
             <input
-              className="form-input font-mono text-sm flex-1"
+              className={`form-input font-mono text-sm flex-1 ${
+                token && !tokenState.ok ? "border-red-300 focus:border-red-400" : ""
+              } ${token && tokenState.ok ? "border-emerald-300 focus:border-emerald-400" : ""}`}
               placeholder="shpat_••••••••••••••••••••••••••••••••"
               type={showToken ? "text" : "password"}
               value={token}
@@ -112,6 +229,12 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
               {showToken ? "Hide" : "Show"}
             </button>
           </div>
+          {token && !tokenState.ok && (
+            <p className="text-xs text-red-600 mt-1">{t("tokenWrongFormat")}</p>
+          )}
+          {token && tokenState.ok && (
+            <p className="text-xs text-emerald-700 mt-1">✓ {t("tokenOk")}</p>
+          )}
         </div>
 
         <div className="rounded-xl bg-rose-50 border border-rose-100 px-4 py-3 space-y-2.5">
@@ -136,7 +259,7 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
 
         <button
           type="submit"
-          disabled={connect.isPending || !domain || !token}
+          disabled={connect.isPending || !formValid}
           className="w-full py-2.5 rounded-xl bg-[#96bf48]/20 text-[#96bf48] border border-[#96bf48]/30 hover:bg-[#96bf48]/30 font-semibold text-sm transition-colors disabled:opacity-50"
         >
           {connect.isPending ? "Connecting…" : "Connect to Shopify"}
