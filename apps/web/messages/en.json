@@ -814,7 +814,26 @@
     "stockDeductions": "Stock deductions"
   },
   "dashboard": {
-    "integrationsHint": "Optional integrations — Shopify, email, Instagram — live in <link>Settings</link>."
+    "integrationsHint": "Optional integrations — Shopify, email, Instagram — live in <link>Settings</link>.",
+    "batchesEmpty": "Nothing scheduled — plan today's production",
+    "shopifyTitle": "Shopify",
+    "shopifyOptional": "Optional",
+    "shopifyOffer": "Sync orders and products from your shop into the planner.",
+    "shopifySetUp": "Set up →",
+    "shopifyDismiss": "Hide Shopify tile",
+    "shopifyOrdersToday_one": "order today",
+    "shopifyOrdersToday_other": "orders today",
+    "shopifyNeedsReview_one": "needs your review",
+    "shopifyNeedsReview_other": "need your review",
+    "shopifyAllLinked": "All orders linked to recipes",
+    "shopifyConnectedTo": "Connected to {name}",
+    "shopifyLink": "Settings →",
+    "tomorrowTitle": "Tomorrow",
+    "tomorrowLink": "Plan →",
+    "tomorrowCakeOrders_one": "cake order due",
+    "tomorrowCakeOrders_other": "cake orders due",
+    "tomorrowBatches_one": "batch scheduled",
+    "tomorrowBatches_other": "batches scheduled"
   },
   "wizard": {
     "stepProgress": "Step {current} of {total}",

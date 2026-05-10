@@ -4,7 +4,8 @@ import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { userPreferences } from "@bakery/db";
 
 const DEFAULTS = {
-  confirmBatchCompletion: true,
+  confirmBatchCompletion:    true,
+  dashboardShowShopifyTile:  true,
 };
 
 export const preferencesRouter = createTRPCRouter({
@@ -21,7 +22,8 @@ export const preferencesRouter = createTRPCRouter({
     });
     if (!row) return DEFAULTS;
     return {
-      confirmBatchCompletion: row.confirmBatchCompletion,
+      confirmBatchCompletion:    row.confirmBatchCompletion,
+      dashboardShowShopifyTile:  row.dashboardShowShopifyTile,
     };
   }),
 
@@ -29,7 +31,8 @@ export const preferencesRouter = createTRPCRouter({
   update: protectedProcedure
     .input(
       z.object({
-        confirmBatchCompletion: z.boolean().optional(),
+        confirmBatchCompletion:    z.boolean().optional(),
+        dashboardShowShopifyTile:  z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -44,6 +47,9 @@ export const preferencesRouter = createTRPCRouter({
             ...(input.confirmBatchCompletion !== undefined
               ? { confirmBatchCompletion: input.confirmBatchCompletion }
               : {}),
+            ...(input.dashboardShowShopifyTile !== undefined
+              ? { dashboardShowShopifyTile: input.dashboardShowShopifyTile }
+              : {}),
             updatedAt: new Date(),
           })
           .where(eq(userPreferences.userId, ctx.user.id))
@@ -55,7 +61,8 @@ export const preferencesRouter = createTRPCRouter({
         .insert(userPreferences)
         .values({
           userId: ctx.user.id,
-          confirmBatchCompletion: input.confirmBatchCompletion ?? DEFAULTS.confirmBatchCompletion,
+          confirmBatchCompletion:   input.confirmBatchCompletion   ?? DEFAULTS.confirmBatchCompletion,
+          dashboardShowShopifyTile: input.dashboardShowShopifyTile ?? DEFAULTS.dashboardShowShopifyTile,
         })
         .returning();
       return inserted;

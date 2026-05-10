@@ -560,7 +560,8 @@ function WorkflowPreferencesSection() {
     onSuccess: () => utils.preferences.get.invalidate(),
   });
 
-  const confirmBatch = prefs?.confirmBatchCompletion ?? true;
+  const confirmBatch    = prefs?.confirmBatchCompletion    ?? true;
+  const showShopifyTile = prefs?.dashboardShowShopifyTile  ?? true;
 
   return (
     <div id="workflow" className="card overflow-hidden scroll-mt-6">
@@ -589,6 +590,25 @@ function WorkflowPreferencesSection() {
             <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
               When you mark a scheduled batch as &ldquo;done&rdquo;, the system shows a summary first
               and waits for your confirmation. Turn this off if you prefer one-tap recording.
+            </p>
+          </div>
+        </label>
+
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showShopifyTile}
+            onChange={(e) => update.mutate({ dashboardShowShopifyTile: e.target.checked })}
+            disabled={update.isPending}
+            className="w-4 h-4 mt-0.5 rounded accent-brand-500"
+          />
+          <div className="flex-1">
+            <p className="text-sm text-gray-700 font-medium">
+              Show Shopify tile on dashboard
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+              When on, the dashboard shows a Shopify tile (with order activity if connected, or a
+              setup hint if not). When off, the Tomorrow preview takes its place.
             </p>
           </div>
         </label>

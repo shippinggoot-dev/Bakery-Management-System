@@ -1,4 +1,4 @@
-import { eq, and, gte, ne, desc, inArray, sql } from "drizzle-orm";
+import { eq, and, gte, ne, desc, inArray, sql, isNull, isNotNull } from "drizzle-orm";
 import { createTRPCRouter, publicProcedure } from "../trpc";
 import {
   todos,
@@ -9,6 +9,7 @@ import {
   wasteLogs,
   stockMovements,
   recipes,
+  shopifySettings,
 } from "@bakery/db";
 import { inventoryService } from "../services/inventory";
 
@@ -197,6 +198,103 @@ export const dashboardRouter = createTRPCRouter({
         ? { name: topRow.recipeName, totalQty: parseFloat(topRow.totalQty) }
         : null,
       wasteEventCount: parseInt(wasteCountRows[0]?.count ?? "0", 10),
+    };
+  }),
+
+  /**
+   * Cake orders + production batches scheduled for tomorrow.
+   * Drives the "Tomorrow at a glance" tile when the Shopify tile is dismissed.
+   */
+  getTomorrowPreview: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) return { cakeOrderCount: 0, batchCount: 0 };
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowIso = tomorrow.toISOString().slice(0, 10);
+
+    const [cakeRows, batchRows] = await Promise.all([
+      ctx.db
+        .select({ count: sql<string>`COUNT(*)` })
+        .from(cakeOrders)
+        .where(and(
+          eq(cakeOrders.ownerId, ctx.user.id),
+          eq(cakeOrders.dueDate, tomorrowIso),
+          ne(cakeOrders.status, "cancelled"),
+        ))
+        .catch(() => [{ count: "0" }]),
+
+      ctx.db
+        .select({ count: sql<string>`COUNT(*)` })
+        .from(productionSchedules)
+        .where(and(
+          eq(productionSchedules.ownerId, ctx.user.id),
+          eq(productionSchedules.scheduledDate, tomorrowIso),
+          inArray(productionSchedules.status, ["planned", "in_progress"]),
+        ))
+        .catch(() => [{ count: "0" }]),
+    ]);
+
+    return {
+      cakeOrderCount: parseInt(cakeRows[0]?.count  ?? "0", 10),
+      batchCount:     parseInt(batchRows[0]?.count ?? "0", 10),
+    };
+  }),
+
+  /**
+   * Shopify activity for today + connection state.
+   * Drives the "Shopify" tile when shown.
+   *
+   *  - isConnected:      whether the user has a Shopify connection at all
+   *  - shopName:         display name of the connected shop (null if not connected)
+   *  - ordersToday:      cake orders created today via the Shopify webhook
+   *  - pendingReview:    Shopify-sourced orders that haven't been linked to
+   *                      a recipe yet (need human triage)
+   */
+  getShopifyActivity: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) {
+      return { isConnected: false, shopName: null, ordersToday: 0, pendingReview: 0 };
+    }
+
+    const settings = await ctx.db.query.shopifySettings.findFirst({
+      where: eq(shopifySettings.ownerId, ctx.user.id),
+      columns: { isConnected: true, shopName: true },
+    }).catch(() => null);
+
+    if (!settings?.isConnected) {
+      return { isConnected: false, shopName: null, ordersToday: 0, pendingReview: 0 };
+    }
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [todayRows, pendingRows] = await Promise.all([
+      ctx.db
+        .select({ count: sql<string>`COUNT(*)` })
+        .from(cakeOrders)
+        .where(and(
+          eq(cakeOrders.ownerId, ctx.user.id),
+          isNotNull(cakeOrders.shopifyOrderId),
+          gte(cakeOrders.createdAt, todayStart),
+        ))
+        .catch(() => [{ count: "0" }]),
+
+      ctx.db
+        .select({ count: sql<string>`COUNT(*)` })
+        .from(cakeOrders)
+        .where(and(
+          eq(cakeOrders.ownerId, ctx.user.id),
+          isNotNull(cakeOrders.shopifyOrderId),
+          eq(cakeOrders.status, "pending"),
+          isNull(cakeOrders.recipeId),
+        ))
+        .catch(() => [{ count: "0" }]),
+    ]);
+
+    return {
+      isConnected:   true,
+      shopName:      settings.shopName,
+      ordersToday:   parseInt(todayRows[0]?.count   ?? "0", 10),
+      pendingReview: parseInt(pendingRows[0]?.count ?? "0", 10),
     };
   }),
 

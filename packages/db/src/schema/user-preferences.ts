@@ -16,6 +16,11 @@ export const userPreferences = pgTable("user_preferences", {
    *  fires silently with a toast. Default true (foolproof). */
   confirmBatchCompletion: boolean("confirm_batch_completion").notNull().default(true),
 
+  /** When true, the Shopify activity tile occupies the 4th slot in the
+   *  dashboard's Today row. When false, the Tomorrow preview tile takes
+   *  that slot instead. Default true so users discover the integration. */
+  dashboardShowShopifyTile: boolean("dashboard_show_shopify_tile").notNull().default(true),
+
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -814,7 +814,26 @@
     "stockDeductions": "Lagertrekk"
   },
   "dashboard": {
-    "integrationsHint": "Valgfrie integrasjoner — Shopify, e-post, Instagram — finnes i <link>Innstillinger</link>."
+    "integrationsHint": "Valgfrie integrasjoner — Shopify, e-post, Instagram — finnes i <link>Innstillinger</link>.",
+    "batchesEmpty": "Ingenting planlagt — legg inn dagens produksjon",
+    "shopifyTitle": "Shopify",
+    "shopifyOptional": "Valgfri",
+    "shopifyOffer": "Synkroniser bestillinger og produkter fra butikken din inn i planleggeren.",
+    "shopifySetUp": "Sett opp →",
+    "shopifyDismiss": "Skjul Shopify-flis",
+    "shopifyOrdersToday_one": "bestilling i dag",
+    "shopifyOrdersToday_other": "bestillinger i dag",
+    "shopifyNeedsReview_one": "trenger gjennomgang",
+    "shopifyNeedsReview_other": "trenger gjennomgang",
+    "shopifyAllLinked": "Alle bestillinger er koblet til oppskrifter",
+    "shopifyConnectedTo": "Koblet til {name}",
+    "shopifyLink": "Innstillinger →",
+    "tomorrowTitle": "I morgen",
+    "tomorrowLink": "Planlegg →",
+    "tomorrowCakeOrders_one": "kakebestilling",
+    "tomorrowCakeOrders_other": "kakebestillinger",
+    "tomorrowBatches_one": "batch planlagt",
+    "tomorrowBatches_other": "batcher planlagt"
   },
   "wizard": {
     "stepProgress": "Steg {current} av {total}",

@@ -40,24 +40,41 @@ function TodayCard({
   title,
   href,
   linkLabel,
+  onDismiss,
+  dismissLabel,
   children,
 }: {
-  title:     string;
-  href:      string;
-  linkLabel: string;
-  children:  React.ReactNode;
+  title:         string;
+  href:          string;
+  linkLabel:     string;
+  /** Optional dismiss action — renders an X button next to the corner link. */
+  onDismiss?:    () => void;
+  dismissLabel?: string;
+  children:      React.ReactNode;
 }) {
   return (
     <div className="card p-5 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="section-title">{title}</h3>
-        <Link
-          href={href}
-          prefetch={false}
-          className="text-xs text-brand-500 hover:text-brand-700 font-medium flex-shrink-0 transition-colors"
-        >
-          {linkLabel}
-        </Link>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Link
+            href={href}
+            prefetch={false}
+            className="text-xs text-brand-500 hover:text-brand-700 font-medium transition-colors"
+          >
+            {linkLabel}
+          </Link>
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={onDismiss}
+              aria-label={dismissLabel}
+              className="text-gray-300 hover:text-gray-500 text-base leading-none transition-colors"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
       {children}
     </div>
@@ -118,13 +135,22 @@ function WeekSkeleton() {
 const STOCKTAKE_NUDGE_THRESHOLD_DAYS = 30;
 
 export default function DashboardPage() {
-  const t = useTranslations("dashboard");
+  const t       = useTranslations("dashboard");
+  const utils   = api.useUtils();
   const { data: today,        isLoading: loadingToday } = api.dashboard.getTodaySummary.useQuery();
   const { data: week,         isLoading: loadingWeek  } = api.dashboard.getWeekSummary.useQuery();
   const { data: lastStocktake }                         = api.dashboard.getLastStocktake.useQuery();
+  const { data: tomorrow }                              = api.dashboard.getTomorrowPreview.useQuery();
+  const { data: shopify }                               = api.dashboard.getShopifyActivity.useQuery();
+  const { data: prefs }                                 = api.preferences.get.useQuery();
+
+  const showShopifyTile = prefs?.dashboardShowShopifyTile ?? true;
+
+  const updatePrefs = api.preferences.update.useMutation({
+    onSuccess: () => utils.preferences.get.invalidate(),
+  });
 
   const showDeliveries = (today?.deliveriesToday.length ?? 0) > 0;
-  const showBatches    = (today?.batchesToday.length    ?? 0) > 0;
 
   // Show nudge if there's never been a stocktake, or it's been a while
   const stocktakeOverdue =
@@ -221,6 +247,97 @@ export default function DashboardPage() {
             )}
           </TodayCard>
 
+          {/* Slot 3 — Batches today (permanent, with empty state) */}
+          <TodayCard title="Batches to bake" href="/production" linkLabel="Production →">
+            {today && today.batchesToday.length > 0 ? (
+              <ul className="space-y-3">
+                {today.batchesToday.map((b) => (
+                  <li key={b.id} className="flex items-start gap-2.5">
+                    <span className="text-lg leading-none mt-0.5 flex-shrink-0">
+                      {SHIFT_ICON[b.shift] ?? "🍳"}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {b.recipeName ?? b.recipe?.name ?? "—"}
+                      </p>
+                      <p className="text-xs text-brand-400 mt-0.5">
+                        {SHIFT_LABEL[b.shift] ?? b.shift} · {b.batchCount}× batch
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-brand-300">{t("batchesEmpty")}</p>
+            )}
+          </TodayCard>
+
+          {/* Slot 4 — Shopify (offer or activity) OR Tomorrow when dismissed */}
+          {showShopifyTile ? (
+            shopify?.isConnected ? (
+              <TodayCard title={t("shopifyTitle")} href="/settings" linkLabel={t("shopifyLink")}>
+                <div>
+                  <p className="text-4xl font-bold text-brand-700 leading-none">
+                    {shopify.ordersToday}
+                  </p>
+                  <p className="text-xs text-brand-400 mt-1">
+                    {shopify.ordersToday === 1 ? t("shopifyOrdersToday_one") : t("shopifyOrdersToday_other")}
+                  </p>
+                </div>
+                <div className="border-t border-rose-100 pt-3 space-y-1.5">
+                  {shopify.pendingReview > 0 ? (
+                    <p className="text-sm text-amber-700">
+                      <span className="font-semibold">{shopify.pendingReview}</span>{" "}
+                      {shopify.pendingReview === 1 ? t("shopifyNeedsReview_one") : t("shopifyNeedsReview_other")}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-brand-300">{t("shopifyAllLinked")}</p>
+                  )}
+                  {shopify.shopName && (
+                    <p className="text-xs text-gray-400 truncate">
+                      {t("shopifyConnectedTo", { name: shopify.shopName })}
+                    </p>
+                  )}
+                </div>
+              </TodayCard>
+            ) : (
+              <TodayCard
+                title={t("shopifyTitle")}
+                href="/settings"
+                linkLabel={t("shopifySetUp")}
+                onDismiss={() => updatePrefs.mutate({ dashboardShowShopifyTile: false })}
+                dismissLabel={t("shopifyDismiss")}
+              >
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{t("shopifyOptional")}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{t("shopifyOffer")}</p>
+              </TodayCard>
+            )
+          ) : (
+            <TodayCard title={t("tomorrowTitle")} href="/planner" linkLabel={t("tomorrowLink")}>
+              <div className="space-y-2.5">
+                <div>
+                  <p className="text-4xl font-bold text-brand-700 leading-none">
+                    {tomorrow?.cakeOrderCount ?? 0}
+                  </p>
+                  <p className="text-xs text-brand-400 mt-1">
+                    {(tomorrow?.cakeOrderCount ?? 0) === 1
+                      ? t("tomorrowCakeOrders_one")
+                      : t("tomorrowCakeOrders_other")}
+                  </p>
+                </div>
+                <div className="border-t border-rose-100 pt-2.5">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">{tomorrow?.batchCount ?? 0}</span>{" "}
+                    {(tomorrow?.batchCount ?? 0) === 1
+                      ? t("tomorrowBatches_one")
+                      : t("tomorrowBatches_other")}
+                  </p>
+                </div>
+              </div>
+            </TodayCard>
+          )}
+
+          {/* Conditional 5th tile — Deliveries (only on days with incoming POs) */}
           {showDeliveries && (
             <TodayCard title="Deliveries today" href="/purchase-orders" linkLabel="Orders →">
               <ul className="space-y-3">
@@ -237,28 +354,6 @@ export default function DashboardPage() {
                     }`}>
                       {d.status}
                     </span>
-                  </li>
-                ))}
-              </ul>
-            </TodayCard>
-          )}
-
-          {showBatches && (
-            <TodayCard title="Batches to bake" href="/production" linkLabel="Production →">
-              <ul className="space-y-3">
-                {today!.batchesToday.map((b) => (
-                  <li key={b.id} className="flex items-start gap-2.5">
-                    <span className="text-lg leading-none mt-0.5 flex-shrink-0">
-                      {SHIFT_ICON[b.shift] ?? "🍳"}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">
-                        {b.recipeName ?? b.recipe?.name ?? "—"}
-                      </p>
-                      <p className="text-xs text-brand-400 mt-0.5">
-                        {SHIFT_LABEL[b.shift] ?? b.shift} · {b.batchCount}× batch
-                      </p>
-                    </div>
                   </li>
                 ))}
               </ul>
