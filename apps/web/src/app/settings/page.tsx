@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import { createClientSupabase } from "@/lib/supabase/client";
 import { usePersonalization, THEMES, type ThemeId } from "@/components/ThemeProvider";
+import { ShopifyWebhookWizard } from "@/components/wizard/ShopifyWebhookWizard";
 
 // ── Shopify setup guide steps ─────────────────────────────────────────────────
 
@@ -193,6 +194,8 @@ function ConnectedPanel({
     lastOrderImportAt: Date | null;
     lastInventorySyncAt: Date | null;
     shopifyLocationId: string | null;
+    webhookConfigured: boolean;
+    lastWebhookReceivedAt: Date | null;
   };
   onDisconnect: () => void;
 }) {
@@ -203,18 +206,7 @@ function ConnectedPanel({
   const [customerResult,   setCustomerResult]   = useState<{ count: number; total: number; skipped: number; errors: string[] } | null>(null);
   const [orderResult,      setOrderResult]      = useState<{ count: number; total: number; errors: string[] } | null>(null);
   const [ordersOpen,       setOrdersOpen]       = useState(false);
-  const [webhookSecret,    setWebhookSecret]    = useState("");
-  const [webhookSaved,     setWebhookSaved]     = useState(false);
-  const [showWebhookGuide, setShowWebhookGuide] = useState(false);
-  const [showSecret,       setShowSecret]       = useState(false);
-
-  const webhookUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/api/webhooks/shopify`
-    : "/api/webhooks/shopify";
-
-  const saveWebhookSecret = api.shopify.updateWebhookSecret.useMutation({
-    onSuccess: () => { setWebhookSaved(true); setTimeout(() => setWebhookSaved(false), 3000); },
-  });
+  const [wizardOpen,       setWizardOpen]       = useState(false);
 
   const syncRecipes = api.shopify.syncRecipes.useMutation({
     onSuccess: (data) => {
@@ -509,96 +501,43 @@ function ConnectedPanel({
         </div>
       )}
 
-      {/* Webhook setup */}
+      {/* Automatic order intake — wizard launcher */}
       <div className="card overflow-hidden">
-        <div className="px-5 py-3 border-b border-rose-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          Automatic order intake (Webhook)
-        </div>
-        <div className="px-5 py-4 space-y-4">
-          <p className="text-sm text-gray-600">
-            Set up a webhook in Shopify so every new order automatically appears in your Planner — no manual importing needed.
+        <div className="px-5 py-3 border-b border-rose-100 flex items-center gap-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex-1">
+            Automatic order intake
           </p>
-
-          {/* Collapsible guide */}
-          <div className="rounded-xl bg-rose-50 border border-rose-100 overflow-hidden">
-            <button
-              onClick={() => setShowWebhookGuide((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
-            >
-              <span>Step-by-step setup guide</span>
-              <span className={`text-gray-400 transition-transform duration-200 ${showWebhookGuide ? "rotate-180" : ""}`}>▼</span>
-            </button>
-            {showWebhookGuide && (
-              <div className="px-4 pb-4 border-t border-rose-100">
-                <ol className="mt-3 space-y-3">
-                  {[
-                    { n: 1, text: "In your Shopify admin, go to Settings → Notifications." },
-                    { n: 2, text: "Scroll to the bottom and click \"Create webhook\"." },
-                    { n: 3, text: "Set Event to \"Order creation\", Format to JSON." },
-                    { n: 4, text: "Paste the URL below into the URL field and save." },
-                    { n: 5, text: "Shopify will show you a signing secret. Copy it and paste it into the field below." },
-                  ].map((s) => (
-                    <li key={s.n} className="flex gap-3 text-sm text-gray-500">
-                      <span className="w-5 h-5 rounded-full bg-[#96bf48]/20 text-[#96bf48] text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                        {s.n}
-                      </span>
-                      <span>{s.text}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )}
-          </div>
-
-          {/* Webhook URL (copy) */}
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-1.5">Your webhook URL</p>
-            <div className="flex gap-2">
-              <input
-                readOnly
-                value={webhookUrl}
-                className="flex-1 form-input font-mono text-xs bg-rose-50 text-gray-700 cursor-text select-all"
-              />
-              <button
-                onClick={() => navigator.clipboard.writeText(webhookUrl)}
-                className="px-3 py-1.5 rounded-xl bg-gray-100 text-gray-600 text-xs hover:bg-gray-200 transition-colors"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-
-          {/* Webhook secret */}
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-1.5">Shopify signing secret</p>
-            <div className="flex gap-2">
-              <input
-                className="flex-1 form-input font-mono text-sm"
-                type={showSecret ? "text" : "password"}
-                placeholder="whsec_••••••••••••••••"
-                value={webhookSecret}
-                onChange={(e) => setWebhookSecret(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setShowSecret((v) => !v)}
-                className="px-3 rounded-xl bg-gray-100 border border-rose-200 text-gray-500 hover:text-gray-700 text-xs transition-colors"
-              >
-                {showSecret ? "Hide" : "Show"}
-              </button>
-            </div>
-            <p className="text-xs text-gray-600 mt-1">Found in Shopify under Settings → Notifications → Webhooks after creating the webhook.</p>
-          </div>
-
+          {settings.webhookConfigured ? (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#96bf48]/15 text-[#96bf48] border border-[#96bf48]/30">
+              Active
+            </span>
+          ) : (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+              Not set up
+            </span>
+          )}
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <p className="text-sm text-gray-600">
+            {settings.webhookConfigured
+              ? "New Shopify orders flow into your Planner automatically. You can re-run setup if you've rotated your signing secret."
+              : "Skip manual imports — set up automatic order delivery so every new Shopify order appears in your Planner within seconds."}
+          </p>
+          {settings.lastWebhookReceivedAt && (
+            <p className="text-xs text-gray-500">
+              Last order received {fmtDate(settings.lastWebhookReceivedAt)}
+            </p>
+          )}
           <button
-            onClick={() => { if (webhookSecret.trim()) saveWebhookSecret.mutate({ webhookSecret: webhookSecret.trim() }); }}
-            disabled={!webhookSecret.trim() || saveWebhookSecret.isPending}
-            className="w-full py-2.5 rounded-xl bg-[#96bf48]/15 text-[#96bf48] border border-[#96bf48]/25 hover:bg-[#96bf48]/25 text-sm font-medium transition-colors disabled:opacity-50"
+            onClick={() => setWizardOpen(true)}
+            className="w-full py-2.5 rounded-xl bg-[#96bf48]/15 text-[#96bf48] border border-[#96bf48]/25 hover:bg-[#96bf48]/25 text-sm font-medium transition-colors"
           >
-            {saveWebhookSecret.isPending ? "Saving…" : webhookSaved ? "Saved ✓" : "Save signing secret"}
+            {settings.webhookConfigured ? "Re-run setup" : "Set up automatic orders"}
           </button>
         </div>
       </div>
+
+      <ShopifyWebhookWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
     </div>
   );
 }

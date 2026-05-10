@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 
 const NOK = new Intl.NumberFormat("nb-NO", {
@@ -117,6 +118,7 @@ function WeekSkeleton() {
 const STOCKTAKE_NUDGE_THRESHOLD_DAYS = 30;
 
 export default function DashboardPage() {
+  const t = useTranslations("dashboard");
   const { data: today,        isLoading: loadingToday } = api.dashboard.getTodaySummary.useQuery();
   const { data: week,         isLoading: loadingWeek  } = api.dashboard.getWeekSummary.useQuery();
   const { data: lastStocktake }                         = api.dashboard.getLastStocktake.useQuery();
@@ -345,6 +347,22 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* Quiet discovery line for optional integrations — not central to the
+          product, just a low-key hint that they exist for those who want them. */}
+      <p className="text-center text-xs text-gray-400 pt-2">
+        {t.rich("integrationsHint", {
+          link: (chunks) => (
+            <Link
+              href="/settings"
+              prefetch={false}
+              className="text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors"
+            >
+              {chunks}
+            </Link>
+          ),
+        })}
+      </p>
 
     </div>
   );

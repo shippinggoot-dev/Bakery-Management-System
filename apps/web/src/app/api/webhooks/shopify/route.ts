@@ -122,6 +122,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Mark that we successfully received and authenticated a webhook from this
+  // shop. The setup wizard polls this to confirm end-to-end delivery.
+  await db.update(shopifySettings)
+    .set({ lastWebhookReceivedAt: new Date(), updatedAt: new Date() })
+    .where(eq(shopifySettings.ownerId, settings.ownerId));
+
   let order: ShopifyOrder;
   try {
     order = JSON.parse(rawBody) as ShopifyOrder;

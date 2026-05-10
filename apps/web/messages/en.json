@@ -812,5 +812,84 @@
     "draftPosCreated": "Draft purchase orders created:",
     "draftPosBody": "{count} ingredient(s) hit reorder point. Check Orders for draft POs.",
     "stockDeductions": "Stock deductions"
+  },
+  "dashboard": {
+    "integrationsHint": "Optional integrations — Shopify, email, Instagram — live in <link>Settings</link>."
+  },
+  "wizard": {
+    "stepProgress": "Step {current} of {total}",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done",
+    "close": "Close",
+    "copy": "Copy",
+    "copied": "Copied ✓",
+    "show": "Show",
+    "hide": "Hide",
+    "saving": "Saving…",
+    "testWatchingTitle": "Watching for a test order",
+    "testWatchingBody": "Place a test order in Shopify. We'll spot it within seconds.",
+    "testWatchingTimeLeft": "{seconds}s left",
+    "testDetectedTitle": "Test order received",
+    "testDetectedBody": "Your webhook is working — orders will flow in automatically from now on.",
+    "testTimeoutTitle": "Still waiting…",
+    "testTimeoutBody": "We haven't seen a test order yet. Make sure you placed one in your Shopify admin, or come back to test later — your setup is saved either way.",
+    "testTimeoutRetry": "Watch again",
+    "shopifyWebhook": {
+      "wizardTitle": "Receive Shopify orders automatically",
+      "outcome": {
+        "start": "Start setup",
+        "reRunStart": "Re-run setup",
+        "maybeLater": "Maybe later",
+        "intro": "Right now, Shopify orders only show up in your Planner if you remember to click 'Import orders.' After this setup, every new order arrives within seconds of the customer placing it.",
+        "reRunIntro": "Your webhook is already set up. Re-running setup replaces your signing secret — useful if you've rotated it in Shopify or if something has stopped working.",
+        "changesHeading": "What changes day-to-day:",
+        "change1": "Orders appear automatically — you don't have to do anything",
+        "change2": "Orders that match a recipe get scheduled for production",
+        "change3": "Orders with unfamiliar products stay as 'pending' for review",
+        "requirements": "About 10 minutes. You'll need access to your Shopify admin.",
+        "reRunRequirements": "About 5 minutes. You'll need access to your Shopify admin."
+      },
+      "openShopify": {
+        "title": "Open your Shopify admin",
+        "body": "Open Shopify in a new tab and go to <settings>Settings</settings> → <notifications>Notifications</notifications>.",
+        "link": "Open Shopify admin",
+        "next": "I'm there"
+      },
+      "createWebhook": {
+        "title": "Create the webhook",
+        "step1": "Scroll to the bottom of the Notifications page and click <create>Create webhook</create>.",
+        "step2": "Set <event>Event</event> to <order>Order creation</order>.",
+        "step3": "Set <format>Format</format> to <json>JSON</json>.",
+        "next": "Done"
+      },
+      "pasteUrl": {
+        "title": "Paste the URL",
+        "body": "Paste this <webhook>webhook URL</webhook> into the <url>URL</url> field in Shopify, then click <save>Save</save>.",
+        "webhookHint": "A webhook URL is the address Shopify will send each new order to — like a mailbox for instant notifications.",
+        "next": "Saved in Shopify"
+      },
+      "pasteSecret": {
+        "title": "Paste the signing secret",
+        "body": "Shopify just showed you a <secret>signing secret</secret>. Copy it now — Shopify only shows it <once>once</once>.",
+        "secretHint": "A signing secret is a private code Shopify uses to prove that incoming orders really came from your shop and weren't sent by someone else.",
+        "fieldLabel": "Signing secret",
+        "next": "Save and continue"
+      },
+      "test": {
+        "title": "Test the connection",
+        "intro": "Almost done. Place a test order in Shopify — we'll watch for it here and confirm everything's wired up.",
+        "skip": "Skip — I'll test with a real order"
+      },
+      "done": {
+        "title": "Setup complete",
+        "primary": "Open the Planner",
+        "intro": "From now on, new Shopify orders appear in your Planner automatically. Auto-scheduled when products match a recipe; otherwise they sit as 'pending' for your review.",
+        "worthKnowingHeading": "Worth knowing",
+        "worthKnowing1": "This doesn't sync inventory back to Shopify — that's a separate setting in Settings → Shopify.",
+        "worthKnowing2": "You still fulfil and ship from Shopify itself; this only pulls orders in.",
+        "worthKnowing3": "If something stops working, come back to Settings → Shopify to re-run setup."
+      }
+    }
   }
 }

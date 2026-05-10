@@ -812,5 +812,84 @@
     "draftPosCreated": "Bestillingsutkast laget:",
     "draftPosBody": "{count} ingrediens(er) nådde bestillingsgrensen. Se Bestillinger for utkast.",
     "stockDeductions": "Lagertrekk"
+  },
+  "dashboard": {
+    "integrationsHint": "Valgfrie integrasjoner — Shopify, e-post, Instagram — finnes i <link>Innstillinger</link>."
+  },
+  "wizard": {
+    "stepProgress": "Steg {current} av {total}",
+    "back": "Tilbake",
+    "next": "Neste",
+    "done": "Ferdig",
+    "close": "Lukk",
+    "copy": "Kopier",
+    "copied": "Kopiert ✓",
+    "show": "Vis",
+    "hide": "Skjul",
+    "saving": "Lagrer…",
+    "testWatchingTitle": "Venter på en testbestilling",
+    "testWatchingBody": "Legg inn en testbestilling i Shopify. Vi oppdager den i løpet av sekunder.",
+    "testWatchingTimeLeft": "{seconds}s igjen",
+    "testDetectedTitle": "Testbestilling mottatt",
+    "testDetectedBody": "Webhooken din fungerer — bestillinger kommer inn automatisk fra nå av.",
+    "testTimeoutTitle": "Venter fortsatt…",
+    "testTimeoutBody": "Vi har ikke sett en testbestilling ennå. Sjekk at du har lagt inn én i Shopify-administrasjonen, eller kom tilbake og test senere — oppsettet ditt er lagret uansett.",
+    "testTimeoutRetry": "Vent igjen",
+    "shopifyWebhook": {
+      "wizardTitle": "Motta Shopify-bestillinger automatisk",
+      "outcome": {
+        "start": "Start oppsett",
+        "reRunStart": "Kjør oppsett på nytt",
+        "maybeLater": "Kanskje senere",
+        "intro": "Akkurat nå dukker Shopify-bestillinger bare opp i Planleggeren hvis du husker å klikke 'Importer bestillinger'. Etter dette oppsettet kommer hver nye bestilling inn i løpet av sekunder etter at kunden har lagt den inn.",
+        "reRunIntro": "Webhooken din er allerede satt opp. Å kjøre oppsettet på nytt erstatter signeringskoden — nyttig hvis du har rotert den i Shopify eller hvis noe har sluttet å fungere.",
+        "changesHeading": "Hva endrer seg i hverdagen:",
+        "change1": "Bestillinger dukker opp automatisk — du trenger ikke gjøre noe",
+        "change2": "Bestillinger som matcher en oppskrift, blir planlagt for produksjon",
+        "change3": "Bestillinger med ukjente produkter blir liggende som 'venter' for gjennomgang",
+        "requirements": "Cirka 10 minutter. Du trenger tilgang til Shopify-administrasjonen.",
+        "reRunRequirements": "Cirka 5 minutter. Du trenger tilgang til Shopify-administrasjonen."
+      },
+      "openShopify": {
+        "title": "Åpne Shopify-administrasjonen",
+        "body": "Åpne Shopify i en ny fane og gå til <settings>Innstillinger</settings> → <notifications>Varsler</notifications>.",
+        "link": "Åpne Shopify-administrasjonen",
+        "next": "Jeg er der"
+      },
+      "createWebhook": {
+        "title": "Opprett webhooken",
+        "step1": "Bla helt nederst på Varsler-siden og klikk <create>Opprett webhook</create>.",
+        "step2": "Sett <event>Hendelse</event> til <order>Ordreoppretting</order>.",
+        "step3": "Sett <format>Format</format> til <json>JSON</json>.",
+        "next": "Ferdig"
+      },
+      "pasteUrl": {
+        "title": "Lim inn URL-en",
+        "body": "Lim denne <webhook>webhook-URL-en</webhook> inn i <url>URL</url>-feltet i Shopify, og klikk <save>Lagre</save>.",
+        "webhookHint": "En webhook-URL er adressen Shopify sender hver nye bestilling til — som en postkasse for umiddelbare varsler.",
+        "next": "Lagret i Shopify"
+      },
+      "pasteSecret": {
+        "title": "Lim inn signeringskoden",
+        "body": "Shopify viste deg nettopp en <secret>signeringskode</secret>. Kopier den nå — Shopify viser den bare <once>én gang</once>.",
+        "secretHint": "En signeringskode er en privat kode Shopify bruker for å bevise at innkommende bestillinger virkelig kom fra butikken din og ikke ble sendt av noen andre.",
+        "fieldLabel": "Signeringskode",
+        "next": "Lagre og fortsett"
+      },
+      "test": {
+        "title": "Test tilkoblingen",
+        "intro": "Nesten ferdig. Legg inn en testbestilling i Shopify — vi venter på den her og bekrefter at alt er koblet opp.",
+        "skip": "Hopp over — jeg tester med en ekte bestilling"
+      },
+      "done": {
+        "title": "Oppsett fullført",
+        "primary": "Åpne Planleggeren",
+        "intro": "Fra nå av dukker nye Shopify-bestillinger opp i Planleggeren automatisk. Automatisk planlagt når produkter matcher en oppskrift; ellers blir de stående som 'venter' for din gjennomgang.",
+        "worthKnowingHeading": "Verdt å vite",
+        "worthKnowing1": "Dette synkroniserer ikke lagerbeholdning tilbake til Shopify — det er en egen innstilling under Innstillinger → Shopify.",
+        "worthKnowing2": "Du oppfyller og sender fortsatt fra Shopify selv; dette henter bare bestillingene inn.",
+        "worthKnowing3": "Hvis noe slutter å fungere, kom tilbake til Innstillinger → Shopify for å kjøre oppsettet på nytt."
+      }
+    }
   }
 }

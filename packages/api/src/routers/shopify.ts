@@ -74,6 +74,10 @@ export const shopifyRouter = createTRPCRouter({
       lastOrderImportAt:      row.lastOrderImportAt,
       lastInventorySyncAt:    row.lastInventorySyncAt,
       shopifyLocationId:      row.shopifyLocationId,
+      /** Whether the user has saved a webhook signing secret — drives the
+       *  "Set up automatic orders" / "Active" state on the settings page. */
+      webhookConfigured:      !!row.webhookSecret,
+      lastWebhookReceivedAt:  row.lastWebhookReceivedAt,
     };
   }),
 
@@ -459,6 +463,19 @@ export const shopifyRouter = createTRPCRouter({
         .where(eq(shopifySettings.ownerId, ctx.user.id));
       return { ok: true };
     }),
+
+  /**
+   * Returns the timestamp of the most recently received Shopify webhook
+   * for this owner. Polled by the setup-wizard test step to confirm the
+   * webhook is actually being delivered.
+   */
+  checkRecentWebhook: protectedProcedure.query(async ({ ctx }) => {
+    const row = await ctx.db.query.shopifySettings.findFirst({
+      where: eq(shopifySettings.ownerId, ctx.user.id),
+      columns: { lastWebhookReceivedAt: true },
+    });
+    return { lastReceivedAt: row?.lastWebhookReceivedAt ?? null };
+  }),
 
   /**
    * Fetch the last 60 days of Shopify orders for review.

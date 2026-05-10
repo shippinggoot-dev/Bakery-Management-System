@@ -26,6 +26,9 @@ export const shopifySettings = pgTable("shopify_settings", {
   lastCustomerImportAt:  timestamp("last_customer_import_at"),
   lastOrderImportAt:     timestamp("last_order_import_at"),
   lastInventorySyncAt:   timestamp("last_inventory_sync_at"),
+  /** Updated every time we receive a valid Shopify webhook. Used by the
+   *  setup wizard's live test step to confirm the webhook is wired up. */
+  lastWebhookReceivedAt: timestamp("last_webhook_received_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
