@@ -9,16 +9,6 @@ import { createClientSupabase } from "@/lib/supabase/client";
 import { usePersonalization, THEMES, type ThemeId } from "@/components/ThemeProvider";
 import { ShopifyWebhookWizard } from "@/components/wizard/ShopifyWebhookWizard";
 
-// ── Shopify setup guide steps ─────────────────────────────────────────────────
-
-const SETUP_STEPS = [
-  { n: 1, text: 'In your Shopify admin, go to Settings → Apps and sales channels.' },
-  { n: 2, text: 'Click "Develop apps" and enable custom app development if prompted.' },
-  { n: 3, text: 'Click "Create an app" and give it a name (e.g. "Bakery Management").' },
-  { n: 4, text: 'Under Configuration → Admin API access scopes, enable: read_products, write_products, read_orders, read_customers.' },
-  { n: 5, text: 'Click Install app, then copy the Admin API access token shown once.' },
-];
-
 // ── Connect-form helpers ──────────────────────────────────────────────────────
 
 /**
@@ -35,7 +25,6 @@ function previewDomain(raw: string): string {
 
 const MYSHOPIFY_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
 const HANDLE_RE    = /^[a-z0-9][a-z0-9-]*$/;
-const TOKEN_RE     = /^shp[a-z]{2}_[A-Za-z0-9]{20,}$/;
 
 type DomainState = { ok: boolean; canonical: string | null; reason: "empty" | "wrong" | "ok-handle" | "ok-domain" };
 
@@ -47,29 +36,35 @@ function checkDomain(raw: string): DomainState {
   return { ok: false, canonical: null, reason: "wrong" };
 }
 
-/** Parse a "[CODE] detail" message thrown by the server. */
-function parseShopifyError(message: string | undefined): { code: string | null; detail: string } {
-  if (!message) return { code: null, detail: "" };
-  const m = message.match(/^\[([A-Z_]+)\]\s*(.*)$/);
-  if (!m) return { code: null, detail: message };
-  return { code: m[1] ?? null, detail: m[2] ?? "" };
+/**
+ * Map error codes from the OAuth callback (passed as ?shopify_error= on
+ * the redirect back to /settings) to translation keys.
+ */
+function shopifyErrorMessageKey(code: string): string {
+  switch (code) {
+    case "invalid_shop_domain":    return "errors.invalidDomain";
+    case "missing_params":         return "errors.cannotReach";
+    case "hmac_mismatch":          return "errors.hmacMismatch";
+    case "missing_state_cookie":
+    case "invalid_state_cookie":
+    case "state_mismatch":
+    case "shop_mismatch":          return "errors.stateMismatch";
+    case "token_exchange_failed":  return "errors.authFailed";
+    case "oauth_not_configured":   return "errors.notConfigured";
+    default:                       return "errors.generic";
+  }
 }
 
 // ── Connect form ──────────────────────────────────────────────────────────────
 
-function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
+function ConnectForm({ errorCode }: { errorCode: string | null }) {
   const t = useTranslations("settings.shopifyForm");
-  const utils = api.useUtils();
-  const [domain,    setDomain]    = useState("");
-  const [token,     setToken]     = useState("");
-  const [showToken, setShowToken] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
+  const [domain,      setDomain]      = useState("");
   const [showFindUrl, setShowFindUrl] = useState(false);
+  const [submitting,  setSubmitting]  = useState(false);
 
   // The "Where do I find my Shopify URL?" disclosure stays open across
-  // tab switches, route changes, and page reloads. Without this, a
-  // background query refetch can briefly unmount this form and reset
-  // the disclosure to closed — which surprised at least one user.
+  // tab switches, route changes, and page reloads.
   useEffect(() => {
     try {
       if (window.localStorage.getItem("bms-shopify-find-url-open") === "1") {
@@ -82,19 +77,9 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
       window.localStorage.setItem("bms-shopify-find-url-open", showFindUrl ? "1" : "0");
     } catch { /* ignore */ }
   }, [showFindUrl]);
-  const [syncProd,  setSyncProd]  = useState(true);
-  const [syncOrd,   setSyncOrd]   = useState(false);
-
-  const connect = api.shopify.connect.useMutation({
-    onSuccess: () => { utils.shopify.getSettings.invalidate(); onSuccess(); },
-  });
 
   const domainState = useMemo(() => checkDomain(domain), [domain]);
-  const tokenState  = useMemo(() => ({
-    ok: TOKEN_RE.test(token),
-    empty: token.length === 0,
-  }), [token]);
-  const formValid = domainState.ok && tokenState.ok;
+  const formValid   = domainState.ok;
 
   /** Snap the input to the cleaned canonical form once the user blurs it. */
   function handleDomainBlur() {
@@ -102,7 +87,6 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
     if (state.canonical && state.canonical !== domain) {
       setDomain(state.canonical);
     } else if (!state.ok && state.reason === "wrong") {
-      // Show the cleaned (non-myshopify) value so the user sees what was rejected.
       const cleaned = previewDomain(domain);
       if (cleaned && cleaned !== domain) setDomain(cleaned);
     }
@@ -111,54 +95,28 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!formValid) return;
-    connect.mutate({ shopDomain: domain, accessToken: token, syncProducts: syncProd, syncOrders: syncOrd });
+    setSubmitting(true);
+    // Hand off to the server-side OAuth start endpoint. It will redirect
+    // to Shopify, which after merchant approval redirects back to
+    // /api/shopify/oauth/callback, which lands back on /settings.
+    const shop = domainState.canonical ?? domain;
+    window.location.href = `/api/shopify/oauth/start?shop=${encodeURIComponent(shop)}`;
   }
 
-  const error = parseShopifyError(connect.error?.message);
-  const errorText = (() => {
-    if (!connect.error) return null;
-    switch (error.code) {
-      case "NOT_MYSHOPIFY":        return t("errors.notMyshopify", { input: error.detail });
-      case "INVALID_DOMAIN":       return t("errors.invalidDomain");
-      case "INVALID_TOKEN_FORMAT": return t("errors.invalidTokenFormat");
-      case "AUTH_FAILED":          return t("errors.authFailed");
-      case "MISSING_SCOPES":       return t("errors.missingScopes");
-      case "CANNOT_REACH":         return t("errors.cannotReach");
-      default:                     return connect.error.message;
-    }
-  })();
+  const errorText = errorCode ? t(shopifyErrorMessageKey(errorCode)) : null;
 
   return (
     <div className="space-y-5">
-      {/* Setup guide */}
-      <div className="rounded-xl bg-rose-50 border border-rose-100 overflow-hidden">
-        <button
-          onClick={() => setShowGuide((v) => !v)}
-          className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
-        >
-          <span>How to get your access token</span>
-          <span className={`text-gray-400 transition-transform duration-200 ${showGuide ? "rotate-180" : ""}`}>▼</span>
-        </button>
-        {showGuide && (
-          <div className="px-5 pb-4 border-t border-rose-100">
-            <ol className="mt-3 space-y-2">
-              {SETUP_STEPS.map((s) => (
-                <li key={s.n} className="flex gap-3 text-sm text-gray-500">
-                  <span className="w-5 h-5 rounded-full bg-brand-500/20 text-brand-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                    {s.n}
-                  </span>
-                  <span>{s.text}</span>
-                </li>
-              ))}
-            </ol>
-            <p className="mt-3 text-xs text-gray-600">
-              The token is shown only once — save it somewhere safe before pasting it here.
-            </p>
-          </div>
-        )}
+      {/* What happens when you click Connect */}
+      <div className="rounded-xl bg-rose-50 border border-rose-100 px-5 py-4">
+        <p className="text-sm text-gray-700 font-medium">{t("oauthIntro.title")}</p>
+        <ol className="mt-2.5 space-y-1.5 text-sm text-gray-600 list-decimal list-inside">
+          <li>{t("oauthIntro.step1")}</li>
+          <li>{t("oauthIntro.step2")}</li>
+          <li>{t("oauthIntro.step3")}</li>
+        </ol>
       </div>
 
-      {/* Credentials form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         {errorText && (
           <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -167,7 +125,7 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
         )}
 
         <div>
-          <label className="form-label">Store domain</label>
+          <label className="form-label">{t("storeDomainLabel")}</label>
           <input
             className={`form-input ${
               domain && !domainState.ok ? "border-red-300 focus:border-red-400" : ""
@@ -179,7 +137,6 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
             autoFocus
             required
           />
-          {/* Live validation feedback */}
           {domain && domainState.reason === "wrong" && (
             <p className="text-xs text-red-600 mt-1">{t("domainWrong")}</p>
           )}
@@ -197,7 +154,6 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
             </p>
           )}
 
-          {/* Where do I find this? disclosure */}
           <button
             type="button"
             onClick={() => setShowFindUrl((v) => !v)}
@@ -225,61 +181,12 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
           )}
         </div>
 
-        <div>
-          <label className="form-label">Admin API access token</label>
-          <div className="flex gap-2">
-            <input
-              className={`form-input font-mono text-sm flex-1 ${
-                token && !tokenState.ok ? "border-red-300 focus:border-red-400" : ""
-              } ${token && tokenState.ok ? "border-emerald-300 focus:border-emerald-400" : ""}`}
-              placeholder="shpat_••••••••••••••••••••••••••••••••"
-              type={showToken ? "text" : "password"}
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowToken((v) => !v)}
-              className="px-3 rounded-xl bg-gray-100 border border-rose-200 text-gray-500 hover:text-gray-700 text-xs transition-colors"
-            >
-              {showToken ? "Hide" : "Show"}
-            </button>
-          </div>
-          {token && !tokenState.ok && (
-            <p className="text-xs text-red-600 mt-1">{t("tokenWrongFormat")}</p>
-          )}
-          {token && tokenState.ok && (
-            <p className="text-xs text-emerald-700 mt-1">✓ {t("tokenOk")}</p>
-          )}
-        </div>
-
-        <div className="rounded-xl bg-rose-50 border border-rose-100 px-4 py-3 space-y-2.5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sync options</p>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={syncProd} onChange={(e) => setSyncProd(e.target.checked)}
-              className="w-4 h-4 rounded accent-brand-500" />
-            <div>
-              <p className="text-sm text-gray-700">Sync recipes → Shopify products</p>
-              <p className="text-xs text-gray-500">Exports your active recipes to your Shopify product catalog</p>
-            </div>
-          </label>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={syncOrd} onChange={(e) => setSyncOrd(e.target.checked)}
-              className="w-4 h-4 rounded accent-brand-500" />
-            <div>
-              <p className="text-sm text-gray-700">View Shopify orders in dashboard</p>
-              <p className="text-xs text-gray-500">Preview recent orders from your Shopify store</p>
-            </div>
-          </label>
-        </div>
-
         <button
           type="submit"
-          disabled={connect.isPending || !formValid}
+          disabled={submitting || !formValid}
           className="w-full py-2.5 rounded-xl bg-[#96bf48]/20 text-[#96bf48] border border-[#96bf48]/30 hover:bg-[#96bf48]/30 font-semibold text-sm transition-colors disabled:opacity-50"
         >
-          {connect.isPending ? "Connecting…" : "Connect to Shopify"}
+          {submitting ? t("redirecting") : t("connectButton")}
         </button>
       </form>
     </div>
@@ -320,7 +227,6 @@ function ImportResult({
 
 function ConnectedPanel({
   settings,
-  onDisconnect,
 }: {
   settings: {
     shopDomain: string;
@@ -337,7 +243,6 @@ function ConnectedPanel({
     webhookConfigured: boolean;
     lastWebhookReceivedAt: Date | null;
   };
-  onDisconnect: () => void;
 }) {
   const utils = api.useUtils();
 
@@ -393,7 +298,7 @@ function ConnectedPanel({
   });
 
   const disconnect = api.shopify.disconnect.useMutation({
-    onSuccess: () => { utils.shopify.getSettings.invalidate(); onDisconnect(); },
+    onSuccess: () => utils.shopify.getSettings.invalidate(),
   });
 
   return (
@@ -1181,10 +1086,11 @@ function InstagramSection({ justConnected }: { justConnected: boolean }) {
 export default function SettingsPage() {
   const [isLoggedIn,   setIsLoggedIn]   = useState(false);
   const [isAnonymous,  setIsAnonymous]  = useState(false);
-  const [connected,    setConnected]    = useState(false);
   const searchParams   = useSearchParams();
-  const justConnected  = searchParams.get("instagram") === "connected";
-  const instagramError = searchParams.get("instagram_error");
+  const justConnected         = searchParams.get("instagram") === "connected";
+  const instagramError        = searchParams.get("instagram_error");
+  const shopifyJustConnected  = searchParams.get("shopify") === "connected";
+  const shopifyErrorCode      = searchParams.get("shopify_error");
 
   useEffect(() => {
     const supabase = createClientSupabase();
@@ -1248,17 +1154,19 @@ export default function SettingsPage() {
         </div>
 
         <div className="px-6 py-5">
+          {shopifyJustConnected && shopify?.isConnected && (
+            <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 font-medium">
+              Shopify connected successfully.
+            </div>
+          )}
           {isLoading ? (
             <p className="text-sm text-gray-600 animate-pulse">Loading…</p>
           ) : isAnonymous ? (
             <p className="text-sm text-gray-600">Sign in to connect your Shopify store.</p>
           ) : shopify?.isConnected ? (
-            <ConnectedPanel
-              settings={shopify}
-              onDisconnect={() => setConnected(false)}
-            />
+            <ConnectedPanel settings={shopify} />
           ) : (
-            <ConnectForm onSuccess={() => setConnected(true)} />
+            <ConnectForm errorCode={shopifyErrorCode} />
           )}
         </div>
       </div>

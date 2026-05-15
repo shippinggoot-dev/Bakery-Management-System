@@ -502,14 +502,21 @@
     "lastSynced": "Last synced {date}",
     "tokenPreview": "Token:",
     "shopifyForm": {
+      "storeDomainLabel": "Shopify store domain",
+      "connectButton": "Connect with Shopify",
+      "redirecting": "Redirecting to Shopify…",
       "domainHint": "Your Shopify admin URL, e.g.",
       "domainWrong": "That doesn't look like a Shopify admin URL. It must end in .myshopify.com — that's not the same as your public store address.",
       "domainOk": "Looks like a valid Shopify admin domain.",
       "domainHandlePreview": "We'll connect to {canonical}",
-      "tokenWrongFormat": "That doesn't look like an Admin API token. It should start with \"shpat_\" and be copied from your custom app's API credentials page.",
-      "tokenOk": "Token format looks right.",
       "showFindUrl": "Where do I find my Shopify URL?",
       "hideFindUrl": "Hide help",
+      "oauthIntro": {
+        "title": "Connecting takes about 30 seconds.",
+        "step1": "Enter your Shopify store address below.",
+        "step2": "You'll be sent to Shopify to review the permissions our app needs.",
+        "step3": "Click Install in Shopify. You'll land back here, connected."
+      },
       "findUrl": {
         "title": "Your Shopify admin URL is the one ending in .myshopify.com",
         "step1": "Open your Shopify admin (the page where you manage products and orders).",
@@ -518,12 +525,14 @@
         "openAdmin": "Open Shopify admin"
       },
       "errors": {
-        "notMyshopify": "{input} looks like your public store address, not your Shopify admin URL. Shopify needs the admin URL — the one ending in .myshopify.com. See \"Where do I find my Shopify URL?\" below.",
         "invalidDomain": "That domain isn't valid. It should look like my-bakery.myshopify.com (only letters, numbers and hyphens).",
-        "invalidTokenFormat": "That doesn't look like an Admin API token. It should start with \"shpat_\" and be at least 20 characters long.",
-        "authFailed": "Shopify rejected the token. Double-check you copied the full Admin API access token, with no spaces.",
-        "missingScopes": "The token works, but it's missing some permissions. Re-install the custom app and tick: read_products, write_products, read_orders, read_customers.",
-        "cannotReach": "We couldn't reach that store. Check the domain ends in .myshopify.com and that the store is published."
+        "authFailed": "Shopify could not complete the installation. Try again, and if the problem persists check that the app is still published in your Shopify Dev Dashboard.",
+        "missingScopes": "The connection works but some permissions are missing. The bakery system needs: read_products, write_products, read_orders, read_customers.",
+        "cannotReach": "Something went wrong on the way back from Shopify. Please try connecting again.",
+        "hmacMismatch": "The response from Shopify could not be verified. This usually means the API secret is misconfigured — please contact support.",
+        "stateMismatch": "Your install session expired or didn't match. Please click Connect again to start fresh.",
+        "notConfigured": "Shopify integration isn't fully set up on this server yet. Please contact support.",
+        "generic": "Couldn't connect to Shopify. Please try again."
       }
     }
   },
