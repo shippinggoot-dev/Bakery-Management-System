@@ -73,12 +73,37 @@ export function normaliseShopDomain(raw: string): string | null {
 // ── HMAC signatures ───────────────────────────────────────────────────────────
 
 /**
- * Verify the `hmac` query-string param Shopify appends to OAuth callbacks.
+ * Build the exact message Shopify signs for an OAuth callback HMAC.
  *
- * Shopify's algorithm: sort all query params alphabetically (excluding the
- * `hmac` and `signature` params themselves), join as `k=v&k=v` *without*
- * URL-encoding, HMAC-SHA256 with the app's API secret, hex-encode, then
- * compare in constant time.
+ * Shopify's algorithm: drop the `hmac` and `signature` params, sort the rest
+ * by key, and join them as `key=value` with `&` — but the values stay
+ * *URL-encoded*, exactly as they arrived in the query string.
+ *
+ * The trap: `URLSearchParams.entries()` hands back *decoded* values. Feeding
+ * the sorted pairs back through `new URLSearchParams(...).toString()`
+ * re-applies the same `application/x-www-form-urlencoded` encoding Shopify
+ * used. This matters for the `host` param — it is base64 and contains `/`,
+ * `+` and `=`, which differ between the encoded and decoded forms, so signing
+ * the decoded form makes the HMAC silently never match. The classic params
+ * (code/shop/state/timestamp) are URL-safe, which is what made this look like
+ * an API-secret problem. This mirrors how Shopify's own @shopify/shopify-api
+ * library builds the message.
+ */
+function buildOAuthSigningMessage(params: URLSearchParams): string {
+  const pairs: Array<[string, string]> = [];
+  for (const [key, value] of params.entries()) {
+    if (key === "hmac" || key === "signature") continue;
+    pairs.push([key, value]);
+  }
+  // Sort by key in code-point order (matches Shopify; param keys are all ASCII).
+  pairs.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return new URLSearchParams(pairs).toString();
+}
+
+/**
+ * Verify the `hmac` query-string param Shopify appends to OAuth callbacks.
+ * HMAC-SHA256 of the signing message (see {@link buildOAuthSigningMessage})
+ * with the app's API secret, hex-encoded, compared in constant time.
  */
 export function verifyOAuthHmac(
   params: URLSearchParams,
@@ -87,13 +112,7 @@ export function verifyOAuthHmac(
   const hmac = params.get("hmac");
   if (!hmac) return false;
 
-  const sorted: string[] = [];
-  for (const [key, value] of params.entries()) {
-    if (key === "hmac" || key === "signature") continue;
-    sorted.push(`${key}=${value}`);
-  }
-  sorted.sort();
-  const message = sorted.join("&");
+  const message = buildOAuthSigningMessage(params);
 
   const expected = crypto
     .createHmac("sha256", apiSecret)
@@ -116,7 +135,9 @@ export function verifyOAuthHmac(
  *
  *   node -e "console.log(require('crypto').createHash('sha256').update('<paste-secret>').digest('hex').slice(0,8))"
  *
- * Remove this once the secret mismatch is diagnosed and fixed.
+ * `signingMessage` is built by {@link buildOAuthSigningMessage}, so the
+ * diagnostic reflects the exact message `verifyOAuthHmac` checks against.
+ * Remove this once the OAuth HMAC fix is confirmed.
  */
 export function debugOAuthHmac(
   params: URLSearchParams,
@@ -129,13 +150,7 @@ export function debugOAuthHmac(
   receivedHmac: string | null;
   computedHmac: string;
 } {
-  const sorted: string[] = [];
-  for (const [key, value] of params.entries()) {
-    if (key === "hmac" || key === "signature") continue;
-    sorted.push(`${key}=${value}`);
-  }
-  sorted.sort();
-  const message = sorted.join("&");
+  const message = buildOAuthSigningMessage(params);
 
   const computed = crypto
     .createHmac("sha256", apiSecret)

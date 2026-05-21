@@ -20,6 +20,34 @@ function fail(origin: string, code: string) {
 }
 
 /**
+ * TEMPORARY — redirect back to /settings with the error code *and* a
+ * base64url-encoded HMAC diagnostic, so the browser can render it in-page.
+ * The Vercel Hobby log viewer is unreliable, so we surface the diagnostic
+ * client-side instead. Remove together with debugOAuthHmac and the in-page
+ * debug box once the OAuth HMAC fix is confirmed.
+ */
+function failWithDebug(
+  origin: string,
+  code: string,
+  debug: ReturnType<typeof debugOAuthHmac>,
+) {
+  // Redact the one-time OAuth `code` before the signing message travels back
+  // through a browser-visible URL.
+  const exposed = {
+    ...debug,
+    signingMessage: debug.signingMessage.replace(
+      /(^|&)code=[^&]*/,
+      "$1code=REDACTED",
+    ),
+  };
+  const encoded = Buffer.from(JSON.stringify(exposed), "utf8").toString("base64url");
+  return NextResponse.redirect(
+    `${origin}/settings?shopify_error=${encodeURIComponent(code)}&shopify_debug=${encoded}`,
+    { status: 303 },
+  );
+}
+
+/**
  * Shopify OAuth callback. Reached after the merchant approves the install
  * on Shopify's side. Shopify appends `?code=&hmac=&shop=&state=&timestamp=`.
  *
@@ -55,14 +83,17 @@ export async function GET(req: NextRequest) {
 
   // 1. HMAC of the query params
   if (!verifyOAuthHmac(params, cfg.apiSecret)) {
-    // TEMPORARY: surface a full diagnostic so we can compare the secret
-    // fingerprint and signing inputs against what Shopify used. Remove once
-    // the mismatch is diagnosed.
+    // TEMPORARY: surface a full diagnostic so we can compare the signing
+    // inputs and secret fingerprint against what Shopify used. The console
+    // log keeps the full (unredacted) message for server-side inspection;
+    // failWithDebug redacts the one-time `code` from the browser copy.
+    // Remove once the HMAC fix is confirmed.
+    const debug = debugOAuthHmac(params, cfg.apiSecret);
     console.error(
       "[shopify-oauth-debug] HMAC verification failed",
-      JSON.stringify(debugOAuthHmac(params, cfg.apiSecret)),
+      JSON.stringify(debug),
     );
-    return fail(origin, "hmac_mismatch");
+    return failWithDebug(origin, "hmac_mismatch", debug);
   }
 
   // 2. State cookie

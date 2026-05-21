@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -34,6 +34,25 @@ function checkDomain(raw: string): DomainState {
   if (MYSHOPIFY_RE.test(cleaned)) return { ok: true, canonical: cleaned, reason: "ok-domain" };
   if (HANDLE_RE.test(cleaned))    return { ok: true, canonical: `${cleaned}.myshopify.com`, reason: "ok-handle" };
   return { ok: false, canonical: null, reason: "wrong" };
+}
+
+/**
+ * TEMPORARY dev-only diagnostic — decode the base64url `shopify_debug` param
+ * the OAuth callback attaches when HMAC verification fails, and pretty-print
+ * it as JSON for the in-page debug box below.
+ *
+ * English-only by design: this is a developer diagnostic, not user-facing UI,
+ * so it is intentionally exempt from the EN/NB i18n rule (see CLAUDE.md).
+ * Remove together with the debug box once the OAuth HMAC fix is confirmed.
+ */
+function decodeShopifyDebug(raw: string): string | null {
+  try {
+    let b64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4 !== 0) b64 += "=";
+    return JSON.stringify(JSON.parse(atob(b64)), null, 2);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -77,6 +96,33 @@ function ConnectForm({ errorCode }: { errorCode: string | null }) {
       window.localStorage.setItem("bms-shopify-find-url-open", showFindUrl ? "1" : "0");
     } catch { /* ignore */ }
   }, [showFindUrl]);
+
+  // Preserve a half-typed store domain across an accidental reload — e.g. the
+  // browser discarding an inactive tab to save memory. sessionStorage (not
+  // localStorage) so the draft clears when the tab closes rather than
+  // lingering for weeks after the connection is set up.
+  const skipFirstDraftSave = useRef(true);
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem("bms-shopify-domain-draft");
+      if (saved) setDomain(saved);
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    // Skip the initial run so the empty mount value can't wipe the saved
+    // draft before the restore effect above has had a chance to read it.
+    if (skipFirstDraftSave.current) {
+      skipFirstDraftSave.current = false;
+      return;
+    }
+    try {
+      if (domain) {
+        window.sessionStorage.setItem("bms-shopify-domain-draft", domain);
+      } else {
+        window.sessionStorage.removeItem("bms-shopify-domain-draft");
+      }
+    } catch { /* ignore */ }
+  }, [domain]);
 
   const domainState = useMemo(() => checkDomain(domain), [domain]);
   const formValid   = domainState.ok;
@@ -1117,6 +1163,9 @@ export default function SettingsPage() {
   const instagramError        = searchParams.get("instagram_error");
   const shopifyJustConnected  = searchParams.get("shopify") === "connected";
   const shopifyErrorCode      = searchParams.get("shopify_error");
+  // TEMPORARY dev-only diagnostic — see decodeShopifyDebug above.
+  const shopifyDebugRaw       = searchParams.get("shopify_debug");
+  const shopifyDebug          = shopifyDebugRaw ? decodeShopifyDebug(shopifyDebugRaw) : null;
 
   useEffect(() => {
     const supabase = createClientSupabase();
@@ -1194,6 +1243,15 @@ export default function SettingsPage() {
             <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 font-medium">
               Shopify connected successfully.
             </div>
+          )}
+          {/* TEMPORARY dev-only diagnostic box — renders the decoded OAuth
+              HMAC debug payload from the callback. English-only by design
+              (developer tool, not user-facing). Remove once the OAuth HMAC
+              fix is confirmed. */}
+          {shopifyDebug && (
+            <pre className="mb-4 overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-gray-700 bg-gray-900 px-4 py-3 font-mono text-[11px] leading-relaxed text-gray-100">
+              {shopifyDebug}
+            </pre>
           )}
           {isLoading ? (
             <ShopifyCardSkeleton />
