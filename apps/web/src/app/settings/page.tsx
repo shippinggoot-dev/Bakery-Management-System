@@ -225,6 +225,32 @@ function ImportResult({
   );
 }
 
+/**
+ * Skeleton shown while `api.shopify.getSettings` is still loading. Mirrors
+ * the rough shape and height of `ConnectForm` (the more common state for a
+ * fresh visitor) so the card doesn't jump in size once the query resolves.
+ */
+function ShopifyCardSkeleton() {
+  return (
+    <div className="space-y-5 animate-pulse" aria-hidden="true">
+      <div className="rounded-xl bg-rose-50 border border-rose-100 px-5 py-4">
+        <div className="h-4 bg-rose-100 rounded w-2/3 mb-2.5" />
+        <div className="space-y-1.5">
+          <div className="h-3 bg-rose-100 rounded w-11/12" />
+          <div className="h-3 bg-rose-100 rounded w-4/5" />
+          <div className="h-3 bg-rose-100 rounded w-3/4" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 bg-rose-100 rounded w-24" />
+        <div className="h-10 bg-rose-50 border border-rose-100 rounded-md" />
+        <div className="h-3 bg-rose-100 rounded w-48" />
+      </div>
+      <div className="h-10 bg-rose-100 rounded-xl" />
+    </div>
+  );
+}
+
 function ConnectedPanel({
   settings,
 }: {
@@ -1142,7 +1168,17 @@ export default function SettingsPage() {
             <p className="font-semibold text-gray-800 text-sm">Shopify</p>
             <p className="text-xs text-gray-500">Sync products and view orders from your Shopify store</p>
           </div>
-          {!isLoading && (
+          {isLoading ? (
+            // Invisible placeholder sized to the longer "Not connected" label —
+            // keeps the badge slot a fixed width so the header doesn't shift
+            // when the query resolves.
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-gray-100 border-gray-200 text-transparent animate-pulse"
+              aria-hidden="true"
+            >
+              Not connected
+            </span>
+          ) : (
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
               shopify?.isConnected
                 ? "bg-[#96bf48]/10 text-[#96bf48] border-[#96bf48]/30"
@@ -1160,7 +1196,7 @@ export default function SettingsPage() {
             </div>
           )}
           {isLoading ? (
-            <p className="text-sm text-gray-600 animate-pulse">Loading…</p>
+            <ShopifyCardSkeleton />
           ) : isAnonymous ? (
             <p className="text-sm text-gray-600">Sign in to connect your Shopify store.</p>
           ) : shopify?.isConnected ? (

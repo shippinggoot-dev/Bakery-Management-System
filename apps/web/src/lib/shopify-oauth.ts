@@ -107,6 +107,58 @@ export function verifyOAuthHmac(
 }
 
 /**
+ * TEMPORARY DIAGNOSTIC — produces a structured snapshot of everything that
+ * goes into the OAuth HMAC check, *without* exposing the API secret itself.
+ *
+ * `secretFingerprint` is the first 8 hex chars of sha256(secret). It's a
+ * one-way digest, safe to log, and lets us cross-check that the env var on
+ * Vercel actually matches the secret in the Shopify Partner Dashboard:
+ *
+ *   node -e "console.log(require('crypto').createHash('sha256').update('<paste-secret>').digest('hex').slice(0,8))"
+ *
+ * Remove this once the secret mismatch is diagnosed and fixed.
+ */
+export function debugOAuthHmac(
+  params: URLSearchParams,
+  apiSecret: string,
+): {
+  secretLen: number;
+  secretFingerprint: string;
+  paramKeys: string[];
+  signingMessage: string;
+  receivedHmac: string | null;
+  computedHmac: string;
+} {
+  const sorted: string[] = [];
+  for (const [key, value] of params.entries()) {
+    if (key === "hmac" || key === "signature") continue;
+    sorted.push(`${key}=${value}`);
+  }
+  sorted.sort();
+  const message = sorted.join("&");
+
+  const computed = crypto
+    .createHmac("sha256", apiSecret)
+    .update(message, "utf8")
+    .digest("hex");
+
+  const fingerprint = crypto
+    .createHash("sha256")
+    .update(apiSecret, "utf8")
+    .digest("hex")
+    .slice(0, 8);
+
+  return {
+    secretLen:         apiSecret.length,
+    secretFingerprint: fingerprint,
+    paramKeys:         [...params.keys()].sort(),
+    signingMessage:    message,
+    receivedHmac:      params.get("hmac"),
+    computedHmac:      computed,
+  };
+}
+
+/**
  * Verify the `X-Shopify-Hmac-SHA256` header on webhook deliveries.
  * Webhooks use a *different* signature scheme than OAuth callbacks:
  * HMAC of the raw request body, base64-encoded.

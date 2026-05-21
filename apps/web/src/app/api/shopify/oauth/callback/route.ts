@@ -6,6 +6,7 @@ import {
   isValidShopDomain,
   verifyOAuthHmac,
   verifyState,
+  debugOAuthHmac,
   OAUTH_STATE_COOKIE,
 } from "@/lib/shopify-oauth";
 
@@ -54,6 +55,13 @@ export async function GET(req: NextRequest) {
 
   // 1. HMAC of the query params
   if (!verifyOAuthHmac(params, cfg.apiSecret)) {
+    // TEMPORARY: surface a full diagnostic so we can compare the secret
+    // fingerprint and signing inputs against what Shopify used. Remove once
+    // the mismatch is diagnosed.
+    console.error(
+      "[shopify-oauth-debug] HMAC verification failed",
+      JSON.stringify(debugOAuthHmac(params, cfg.apiSecret)),
+    );
     return fail(origin, "hmac_mismatch");
   }
 
