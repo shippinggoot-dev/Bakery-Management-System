@@ -113,13 +113,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, reason: "shop not configured" });
   }
 
-  // Validate HMAC if a webhook secret is stored
-  if (settings.webhookSecret) {
-    const valid = await validateHmac(rawBody, hmacHeader, settings.webhookSecret);
-    if (!valid) {
-      console.error("[shopify-webhook] Invalid HMAC for shop:", shopDomain);
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
+  // Validate HMAC. The webhook secret is mandatory — without it we cannot
+  // distinguish a real Shopify delivery from a forged POST, so the only
+  // safe response is to reject. Stores connected before completing the
+  // webhook wizard will see deliveries fail until they finish setup; this
+  // is intentional and surfaces the misconfiguration rather than silently
+  // accepting unauthenticated payloads.
+  if (!settings.webhookSecret) {
+    console.error(
+      "[shopify-webhook] No webhook secret configured for shop, rejecting:",
+      shopDomain,
+    );
+    return new NextResponse("Webhook secret not configured", { status: 401 });
+  }
+  const valid = await validateHmac(rawBody, hmacHeader, settings.webhookSecret);
+  if (!valid) {
+    console.error("[shopify-webhook] Invalid HMAC for shop:", shopDomain);
+    return new NextResponse("Unauthorized", { status: 401 });
   }
 
   // Mark that we successfully received and authenticated a webhook from this
