@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { db, shopifySettings } from "@bakery/db";
+import { db, shopifySettings, encryptToken } from "@bakery/db";
 import { eq } from "drizzle-orm";
 import {
   getShopifyOAuthConfig,
@@ -115,11 +115,13 @@ export async function GET(req: NextRequest) {
     columns: { id: true },
   });
 
+  const encryptedAccessToken = encryptToken(accessToken);
+
   if (existing) {
     await db.update(shopifySettings)
       .set({
         shopDomain:   shop,
-        accessToken,
+        accessToken:  encryptedAccessToken,
         shopName,
         shopEmail,
         isConnected:  true,
@@ -130,7 +132,7 @@ export async function GET(req: NextRequest) {
     await db.insert(shopifySettings).values({
       ownerId,
       shopDomain:   shop,
-      accessToken,
+      accessToken:  encryptedAccessToken,
       shopName,
       shopEmail,
       isConnected:  true,

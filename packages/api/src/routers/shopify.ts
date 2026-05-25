@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq, and } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { shopifySettings, recipes, premadeCakes, customers, customerSales } from "@bakery/db";
+import { shopifySettings, recipes, premadeCakes, customers, customerSales, encryptToken, decryptToken } from "@bakery/db";
 import {
   syncProductFromRecipe,
   syncProductFromPremadeCake,
@@ -97,7 +97,7 @@ export const shopifyRouter = createTRPCRouter({
       syncProducts: row.syncProducts,
       syncOrders:   row.syncOrders,
       lastSyncAt:   row.lastSyncAt,
-      tokenPreview:           maskToken(row.accessToken),
+      tokenPreview:           maskToken(decryptToken(row.accessToken)),
       lastCustomerImportAt:   row.lastCustomerImportAt,
       lastOrderImportAt:      row.lastOrderImportAt,
       lastInventorySyncAt:    row.lastInventorySyncAt,
@@ -255,7 +255,7 @@ export const shopifyRouter = createTRPCRouter({
     const res = await fetch(url, {
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": settings.accessToken,
+        "X-Shopify-Access-Token": decryptToken(settings.accessToken),
       },
     });
     if (!res.ok) return [];
@@ -302,7 +302,7 @@ export const shopifyRouter = createTRPCRouter({
 
     const { customers: shopifyCustomers } = await shopifyFetch<{ customers: ShopifyCustomer[] }>(
       settings.shopDomain,
-      settings.accessToken,
+      decryptToken(settings.accessToken),
       "/customers.json?limit=250"
     );
 
@@ -386,7 +386,7 @@ export const shopifyRouter = createTRPCRouter({
 
     const { orders: shopifyOrders } = await shopifyFetch<{ orders: ShopifyOrder[] }>(
       settings.shopDomain,
-      settings.accessToken,
+      decryptToken(settings.accessToken),
       `/orders.json?status=any&limit=250${sinceParam}`
     );
 
@@ -438,7 +438,7 @@ export const shopifyRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await ctx.db
         .update(shopifySettings)
-        .set({ webhookSecret: input.webhookSecret, updatedAt: new Date() })
+        .set({ webhookSecret: encryptToken(input.webhookSecret), updatedAt: new Date() })
         .where(eq(shopifySettings.ownerId, ctx.user.id));
       return { ok: true };
     }),
@@ -482,7 +482,7 @@ export const shopifyRouter = createTRPCRouter({
 
     const { orders } = await shopifyFetch<{ orders: ShopifyOrder[] }>(
       settings.shopDomain,
-      settings.accessToken,
+      decryptToken(settings.accessToken),
       `/orders.json?created_at_min=${since.toISOString()}&status=any&limit=50`
     );
 

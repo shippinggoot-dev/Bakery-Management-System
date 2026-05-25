@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { emailSettings } from "@bakery/db";
+import { emailSettings, encryptToken, decryptToken } from "@bakery/db";
 
 /** Mask an API key — show first 6 and last 4 chars only. */
 function maskKey(key: string): string {
@@ -19,7 +19,7 @@ export const emailSettingsRouter = createTRPCRouter({
     return {
       fromName:          row.fromName,
       fromEmail:         row.fromEmail,
-      keyPreview:        row.resendApiKey ? maskKey(row.resendApiKey) : null,
+      keyPreview:        row.resendApiKey ? maskKey(decryptToken(row.resendApiKey)) : null,
       hasKey:            !!row.resendApiKey,
       sendConfirmations: row.sendConfirmations,
       sendStatusUpdates: row.sendStatusUpdates,
@@ -47,7 +47,7 @@ export const emailSettingsRouter = createTRPCRouter({
         updatedAt:         new Date(),
         // Only update the key if a new non-masked value was provided
         ...(input.resendApiKey && !input.resendApiKey.includes("•")
-          ? { resendApiKey: input.resendApiKey }
+          ? { resendApiKey: encryptToken(input.resendApiKey) }
           : {}),
       };
 
@@ -60,7 +60,7 @@ export const emailSettingsRouter = createTRPCRouter({
         await ctx.db.insert(emailSettings).values({
           ...values,
           ownerId: ctx.user.id,
-          ...(input.resendApiKey ? { resendApiKey: input.resendApiKey } : {}),
+          ...(input.resendApiKey ? { resendApiKey: encryptToken(input.resendApiKey) } : {}),
         });
       }
 

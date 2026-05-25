@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { instagramConnections, instagramPosts } from "@bakery/db";
+import { instagramConnections, instagramPosts, encryptToken, decryptToken } from "@bakery/db";
 
 const GRAPH = "https://graph.facebook.com/v20.0";
 
@@ -66,6 +66,7 @@ export const instagramRouter = createTRPCRouter({
       tokenExpiresAt: z.date().nullable(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const encryptedAccessToken = encryptToken(input.accessToken);
       await ctx.db
         .insert(instagramConnections)
         .values({
@@ -74,7 +75,7 @@ export const instagramRouter = createTRPCRouter({
           igUsername:     input.igUsername,
           pageId:         input.pageId,
           pageName:       input.pageName,
-          accessToken:    input.accessToken,
+          accessToken:    encryptedAccessToken,
           tokenExpiresAt: input.tokenExpiresAt,
         })
         .onConflictDoUpdate({
@@ -84,7 +85,7 @@ export const instagramRouter = createTRPCRouter({
             igUsername:     input.igUsername,
             pageId:         input.pageId,
             pageName:       input.pageName,
-            accessToken:    input.accessToken,
+            accessToken:    encryptedAccessToken,
             tokenExpiresAt: input.tokenExpiresAt,
             updatedAt:      new Date(),
           },
@@ -108,15 +109,16 @@ export const instagramRouter = createTRPCRouter({
       });
       if (!conn) throw new TRPCError({ code: "BAD_REQUEST", message: "Instagram not connected." });
 
-      // Refresh token if close to expiry
+      // Refresh token if close to expiry. The DB stores the token encrypted;
+      // maybeRefreshToken needs the plaintext to call Meta's refresh API.
       const { token, expiresAt, refreshed } = await maybeRefreshToken(
-        conn.accessToken,
+        decryptToken(conn.accessToken),
         conn.tokenExpiresAt,
       );
       if (refreshed) {
         await ctx.db
           .update(instagramConnections)
-          .set({ accessToken: token, tokenExpiresAt: expiresAt, updatedAt: new Date() })
+          .set({ accessToken: encryptToken(token), tokenExpiresAt: expiresAt, updatedAt: new Date() })
           .where(eq(instagramConnections.ownerId, ctx.user.id));
       }
 

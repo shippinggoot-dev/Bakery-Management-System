@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { db } from "@bakery/db";
-import { instagramConnections } from "@bakery/db";
+import { instagramConnections, encryptToken } from "@bakery/db";
 import { checkRateLimit, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +93,7 @@ export async function GET(req: NextRequest) {
     const igUsername = userData.username ?? null;
 
     // 6. Upsert connection in DB
+    const encryptedLongToken = encryptToken(longToken);
     await db
       .insert(instagramConnections)
       .values({
@@ -101,7 +102,7 @@ export async function GET(req: NextRequest) {
         igUsername,
         pageId:         page.id,
         pageName:       page.name,
-        accessToken:    longToken,
+        accessToken:    encryptedLongToken,
         tokenExpiresAt: expiresAt,
       })
       .onConflictDoUpdate({
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
           igUsername,
           pageId:         page.id,
           pageName:       page.name,
-          accessToken:    longToken,
+          accessToken:    encryptedLongToken,
           tokenExpiresAt: expiresAt,
           updatedAt:      new Date(),
         },

@@ -28,6 +28,7 @@ import {
   ingredients,
   premadeCakes,
   shopifySettings,
+  decryptToken,
 } from "@bakery/db";
 
 // ─── Shopify Admin API helper ────────────────────────────────────────────────
@@ -63,7 +64,10 @@ async function getConnectedSettings(ownerId: string) {
     where: eq(shopifySettings.ownerId, ownerId),
   });
   if (!settings?.isConnected) return null;
-  return settings;
+  // Decrypt the access token here so downstream helpers (shopifyFetch,
+  // getOrFetchLocationId, etc.) keep working with plaintext, as they did
+  // before at-rest encryption. Single decryption point per request.
+  return { ...settings, accessToken: decryptToken(settings.accessToken) };
 }
 
 /**

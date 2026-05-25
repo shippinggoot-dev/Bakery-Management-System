@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@bakery/db";
-import { shopifySettings, cakeOrders, recipes, emailSettings, productionSchedules } from "@bakery/db";
+import { shopifySettings, cakeOrders, recipes, emailSettings, productionSchedules, decryptToken } from "@bakery/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { sendOrderConfirmation } from "@/lib/email";
 import { checkRateLimit, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
     );
     return new NextResponse("Webhook secret not configured", { status: 401 });
   }
-  const valid = await validateHmac(rawBody, hmacHeader, settings.webhookSecret);
+  const valid = await validateHmac(rawBody, hmacHeader, decryptToken(settings.webhookSecret));
   if (!valid) {
     console.error("[shopify-webhook] Invalid HMAC for shop:", shopDomain);
     return new NextResponse("Unauthorized", { status: 401 });
@@ -295,7 +295,7 @@ export async function POST(request: NextRequest) {
           notes:              order.note ?? null,
           fromName:           emailCfg.fromName,
           fromEmail:          emailCfg.fromEmail,
-          resendApiKey:       emailCfg.resendApiKey,
+          resendApiKey:       decryptToken(emailCfg.resendApiKey),
         });
       } catch (err) {
         // Log but don't fail the webhook — order was already saved
