@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function middleware(request: NextRequest) {
   // If Supabase env vars are missing, skip all auth logic and let the request through.
@@ -49,11 +50,22 @@ export async function middleware(request: NextRequest) {
   // If there is no session, try creating an anonymous one so the visitor can
   // use the site in demo mode. If anonymous sign-in is disabled or fails,
   // just let the request through without a session.
+  //
+  // Rate-limited per IP: each successful call creates a new Supabase
+  // anonymous user, so an unprotected loop drains the Supabase anon quota
+  // in minutes. 5/min/IP covers normal new-visitor traffic comfortably.
+  // When the limit is hit we skip the signin (no anon session this request)
+  // rather than 429ing the visitor — the rest of the page can still render
+  // and the legitimate visitor's next request will succeed once the window
+  // rolls forward.
   if (!user) {
-    try {
-      await supabase.auth.signInAnonymously();
-    } catch (err) {
-      console.error("[middleware] supabase.auth.signInAnonymously() failed:", err);
+    const rl = await checkRateLimit("anon-signin", getClientIp(request), 5, "1 m");
+    if (rl.allowed) {
+      try {
+        await supabase.auth.signInAnonymously();
+      } catch (err) {
+        console.error("[middleware] supabase.auth.signInAnonymously() failed:", err);
+      }
     }
     return response;
   }

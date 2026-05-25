@@ -8,6 +8,7 @@ import {
   SHOPIFY_SCOPE_STRING,
   OAUTH_STATE_COOKIE,
 } from "@/lib/shopify-oauth";
+import { checkRateLimit, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,9 @@ export const dynamic = "force-dynamic";
  * callback verifies they match to prevent CSRF.
  */
 export async function GET(req: NextRequest) {
+  const rl = await checkRateLimit("oauth-start", getClientIp(req), 10, "1 m");
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds!);
+
   const { searchParams, origin } = new URL(req.url);
   const rawShop = searchParams.get("shop") ?? "";
 

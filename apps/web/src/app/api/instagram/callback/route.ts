@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { db } from "@bakery/db";
 import { instagramConnections } from "@bakery/db";
+import { checkRateLimit, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,9 @@ function redirectWithError(origin: string, msg: string) {
 }
 
 export async function GET(req: NextRequest) {
+  const rl = await checkRateLimit("oauth-start", getClientIp(req), 10, "1 m");
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds!);
+
   const { searchParams, origin } = new URL(req.url);
   const code  = searchParams.get("code");
   const error = searchParams.get("error_description");

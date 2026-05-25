@@ -4,6 +4,7 @@ import { db } from "@bakery/db";
 import { shopifySettings, cakeOrders, recipes, emailSettings, productionSchedules } from "@bakery/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { sendOrderConfirmation } from "@/lib/email";
+import { checkRateLimit, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
 
 // ── Types for Shopify order webhook payload ───────────────────────────────────
 
@@ -91,6 +92,13 @@ export async function POST(request: NextRequest) {
   const shopDomain = request.headers.get("x-shopify-shop-domain");
   const hmacHeader = request.headers.get("x-shopify-hmac-sha256");
   const topic      = request.headers.get("x-shopify-topic");
+
+  // Rate-limit per shop domain (or IP if absent) BEFORE HMAC verification,
+  // so a flood can't burn CPU on signature computation. 30 req/min/shop is
+  // far above any legitimate Shopify webhook delivery rate for one store.
+  const rlKey = shopDomain ?? `ip:${getClientIp(request)}`;
+  const rl = await checkRateLimit("shopify-webhook", rlKey, 30, "1 m");
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds!);
 
   // We only handle orders/create (ignore all other topics gracefully)
   if (topic !== "orders/create") {

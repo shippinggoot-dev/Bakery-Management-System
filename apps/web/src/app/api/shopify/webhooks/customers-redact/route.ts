@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { db, shopifySettings, customers, customerSales } from "@bakery/db";
 import { eq, and, ilike } from "drizzle-orm";
 import { getShopifyOAuthConfig, verifyWebhookHmac } from "@/lib/shopify-oauth";
+import { checkRateLimit, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +21,13 @@ export const dynamic = "force-dynamic";
  * individual.
  */
 export async function POST(req: NextRequest) {
+  const shopDomain = req.headers.get("x-shopify-shop-domain");
+  const rlKey = shopDomain ?? `ip:${getClientIp(req)}`;
+  const rl = await checkRateLimit("shopify-webhook", rlKey, 30, "1 m");
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds!);
+
   const rawBody    = await req.text();
   const hmacHeader = req.headers.get("x-shopify-hmac-sha256");
-  const shopDomain = req.headers.get("x-shopify-shop-domain");
 
   let cfg;
   try {
