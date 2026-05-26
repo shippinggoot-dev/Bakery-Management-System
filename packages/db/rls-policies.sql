@@ -221,3 +221,146 @@ DO $$ BEGIN
       WITH CHECK (auth.role() = 'authenticated');
   END IF;
 END $$;
+
+-- ── Tables added after the initial RLS rollout ──────────────────────────────
+-- These tables already had RLS enabled but were missing the policy. Without a
+-- policy, an RLS-enabled table is unreadable via any auth-aware connection
+-- (Supabase SDK / anon key) — the application reads them today only because
+-- the direct postgres connection bypasses RLS. Add the standard policy so the
+-- safety net applies to future SDK-based access too.
+
+-- Direct owner_id tables — standard owner_access policy.
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='custom_options' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON custom_options
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='customer_sales' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON customer_sales
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='customer_segments' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON customer_segments
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='customers' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON customers
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='loyalty_tiers' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON loyalty_tiers
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='loyalty_transactions' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON loyalty_transactions
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='margin_settings' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON margin_settings
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='notifications' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON notifications
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='price_ingestion_sessions' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON price_ingestion_sessions
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='production_batches' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON production_batches
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='rewards' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON rewards
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='stock_movements' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON stock_movements
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='waste_logs' AND policyname='owner_access') THEN
+    CREATE POLICY owner_access ON waste_logs
+      USING  (auth.uid() = owner_id)
+      WITH CHECK (auth.uid() = owner_id);
+  END IF;
+END $$;
+
+-- Join tables — access derived from the parent's owner_id.
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='customer_segment_members' AND policyname='via_segment') THEN
+    CREATE POLICY via_segment ON customer_segment_members
+      USING (EXISTS (
+        SELECT 1 FROM customer_segments cs
+        WHERE cs.id = segment_id AND cs.owner_id = auth.uid()
+      ))
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM customer_segments cs
+        WHERE cs.id = segment_id AND cs.owner_id = auth.uid()
+      ));
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='price_ingestion_items' AND policyname='via_session') THEN
+    CREATE POLICY via_session ON price_ingestion_items
+      USING (EXISTS (
+        SELECT 1 FROM price_ingestion_sessions s
+        WHERE s.id = session_id AND s.owner_id = auth.uid()
+      ))
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM price_ingestion_sessions s
+        WHERE s.id = session_id AND s.owner_id = auth.uid()
+      ));
+  END IF;
+END $$;
