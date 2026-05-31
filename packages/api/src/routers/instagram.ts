@@ -1,45 +1,21 @@
 import { z } from "zod";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, inArray, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { instagramConnections, instagramPosts, encryptToken, decryptToken } from "@bakery/db";
+import {
+  instagramConnections,
+  instagramPosts,
+  instagramDrafts,
+  encryptToken,
+} from "@bakery/db";
+import { publishToInstagram } from "../lib/instagram-publish";
 
-const GRAPH = "https://graph.facebook.com/v20.0";
-
-async function graphGet<T>(path: string, token: string): Promise<T> {
-  const sep = path.includes("?") ? "&" : "?";
-  const res = await fetch(`${GRAPH}${path}${sep}access_token=${token}`);
-  const data = await res.json() as Record<string, unknown>;
-  if (data.error) throw new Error((data.error as { message?: string }).message ?? "Instagram API error");
-  return data as T;
-}
-
-async function graphPost<T>(path: string, token: string, body: Record<string, string>): Promise<T> {
-  const params = new URLSearchParams({ ...body, access_token: token });
-  const res = await fetch(`${GRAPH}${path}`, { method: "POST", body: params });
-  const data = await res.json() as Record<string, unknown>;
-  if (data.error) throw new Error((data.error as { message?: string }).message ?? "Instagram API error");
-  return data as T;
-}
-
-/** Refresh a long-lived token if it expires within 7 days. Returns the (possibly new) token. */
-async function maybeRefreshToken(
-  token: string,
-  expiresAt: Date | null,
-): Promise<{ token: string; expiresAt: Date | null; refreshed: boolean }> {
-  if (!expiresAt) return { token, expiresAt, refreshed: false };
-  const sevenDays = 7 * 24 * 60 * 60 * 1000;
-  if (expiresAt.getTime() - Date.now() > sevenDays) return { token, expiresAt, refreshed: false };
-
-  const data = await graphGet<{ access_token: string; expires_in: number }>(
-    `/refresh_access_token?grant_type=ig_refresh_token`,
-    token,
-  );
-  const newExpires = new Date(Date.now() + data.expires_in * 1000);
-  return { token: data.access_token, expiresAt: newExpires, refreshed: true };
-}
+const draftStatusSchema = z.enum(["draft", "scheduled", "published", "failed"]);
+const userEditableStatusSchema = z.enum(["draft", "scheduled"]);
 
 export const instagramRouter = createTRPCRouter({
+
+  // ── Connection management ──────────────────────────────────────────────────
 
   getConnection: protectedProcedure.query(async ({ ctx }) => {
     const row = await ctx.db.query.instagramConnections.findFirst({
@@ -98,69 +74,31 @@ export const instagramRouter = createTRPCRouter({
       .where(eq(instagramConnections.ownerId, ctx.user.id));
   }),
 
+  // ── Instant publishing (existing UI contract preserved) ─────────────────────
+
+  /**
+   * Post immediately, without going through a draft. Kept for backward
+   * compatibility with the original /social composer that calls createPost
+   * directly. New code should prefer createDraft + publishDraftNow.
+   */
   createPost: protectedProcedure
     .input(z.object({
       imageUrl: z.string().url(),
       caption:  z.string().max(2200),
     }))
     .mutation(async ({ ctx, input }) => {
-      const conn = await ctx.db.query.instagramConnections.findFirst({
-        where: eq(instagramConnections.ownerId, ctx.user.id),
+      const result = await publishToInstagram({
+        ownerId:  ctx.user.id,
+        imageUrl: input.imageUrl,
+        caption:  input.caption,
       });
-      if (!conn) throw new TRPCError({ code: "BAD_REQUEST", message: "Instagram not connected." });
-
-      // Refresh token if close to expiry. The DB stores the token encrypted;
-      // maybeRefreshToken needs the plaintext to call Meta's refresh API.
-      const { token, expiresAt, refreshed } = await maybeRefreshToken(
-        decryptToken(conn.accessToken),
-        conn.tokenExpiresAt,
-      );
-      if (refreshed) {
-        await ctx.db
-          .update(instagramConnections)
-          .set({ accessToken: encryptToken(token), tokenExpiresAt: expiresAt, updatedAt: new Date() })
-          .where(eq(instagramConnections.ownerId, ctx.user.id));
+      if (result.status === "failed") {
+        throw new TRPCError({
+          code:    "INTERNAL_SERVER_ERROR",
+          message: result.errorMessage ?? "Post failed.",
+        });
       }
-
-      let igMediaId: string | null = null;
-      let errorMessage: string | null = null;
-      let status = "posted";
-
-      try {
-        // Step 1: create media container
-        const container = await graphPost<{ id: string }>(
-          `/${conn.igUserId}/media`,
-          token,
-          { image_url: input.imageUrl, caption: input.caption },
-        );
-
-        // Step 2: publish it
-        const published = await graphPost<{ id: string }>(
-          `/${conn.igUserId}/media_publish`,
-          token,
-          { creation_id: container.id },
-        );
-        igMediaId = published.id;
-      } catch (err) {
-        status = "failed";
-        errorMessage = err instanceof Error ? err.message : "Unknown error";
-      }
-
-      await ctx.db.insert(instagramPosts).values({
-        ownerId:      ctx.user.id,
-        igMediaId,
-        caption:      input.caption,
-        imageUrl:     input.imageUrl,
-        status,
-        errorMessage,
-        postedAt:     status === "posted" ? new Date() : null,
-      });
-
-      if (status === "failed") {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: errorMessage ?? "Post failed." });
-      }
-
-      return { igMediaId };
+      return { igMediaId: result.igMediaId };
     }),
 
   getPosts: protectedProcedure.query(async ({ ctx }) => {
@@ -170,4 +108,179 @@ export const instagramRouter = createTRPCRouter({
       limit: 20,
     });
   }),
+
+  // ── Drafts & scheduling ────────────────────────────────────────────────────
+
+  /**
+   * List drafts for calendar / drafts view. Optionally filter by status or by
+   * scheduledFor date range. Returns ALL matching rows; UI is responsible for
+   * presenting them grouped (drafts vs scheduled vs published vs failed).
+   */
+  listDrafts: protectedProcedure
+    .input(z.object({
+      status: draftStatusSchema.optional(),
+      from:   z.date().optional(),
+      to:     z.date().optional(),
+      limit:  z.number().min(1).max(500).default(200),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const conditions: SQL[] = [eq(instagramDrafts.ownerId, ctx.user.id)];
+      if (input?.status) conditions.push(eq(instagramDrafts.status, input.status));
+      if (input?.from)   conditions.push(gte(instagramDrafts.scheduledFor, input.from));
+      if (input?.to)     conditions.push(lte(instagramDrafts.scheduledFor, input.to));
+
+      return ctx.db.query.instagramDrafts.findMany({
+        where:   and(...conditions),
+        orderBy: [desc(instagramDrafts.scheduledFor), desc(instagramDrafts.createdAt)],
+        limit:   input?.limit ?? 200,
+      });
+    }),
+
+  /**
+   * Create a draft. If scheduledFor is provided and in the future, status
+   * starts as "scheduled" and the cron worker will pick it up at that time.
+   * If scheduledFor is null, status starts as "draft" — user can add a
+   * schedule later via updateDraft.
+   */
+  createDraft: protectedProcedure
+    .input(z.object({
+      imageUrl:     z.string().url().optional().nullable(),
+      caption:      z.string().max(2200).optional().nullable(),
+      scheduledFor: z.date().optional().nullable(),
+      platforms:    z.array(z.string()).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Refuse past-dated schedules — user almost certainly didn't mean it.
+      if (input.scheduledFor && input.scheduledFor.getTime() < Date.now()) {
+        throw new TRPCError({
+          code:    "BAD_REQUEST",
+          message: "Scheduled time must be in the future.",
+        });
+      }
+      const status = input.scheduledFor ? "scheduled" : "draft";
+      const [draft] = await ctx.db.insert(instagramDrafts).values({
+        ownerId:      ctx.user.id,
+        imageUrl:     input.imageUrl ?? null,
+        caption:      input.caption ?? null,
+        scheduledFor: input.scheduledFor ?? null,
+        status,
+        platforms:    input.platforms ?? ["instagram"],
+      }).returning();
+      return draft;
+    }),
+
+  /**
+   * Edit a draft. Only allowed while the draft is in an editable state
+   * (draft, scheduled, failed). Published or in-flight (publishing) drafts
+   * are immutable from the user side.
+   *
+   * If scheduledFor changes between null and a date, status auto-flips
+   * between "draft" and "scheduled" unless the caller passed an explicit
+   * status override.
+   */
+  updateDraft: protectedProcedure
+    .input(z.object({
+      id:           z.string().uuid(),
+      imageUrl:     z.string().url().optional().nullable(),
+      caption:      z.string().max(2200).optional().nullable(),
+      scheduledFor: z.date().optional().nullable(),
+      status:       userEditableStatusSchema.optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...patch } = input;
+
+      if (patch.scheduledFor && patch.scheduledFor.getTime() < Date.now()) {
+        throw new TRPCError({
+          code:    "BAD_REQUEST",
+          message: "Scheduled time must be in the future.",
+        });
+      }
+
+      // Infer status from scheduledFor change when the caller didn't specify
+      const inferredStatus: { status?: "draft" | "scheduled" } =
+        patch.scheduledFor !== undefined && patch.status === undefined
+          ? { status: patch.scheduledFor ? "scheduled" : "draft" }
+          : {};
+
+      const [updated] = await ctx.db
+        .update(instagramDrafts)
+        .set({ ...patch, ...inferredStatus, updatedAt: new Date() })
+        .where(and(
+          eq(instagramDrafts.id, id),
+          eq(instagramDrafts.ownerId, ctx.user.id),
+          inArray(instagramDrafts.status, ["draft", "scheduled", "failed"]),
+        ))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code:    "NOT_FOUND",
+          message: "Draft not found or no longer editable.",
+        });
+      }
+      return updated;
+    }),
+
+  deleteDraft: protectedProcedure
+    .input(z.string().uuid())
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .delete(instagramDrafts)
+        .where(and(
+          eq(instagramDrafts.id, input),
+          eq(instagramDrafts.ownerId, ctx.user.id),
+        ));
+      return { ok: true };
+    }),
+
+  /**
+   * Publish a draft immediately, bypassing its schedule. Used for "post
+   * now" actions from the drafts list. On success, status flips to
+   * "published" and igMediaId is recorded.
+   */
+  publishDraftNow: protectedProcedure
+    .input(z.string().uuid())
+    .mutation(async ({ ctx, input }) => {
+      const draft = await ctx.db.query.instagramDrafts.findFirst({
+        where: and(
+          eq(instagramDrafts.id, input),
+          eq(instagramDrafts.ownerId, ctx.user.id),
+        ),
+      });
+      if (!draft) throw new TRPCError({ code: "NOT_FOUND" });
+      if (draft.status === "published") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Draft is already published." });
+      }
+      if (!draft.imageUrl || !draft.caption) {
+        throw new TRPCError({
+          code:    "BAD_REQUEST",
+          message: "Draft needs both an image and a caption before posting.",
+        });
+      }
+
+      const result = await publishToInstagram({
+        ownerId:  ctx.user.id,
+        imageUrl: draft.imageUrl,
+        caption:  draft.caption,
+      });
+
+      await ctx.db
+        .update(instagramDrafts)
+        .set({
+          status:       result.status === "posted" ? "published" : "failed",
+          igMediaId:    result.igMediaId,
+          publishedAt:  result.status === "posted" ? new Date() : null,
+          errorMessage: result.errorMessage,
+          updatedAt:    new Date(),
+        })
+        .where(eq(instagramDrafts.id, draft.id));
+
+      if (result.status === "failed") {
+        throw new TRPCError({
+          code:    "INTERNAL_SERVER_ERROR",
+          message: result.errorMessage ?? "Publish failed.",
+        });
+      }
+      return { igMediaId: result.igMediaId };
+    }),
 });

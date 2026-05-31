@@ -38,6 +38,9 @@ export * from "./premade-cakes";
 export * from "./user-preferences";
 export * from "./customer-sale-items";
 export * from "./query-metrics";
+export * from "./ai-usage";
+export * from "./brand-voice";
+export * from "./subscriptions";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.

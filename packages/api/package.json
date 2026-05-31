@@ -7,9 +7,12 @@
     "./trpc": "./src/trpc.ts",
     "./services/price-ingestion": "./src/services/price-ingestion.ts",
     "./services/inventory": "./src/services/inventory.ts",
-    "./services/loyalty": "./src/services/loyalty.ts"
+    "./services/loyalty": "./src/services/loyalty.ts",
+    "./lib/instagram-publish": "./src/lib/instagram-publish.ts",
+    "./lib/ai-tiers": "./src/lib/ai-tiers.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
     "@bakery/db": "workspace:*",
     "@trpc/server": "^11.0.0",
     "superjson": "^2.2.1",

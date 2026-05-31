@@ -789,7 +789,112 @@
     "catalogSearchPlaceholder": "Søk oppskrifter og kaker…",
     "premadeCakes": "Ferdigkaker",
     "recipes": "Oppskrifter",
-    "catalogNoResults": "Ingen treff i katalogen."
+    "catalogNoResults": "Ingen treff i katalogen.",
+    "postingAs": "Publiserer som",
+    "manageConnection": "Administrer tilkobling",
+    "calendar": {
+      "prevMonth": "Forrige måned",
+      "nextMonth": "Neste måned",
+      "legendScheduled": "Planlagt",
+      "legendPublished": "Publisert",
+      "legendFailed": "Mislyktes"
+    },
+    "drafts": {
+      "title": "Utkast",
+      "failed": "Mislyktes — trenger oppmerksomhet",
+      "noCaption": "Ingen tekst enda"
+    },
+    "composer": {
+      "newTitle": "Nytt innlegg",
+      "editTitle": "Rediger innlegg",
+      "cancelEdit": "Avbryt redigering",
+      "photoLabel": "Bilde",
+      "uploadHint": "Klikk for å laste opp et bilde",
+      "uploading": "Laster opp…",
+      "captionLabel": "Tekst",
+      "captionPlaceholder": "Skriv en tekst… #bakeri #ferskbrød",
+      "scheduleLabel": "Planlegg til",
+      "scheduleHint": "La feltet stå tomt for å lagre som utkast.",
+      "saveDraft": "Lagre som utkast",
+      "updateDraft": "Oppdater utkast",
+      "schedule": "Planlegg",
+      "updateSchedule": "Oppdater planlegging",
+      "postNow": "Publiser nå",
+      "posting": "Publiserer…",
+      "saving": "Lagrer…"
+    },
+    "dayModal": {
+      "empty": "Ingen innlegg planlagt denne dagen."
+    },
+    "actions": {
+      "edit": "Rediger",
+      "delete": "Slett",
+      "publishNow": "Publiser nå",
+      "deleteConfirm": "Slette dette utkastet?"
+    },
+    "status": {
+      "draft": "Utkast",
+      "scheduled": "Planlagt",
+      "publishing": "Publiserer…",
+      "published": "Publisert",
+      "failed": "Mislyktes"
+    },
+    "recent": {
+      "title": "Nylige innlegg",
+      "empty": "Ingen innlegg ennå.",
+      "loading": "Laster…"
+    },
+    "ai": {
+      "button": "AI-tekst",
+      "hide": "Skjul AI",
+      "notConfigured": "AI-funksjoner er ikke konfigurert på serveren ennå.",
+      "quotaExhausted": "Du har brukt opp månedens AI-tekster. Kvoten nullstilles ved månedsskifte.",
+      "toneLabel": "Tone",
+      "toneDefault": "Standard",
+      "tone": {
+        "warm": "Varm",
+        "playful": "Leken",
+        "professional": "Profesjonell",
+        "celebratory": "Festlig"
+      },
+      "generating": "Skriver bildeteksten din…",
+      "previewTitle": "Generert bildetekst",
+      "useIt": "Bruk denne teksten",
+      "tryAgain": "Prøv et annet produkt",
+      "discard": "Forkast",
+      "voice": {
+        "label": "Stemme",
+        "default": "Bruker en standard varm-baker-stemme",
+        "learned": "Lært fra dine innlegg ({date})",
+        "view": "Vis",
+        "hide": "Skjul",
+        "refresh": "Oppdater",
+        "analyzing": "Analyserer…",
+        "examples": "Beste eksempler",
+        "confirmRefresh": "Analysere de siste 20 bildetekstene dine for å oppdatere merkevarestemmen din? Dette bruker 1 stemme-analyse-kvotepoeng denne måneden.",
+        "quotaExhausted": "Du har brukt månedens stemmeanalyse. Nullstilles neste måned.",
+        "notEnoughPosts": "Trenger minst {need} publiserte bildetekster for å analysere stemmen — du har {have}."
+      }
+    },
+    "plan": {
+      "title": "Ukentlig innholdsplan",
+      "intro": "Lag en 7-dagers innleggsplan tilpasset katalogen din, merkevarestemmen og norske kalenderbegivenheter.",
+      "weekStart": "Første dag i uken",
+      "generate": "Lag plan ({quota})",
+      "generating": "Bygger uken din…",
+      "clear": "Tøm plan",
+      "schedule": "Planlegg som utkast",
+      "scheduled": "Planlagt",
+      "quotaExhausted": "Du har brukt månedens innholdsplan. Nullstilles neste måned.",
+      "costHint": "Bruker 1 ukentlig-plan-kvotepoeng. Gratis nivå: 1 per måned.",
+      "pastDateWarning": "Den datoen er i fortiden — velg en annen uke.",
+      "time": {
+        "morning": "Morgen (~kl 8)",
+        "midday": "Lunsj (~kl 12)",
+        "afternoon": "Ettermiddag (~kl 15)",
+        "evening": "Kveld (~kl 18)"
+      }
+    }
   },
   "production": {
     "batch": "porsjon",

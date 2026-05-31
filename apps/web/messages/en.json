@@ -789,7 +789,112 @@
     "catalogSearchPlaceholder": "Search recipes & cakes…",
     "premadeCakes": "Premade cakes",
     "recipes": "Recipes",
-    "catalogNoResults": "No matches in catalog."
+    "catalogNoResults": "No matches in catalog.",
+    "postingAs": "Posting as",
+    "manageConnection": "Manage connection",
+    "calendar": {
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month",
+      "legendScheduled": "Scheduled",
+      "legendPublished": "Published",
+      "legendFailed": "Failed"
+    },
+    "drafts": {
+      "title": "Drafts",
+      "failed": "Failed — needs attention",
+      "noCaption": "No caption yet"
+    },
+    "composer": {
+      "newTitle": "New post",
+      "editTitle": "Edit post",
+      "cancelEdit": "Cancel edit",
+      "photoLabel": "Photo",
+      "uploadHint": "Click to upload a photo",
+      "uploading": "Uploading…",
+      "captionLabel": "Caption",
+      "captionPlaceholder": "Write a caption… #bakery #freshbread",
+      "scheduleLabel": "Schedule for",
+      "scheduleHint": "Leave empty to save as a draft.",
+      "saveDraft": "Save as draft",
+      "updateDraft": "Update draft",
+      "schedule": "Schedule",
+      "updateSchedule": "Update schedule",
+      "postNow": "Post now",
+      "posting": "Posting…",
+      "saving": "Saving…"
+    },
+    "dayModal": {
+      "empty": "No posts scheduled for this day."
+    },
+    "actions": {
+      "edit": "Edit",
+      "delete": "Delete",
+      "publishNow": "Publish now",
+      "deleteConfirm": "Delete this draft?"
+    },
+    "status": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "publishing": "Publishing…",
+      "published": "Published",
+      "failed": "Failed"
+    },
+    "recent": {
+      "title": "Recent posts",
+      "empty": "No posts yet.",
+      "loading": "Loading…"
+    },
+    "ai": {
+      "button": "AI caption",
+      "hide": "Hide AI",
+      "notConfigured": "AI features aren't configured on this server yet.",
+      "quotaExhausted": "You've used your monthly AI captions. The quota resets at the start of next month.",
+      "toneLabel": "Tone",
+      "toneDefault": "Default",
+      "tone": {
+        "warm": "Warm",
+        "playful": "Playful",
+        "professional": "Professional",
+        "celebratory": "Celebratory"
+      },
+      "generating": "Writing your caption…",
+      "previewTitle": "Generated caption",
+      "useIt": "Use this caption",
+      "tryAgain": "Try a different product",
+      "discard": "Discard",
+      "voice": {
+        "label": "Voice",
+        "default": "Using a generic warm-baker voice",
+        "learned": "Learned from your posts ({date})",
+        "view": "View",
+        "hide": "Hide",
+        "refresh": "Refresh",
+        "analyzing": "Analyzing…",
+        "examples": "Best-matching examples",
+        "confirmRefresh": "Analyze your past 20 captions to refresh your brand voice? This uses 1 brand-voice quota point this month.",
+        "quotaExhausted": "You've used your monthly brand-voice analysis. Resets next month.",
+        "notEnoughPosts": "Need at least {need} posted captions to analyze your voice — you have {have}."
+      }
+    },
+    "plan": {
+      "title": "Weekly content plan",
+      "intro": "Generate a 7-day post plan tailored to your catalog, brand voice, and Norwegian calendar.",
+      "weekStart": "First day of the week",
+      "generate": "Generate plan ({quota})",
+      "generating": "Building your week…",
+      "clear": "Clear plan",
+      "schedule": "Schedule as draft",
+      "scheduled": "Scheduled",
+      "quotaExhausted": "You've used your monthly content plan. Resets next month.",
+      "costHint": "Uses 1 weekly-plan quota point. Free tier: 1 per month.",
+      "pastDateWarning": "That date is in the past — pick a different week.",
+      "time": {
+        "morning": "Morning (~8am)",
+        "midday": "Midday (~12pm)",
+        "afternoon": "Afternoon (~3pm)",
+        "evening": "Evening (~6pm)"
+      }
+    }
   },
   "production": {
     "batch": "batch",
