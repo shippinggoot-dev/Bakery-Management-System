@@ -1,5 +1,23 @@
 "use client";
 
+/**
+ * SECURITY — Instagram media uploads
+ *
+ * `handleFileChange` below performs CLIENT-SIDE checks: a 10 MB size cap,
+ * a MIME allowlist (jpeg/png/webp), and a per-user storage prefix
+ * (`posts/${userId}/...`). These are defense-in-depth ONLY — a determined
+ * attacker can bypass any client-side check.
+ *
+ * The Supabase Storage bucket "instagram-media" MUST ALSO have an RLS
+ * policy that:
+ *   1. Restricts INSERT/UPDATE to authenticated, non-anonymous users.
+ *   2. Restricts the path to the uploading user's own prefix
+ *      (e.g. `name like 'posts/' || auth.uid()::text || '/%'`).
+ *   3. Caps file size and MIME at the bucket level.
+ * Without those bucket-level policies, the protections in this file can be
+ * trivially bypassed by hitting the storage API directly.
+ */
+
 import { useState, useRef, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
@@ -623,17 +641,39 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setUploadErr("Please select an image file.");
+
+    // Defense-in-depth: see file-header comment. Bucket RLS is the real gate.
+    const MAX_BYTES   = 10 * 1024 * 1024; // 10 MB
+    const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"] as const;
+    const EXT_BY_MIME: Record<(typeof ALLOWED_MIME)[number], string> = {
+      "image/jpeg": "jpg",
+      "image/png":  "png",
+      "image/webp": "webp",
+    };
+
+    if (!(ALLOWED_MIME as readonly string[]).includes(file.type)) {
+      setUploadErr(t("composer.upload.wrongType"));
       return;
     }
+    if (file.size > MAX_BYTES) {
+      setUploadErr(t("composer.upload.tooLarge"));
+      return;
+    }
+
     setUploading(true);
     setUploadErr(null);
     try {
       const supabase = createClientSupabase();
-      const ext  = file.name.split(".").pop() ?? "jpg";
-      const path = `posts/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("instagram-media").upload(path, file, { upsert: false });
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !userData.user) {
+        setUploadErr(t("composer.upload.notSignedIn"));
+        return;
+      }
+      const ext  = EXT_BY_MIME[file.type as (typeof ALLOWED_MIME)[number]];
+      const path = `posts/${userData.user.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("instagram-media")
+        .upload(path, file, { upsert: false, contentType: file.type });
       if (upErr) throw new Error(upErr.message);
       const { data: { publicUrl } } = supabase.storage.from("instagram-media").getPublicUrl(path);
       setImageUrl(publicUrl);

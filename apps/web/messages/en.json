@@ -821,7 +821,12 @@
       "updateSchedule": "Update schedule",
       "postNow": "Post now",
       "posting": "Posting…",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "upload": {
+        "tooLarge": "Image is too large. Please choose a file under 10 MB.",
+        "wrongType": "Only JPEG, PNG, or WebP images are allowed.",
+        "notSignedIn": "You must be signed in to upload photos."
+      }
     },
     "dayModal": {
       "empty": "No posts scheduled for this day."

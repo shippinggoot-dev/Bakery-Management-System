@@ -61,11 +61,11 @@ export const instagramDrafts = pgTable("instagram_drafts", {
   platforms:    jsonb("platforms").notNull().default(sql`'["instagram"]'::jsonb`),
   /** Set on successful publish; null otherwise */
   igMediaId:    text("ig_media_id"),
-  publishedAt:  timestamp("published_at"),
+  publishedAt:  timestamp("published_at", { withTimezone: true }),
   errorMessage: text("error_message"),
   retryCount:   integer("retry_count").notNull().default(0),
-  createdAt:    timestamp("created_at").notNull().defaultNow(),
-  updatedAt:    timestamp("updated_at").notNull().defaultNow(),
+  createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:    timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("idx_instagram_drafts_owner").on(t.ownerId),
   // Partial index — only scans rows the cron worker actually cares about

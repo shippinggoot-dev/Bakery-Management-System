@@ -16,8 +16,8 @@ export const brandVoice = pgTable("brand_voice", {
   /** 3-5 representative captions Claude picked out as exemplars */
   exampleCaptions:  jsonb("example_captions"),
   /** When Claude last analyzed captions (separate from updatedAt for visibility) */
-  generatedAt:      timestamp("generated_at"),
-  updatedAt:        timestamp("updated_at").notNull().defaultNow(),
+  generatedAt:      timestamp("generated_at", { withTimezone: true }),
+  updatedAt:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type BrandVoice    = typeof brandVoice.$inferSelect;

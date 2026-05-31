@@ -29,8 +29,8 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodEnd:      timestamp("current_period_end", { withTimezone: true }),
   cancelAtPeriodEnd:     boolean("cancel_at_period_end").notNull().default(false),
 
-  createdAt:             timestamp("created_at").notNull().defaultNow(),
-  updatedAt:             timestamp("updated_at").notNull().defaultNow(),
+  createdAt:             timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:             timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type Subscription    = typeof subscriptions.$inferSelect;

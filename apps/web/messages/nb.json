@@ -821,7 +821,12 @@
       "updateSchedule": "Oppdater planlegging",
       "postNow": "Publiser nå",
       "posting": "Publiserer…",
-      "saving": "Lagrer…"
+      "saving": "Lagrer…",
+      "upload": {
+        "tooLarge": "Bildet er for stort. Velg en fil under 10 MB.",
+        "wrongType": "Kun JPEG-, PNG- eller WebP-bilder er tillatt.",
+        "notSignedIn": "Du må være innlogget for å laste opp bilder."
+      }
     },
     "dayModal": {
       "empty": "Ingen innlegg planlagt denne dagen."

@@ -237,21 +237,39 @@ export const instagramRouter = createTRPCRouter({
    * Publish a draft immediately, bypassing its schedule. Used for "post
    * now" actions from the drafts list. On success, status flips to
    * "published" and igMediaId is recorded.
+   *
+   * Concurrency safety: claims the row atomically by flipping status to
+   * "publishing" in an UPDATE...RETURNING gated on the previous status
+   * being draft/scheduled/failed. If the cron worker (or another tab)
+   * already claimed it, the update returns no row and we refuse — this
+   * is what prevents double-publish.
    */
   publishDraftNow: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
-      const draft = await ctx.db.query.instagramDrafts.findFirst({
-        where: and(
+      const [claimed] = await ctx.db
+        .update(instagramDrafts)
+        .set({ status: "publishing", updatedAt: new Date() })
+        .where(and(
           eq(instagramDrafts.id, input),
           eq(instagramDrafts.ownerId, ctx.user.id),
-        ),
-      });
-      if (!draft) throw new TRPCError({ code: "NOT_FOUND" });
-      if (draft.status === "published") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Draft is already published." });
+          inArray(instagramDrafts.status, ["draft", "scheduled", "failed"]),
+        ))
+        .returning();
+
+      if (!claimed) {
+        throw new TRPCError({
+          code:    "NOT_FOUND",
+          message: "Draft is already being published or has been published.",
+        });
       }
-      if (!draft.imageUrl || !draft.caption) {
+
+      if (!claimed.imageUrl || !claimed.caption) {
+        // Revert the claim so the user can fix the draft and retry.
+        await ctx.db
+          .update(instagramDrafts)
+          .set({ status: "draft", updatedAt: new Date() })
+          .where(eq(instagramDrafts.id, claimed.id));
         throw new TRPCError({
           code:    "BAD_REQUEST",
           message: "Draft needs both an image and a caption before posting.",
@@ -260,8 +278,8 @@ export const instagramRouter = createTRPCRouter({
 
       const result = await publishToInstagram({
         ownerId:  ctx.user.id,
-        imageUrl: draft.imageUrl,
-        caption:  draft.caption,
+        imageUrl: claimed.imageUrl,
+        caption:  claimed.caption,
       });
 
       await ctx.db
@@ -273,7 +291,7 @@ export const instagramRouter = createTRPCRouter({
           errorMessage: result.errorMessage,
           updatedAt:    new Date(),
         })
-        .where(eq(instagramDrafts.id, draft.id));
+        .where(eq(instagramDrafts.id, claimed.id));
 
       if (result.status === "failed") {
         throw new TRPCError({

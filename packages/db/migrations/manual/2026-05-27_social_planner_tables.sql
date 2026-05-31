@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS instagram_drafts (
   published_at  timestamptz,
   error_message text,
   retry_count   integer NOT NULL DEFAULT 0,
-  created_at    timestamp NOT NULL DEFAULT now(),
-  updated_at    timestamp NOT NULL DEFAULT now()
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_instagram_drafts_owner
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS ai_usage (
   output_tokens integer NOT NULL,
   cost_cents    numeric(10,4) NOT NULL,
   outcome       text NOT NULL DEFAULT 'ok',
-  created_at    timestamp NOT NULL DEFAULT now()
+  created_at    timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_usage_owner_created
@@ -87,8 +87,8 @@ CREATE TABLE IF NOT EXISTS brand_voice (
   owner_id          uuid PRIMARY KEY,
   voice_description text,
   example_captions  jsonb,
-  generated_at      timestamp,
-  updated_at        timestamp NOT NULL DEFAULT now()
+  generated_at      timestamptz,
+  updated_at        timestamptz NOT NULL DEFAULT now()
 );
 
 ALTER TABLE brand_voice ENABLE ROW LEVEL SECURITY;
@@ -114,8 +114,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   stripe_subscription_id text,
   current_period_end     timestamptz,
   cancel_at_period_end   boolean NOT NULL DEFAULT false,
-  created_at             timestamp NOT NULL DEFAULT now(),
-  updated_at             timestamp NOT NULL DEFAULT now()
+  created_at             timestamptz NOT NULL DEFAULT now(),
+  updated_at             timestamptz NOT NULL DEFAULT now()
 );
 
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;

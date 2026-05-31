@@ -20,7 +20,7 @@
  */
 
 import { NextResponse, type NextRequest } from "next/server";
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import { db, instagramDrafts } from "@bakery/db";
 import { publishToInstagram } from "@bakery/api/lib/instagram-publish";
 
@@ -35,22 +35,63 @@ const BACKOFF_MINUTES = [5, 25]; // index = retryCount before this attempt
 /**
  * Auth — Vercel cron requests include `Authorization: Bearer ${CRON_SECRET}`
  * when CRON_SECRET is set in env. We accept the same header for manual
- * testing. If CRON_SECRET is unset (local dev), the endpoint is open —
- * acceptable because the worker is idempotent and only acts on the user's
- * own data.
+ * testing.
+ *
+ * Fail-closed policy: in production, CRON_SECRET MUST be set. If it isn't,
+ * we refuse every request rather than risk exposing a world-callable
+ * publishing endpoint. Local dev (NODE_ENV !== "production") is the only
+ * place an unset secret is tolerated.
  */
-function authorized(req: NextRequest): boolean {
+type AuthResult =
+  | { ok: true }
+  | { ok: false; status: 401 | 503; message: string };
+
+function authorized(req: NextRequest): AuthResult {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  return req.headers.get("authorization") === `Bearer ${secret}`;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        "[cron/publish-scheduled-posts] CRON_SECRET is not set in production. " +
+        "Refusing all requests. Set CRON_SECRET in Vercel env to enable the cron.",
+      );
+      return { ok: false, status: 503, message: "Cron is not configured." };
+    }
+    return { ok: true }; // dev convenience only
+  }
+  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+    return { ok: false, status: 401, message: "Unauthorized" };
+  }
+  return { ok: true };
 }
 
 export async function GET(req: NextRequest) {
-  if (!authorized(req)) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  const auth = authorized(req);
+  if (!auth.ok) {
+    return new NextResponse(auth.message, { status: auth.status });
   }
 
   const now = new Date();
+
+  // ── Sweeper ────────────────────────────────────────────────────────────────
+  // Recover rows that got stuck in "publishing" because a previous invocation
+  // crashed mid-flight (the function timed out, the process was killed, an
+  // unhandled exception escaped the per-row try/catch, etc.). Anything still
+  // "publishing" after 5 minutes is definitely orphaned — Vercel's
+  // maxDuration on this route is 60s, so no legitimate publish takes that long.
+  const swept = await db
+    .update(instagramDrafts)
+    .set({ status: "scheduled", updatedAt: new Date() })
+    .where(and(
+      eq(instagramDrafts.status, "publishing"),
+      lte(instagramDrafts.updatedAt, sql`now() - interval '5 minutes'`),
+    ))
+    .returning({ id: instagramDrafts.id });
+  if (swept.length > 0) {
+    console.warn(
+      `[cron/publish-scheduled-posts] Swept ${swept.length} stuck "publishing" row(s) back to "scheduled".`,
+      swept.map((r) => r.id),
+    );
+  }
 
   // Find due drafts. We do this in two passes:
   //   1. SELECT all rows that look due (read-only).
@@ -67,90 +108,130 @@ export async function GET(req: NextRequest) {
 
   const results: Array<{
     id:       string;
-    outcome:  "published" | "retry" | "failed";
+    outcome:  "published" | "retry" | "failed" | "error";
     error?:   string;
   }> = [];
 
   for (const draft of due) {
-    // Atomic claim — only proceed if we can flip "scheduled" → "publishing"
-    const [claimed] = await db
-      .update(instagramDrafts)
-      .set({ status: "publishing", updatedAt: new Date() })
-      .where(and(
-        eq(instagramDrafts.id, draft.id),
-        eq(instagramDrafts.status, "scheduled"),
-      ))
-      .returning();
-
-    if (!claimed) continue; // Another worker beat us to it
-
-    if (!claimed.imageUrl || !claimed.caption) {
-      // Misconfigured draft — can't publish. Fail it permanently.
-      await db
+    // Per-row try/catch — an exception on one row (network blip, Graph
+    // outage, db hiccup) must not abort the whole batch and must not leave
+    // the row stuck in "publishing".
+    let claimedId: string | null = null;
+    let claimedRetryCount = 0;
+    try {
+      // Atomic claim — only proceed if we can flip "scheduled" → "publishing"
+      const [claimed] = await db
         .update(instagramDrafts)
-        .set({
-          status:       "failed",
-          errorMessage: "Draft is missing image or caption.",
-          updatedAt:    new Date(),
-        })
-        .where(eq(instagramDrafts.id, claimed.id));
-      results.push({ id: claimed.id, outcome: "failed", error: "missing fields" });
-      continue;
-    }
+        .set({ status: "publishing", updatedAt: new Date() })
+        .where(and(
+          eq(instagramDrafts.id, draft.id),
+          eq(instagramDrafts.status, "scheduled"),
+        ))
+        .returning();
 
-    const result = await publishToInstagram({
-      ownerId:  claimed.ownerId,
-      imageUrl: claimed.imageUrl,
-      caption:  claimed.caption,
-    });
+      if (!claimed) continue; // Another worker beat us to it
+      claimedId = claimed.id;
+      claimedRetryCount = claimed.retryCount ?? 0;
 
-    if (result.status === "posted") {
-      await db
-        .update(instagramDrafts)
-        .set({
-          status:       "published",
-          igMediaId:    result.igMediaId,
-          publishedAt:  new Date(),
-          errorMessage: null,
-          updatedAt:    new Date(),
-        })
-        .where(eq(instagramDrafts.id, claimed.id));
-      results.push({ id: claimed.id, outcome: "published" });
-      continue;
-    }
+      if (!claimed.imageUrl || !claimed.caption) {
+        // Misconfigured draft — can't publish. Fail it permanently.
+        await db
+          .update(instagramDrafts)
+          .set({
+            status:       "failed",
+            errorMessage: "Draft is missing image or caption.",
+            updatedAt:    new Date(),
+          })
+          .where(eq(instagramDrafts.id, claimed.id));
+        results.push({ id: claimed.id, outcome: "failed", error: "missing fields" });
+        continue;
+      }
 
-    // Failed — decide whether to retry or give up.
-    const attemptsMade = (claimed.retryCount ?? 0) + 1;
-    if (attemptsMade > MAX_RETRIES) {
-      await db
-        .update(instagramDrafts)
-        .set({
-          status:       "failed",
-          retryCount:   attemptsMade,
-          errorMessage: result.errorMessage,
-          updatedAt:    new Date(),
-        })
-        .where(eq(instagramDrafts.id, claimed.id));
-      results.push({ id: claimed.id, outcome: "failed", error: result.errorMessage ?? undefined });
-    } else {
-      const backoffMins = BACKOFF_MINUTES[attemptsMade - 1] ?? 25;
-      const nextRunAt   = new Date(Date.now() + backoffMins * 60 * 1000);
-      await db
-        .update(instagramDrafts)
-        .set({
-          status:        "scheduled",
-          scheduledFor:  nextRunAt,
-          retryCount:    attemptsMade,
-          errorMessage:  result.errorMessage,
-          updatedAt:     new Date(),
-        })
-        .where(eq(instagramDrafts.id, claimed.id));
-      results.push({ id: claimed.id, outcome: "retry", error: result.errorMessage ?? undefined });
+      const result = await publishToInstagram({
+        ownerId:  claimed.ownerId,
+        imageUrl: claimed.imageUrl,
+        caption:  claimed.caption,
+      });
+
+      if (result.status === "posted") {
+        await db
+          .update(instagramDrafts)
+          .set({
+            status:       "published",
+            igMediaId:    result.igMediaId,
+            publishedAt:  new Date(),
+            errorMessage: null,
+            updatedAt:    new Date(),
+          })
+          .where(eq(instagramDrafts.id, claimed.id));
+        results.push({ id: claimed.id, outcome: "published" });
+        continue;
+      }
+
+      // Failed — decide whether to retry or give up.
+      const attemptsMade = (claimed.retryCount ?? 0) + 1;
+      if (attemptsMade > MAX_RETRIES) {
+        await db
+          .update(instagramDrafts)
+          .set({
+            status:       "failed",
+            retryCount:   attemptsMade,
+            errorMessage: result.errorMessage,
+            updatedAt:    new Date(),
+          })
+          .where(eq(instagramDrafts.id, claimed.id));
+        results.push({ id: claimed.id, outcome: "failed", error: result.errorMessage ?? undefined });
+      } else {
+        const backoffMins = BACKOFF_MINUTES[attemptsMade - 1] ?? 25;
+        const nextRunAt   = new Date(Date.now() + backoffMins * 60 * 1000);
+        await db
+          .update(instagramDrafts)
+          .set({
+            status:        "scheduled",
+            scheduledFor:  nextRunAt,
+            retryCount:    attemptsMade,
+            errorMessage:  result.errorMessage,
+            updatedAt:     new Date(),
+          })
+          .where(eq(instagramDrafts.id, claimed.id));
+        results.push({ id: claimed.id, outcome: "retry", error: result.errorMessage ?? undefined });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[cron/publish-scheduled-posts] Unhandled error for draft ${claimedId ?? draft.id}:`,
+        err,
+      );
+      if (claimedId) {
+        // Revert claim so the next tick (or sweeper) will retry. Bump
+        // retryCount so a poisoned row eventually gives up via the normal
+        // MAX_RETRIES path on subsequent passes.
+        try {
+          await db
+            .update(instagramDrafts)
+            .set({
+              status:       "scheduled",
+              retryCount:   claimedRetryCount + 1,
+              errorMessage: msg,
+              updatedAt:    new Date(),
+            })
+            .where(eq(instagramDrafts.id, claimedId));
+        } catch (revertErr) {
+          // If even the revert fails, the sweeper at the top of the next
+          // invocation is our backstop.
+          console.error(
+            `[cron/publish-scheduled-posts] Revert failed for ${claimedId}:`,
+            revertErr,
+          );
+        }
+      }
+      results.push({ id: claimedId ?? draft.id, outcome: "error", error: msg });
     }
   }
 
   return NextResponse.json({
     processedAt: now.toISOString(),
+    swept:       swept.length,
     processed:   results.length,
     results,
   });

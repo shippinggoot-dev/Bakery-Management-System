@@ -22,7 +22,7 @@ export const aiUsage = pgTable("ai_usage", {
   costCents:    numeric("cost_cents", { precision: 10, scale: 4 }).notNull(),
   /** "ok" | "error" — failed calls still consume quota to prevent retry abuse */
   outcome:      text("outcome").notNull().default("ok"),
-  createdAt:    timestamp("created_at").notNull().defaultNow(),
+  createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Composite index supports the "usage this month" quota query
   index("idx_ai_usage_owner_created").on(t.ownerId, t.createdAt),
