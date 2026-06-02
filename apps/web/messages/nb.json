@@ -825,7 +825,8 @@
       "upload": {
         "tooLarge": "Bildet er for stort. Velg en fil under 10 MB.",
         "wrongType": "Kun JPEG-, PNG- eller WebP-bilder er tillatt.",
-        "notSignedIn": "Du må være innlogget for å laste opp bilder."
+        "notSignedIn": "Du må være innlogget for å laste opp bilder.",
+        "demoAccount": "Registrer deg for å laste opp bilder. Demo-kontoen kan forhåndsvise funksjoner, men kan ikke legge til media."
       }
     },
     "dayModal": {

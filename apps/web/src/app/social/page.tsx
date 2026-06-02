@@ -669,6 +669,10 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
         setUploadErr(t("composer.upload.notSignedIn"));
         return;
       }
+      if (userData.user.is_anonymous) {
+        setUploadErr(t("composer.upload.demoAccount"));
+        return;
+      }
       const ext  = EXT_BY_MIME[file.type as (typeof ALLOWED_MIME)[number]];
       const path = `posts/${userData.user.id}/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage

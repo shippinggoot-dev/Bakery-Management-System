@@ -247,6 +247,32 @@ export const instagramRouter = createTRPCRouter({
   publishDraftNow: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
+      // Validate BEFORE the atomic claim. If the imageUrl/caption check ran
+      // after the claim, a failed validation would revert status to "draft"
+      // even when the draft was originally "scheduled" — silently killing
+      // the user's schedule. The tiny race window between this SELECT and
+      // the UPDATE below is acceptable because only the row's owner can
+      // mutate it.
+      const draft = await ctx.db.query.instagramDrafts.findFirst({
+        where: and(
+          eq(instagramDrafts.id, input),
+          eq(instagramDrafts.ownerId, ctx.user.id),
+          inArray(instagramDrafts.status, ["draft", "scheduled", "failed"]),
+        ),
+      });
+      if (!draft) {
+        throw new TRPCError({
+          code:    "NOT_FOUND",
+          message: "Draft not found or already published.",
+        });
+      }
+      if (!draft.imageUrl || !draft.caption) {
+        throw new TRPCError({
+          code:    "BAD_REQUEST",
+          message: "Draft needs both an image and a caption before posting.",
+        });
+      }
+
       const [claimed] = await ctx.db
         .update(instagramDrafts)
         .set({ status: "publishing", updatedAt: new Date() })
@@ -260,26 +286,14 @@ export const instagramRouter = createTRPCRouter({
       if (!claimed) {
         throw new TRPCError({
           code:    "NOT_FOUND",
-          message: "Draft is already being published or has been published.",
-        });
-      }
-
-      if (!claimed.imageUrl || !claimed.caption) {
-        // Revert the claim so the user can fix the draft and retry.
-        await ctx.db
-          .update(instagramDrafts)
-          .set({ status: "draft", updatedAt: new Date() })
-          .where(eq(instagramDrafts.id, claimed.id));
-        throw new TRPCError({
-          code:    "BAD_REQUEST",
-          message: "Draft needs both an image and a caption before posting.",
+          message: "Draft is already being published.",
         });
       }
 
       const result = await publishToInstagram({
         ownerId:  ctx.user.id,
-        imageUrl: claimed.imageUrl,
-        caption:  claimed.caption,
+        imageUrl: draft.imageUrl,
+        caption:  draft.caption,
       });
 
       await ctx.db

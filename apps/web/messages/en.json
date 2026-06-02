@@ -825,7 +825,8 @@
       "upload": {
         "tooLarge": "Image is too large. Please choose a file under 10 MB.",
         "wrongType": "Only JPEG, PNG, or WebP images are allowed.",
-        "notSignedIn": "You must be signed in to upload photos."
+        "notSignedIn": "You must be signed in to upload photos.",
+        "demoAccount": "Sign up to upload photos. The demo account can preview features but can't add media."
       }
     },
     "dayModal": {
