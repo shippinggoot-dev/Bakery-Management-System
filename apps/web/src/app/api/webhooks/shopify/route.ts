@@ -5,34 +5,22 @@ import { shopifySettings, cakeOrders, recipes, emailSettings, productionSchedule
 import { eq, and, inArray } from "drizzle-orm";
 import { sendOrderConfirmation } from "@/lib/email";
 import { checkRateLimit, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
+import {
+  mapShopifyOrderToCakeOrderRows,
+  extractDueDate,
+  type ShopifyOrderForMapping,
+  type ShopifyLineItem,
+} from "@bakery/api/lib/shopify-order-mapping";
 
 // ── Types for Shopify order webhook payload ───────────────────────────────────
 
-interface ShopifyLineItem {
-  id: number;
-  title: string;
-  quantity: number;
-  variant_title: string | null;
-}
-
-interface ShopifyNoteAttribute {
-  name: string;
-  value: string;
-}
-
-interface ShopifyOrder {
-  id: number;
-  name: string;               // e.g. "#1042"
+/**
+ * Webhook payload — superset of ShopifyOrderForMapping (the mapping
+ * helper) plus the email field we use directly here.
+ */
+interface ShopifyOrder extends ShopifyOrderForMapping {
   email: string;
-  financial_status: string;   // paid | pending | refunded | voided | ...
   line_items: ShopifyLineItem[];
-  note: string | null;
-  note_attributes: ShopifyNoteAttribute[];
-  customer: {
-    first_name: string;
-    last_name: string;
-    email: string;
-  } | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -46,44 +34,6 @@ async function validateHmac(body: string, hmacHeader: string | null, secret: str
     .digest("base64");
   // Constant-time comparison to prevent timing attacks
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hmacHeader));
-}
-
-/** Map Shopify financial_status → our paymentStatus enum. */
-function mapPaymentStatus(status: string): "pending" | "paid" | "unpaid" | "refunded" {
-  switch (status) {
-    case "paid":               return "paid";
-    case "refunded":
-    case "partially_refunded":
-    case "voided":             return "refunded";
-    case "pending":
-    case "authorized":
-    case "partially_paid":     return "pending";
-    default:                   return "unpaid";
-  }
-}
-
-/**
- * Try to extract a delivery / due date from the order.
- * Shopify bakery orders often put the date in a note attribute.
- */
-function extractDueDate(order: ShopifyOrder): string | null {
-  const keywords = ["delivery_date", "pickup_date", "due_date", "collection_date", "date"];
-  for (const attr of order.note_attributes ?? []) {
-    if (keywords.some((k) => attr.name.toLowerCase().includes(k))) {
-      // Normalise to YYYY-MM-DD if possible
-      const d = new Date(attr.value);
-      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-      return attr.value; // keep raw if we can't parse it
-    }
-  }
-  // Scan the note field for ISO or DD/MM/YYYY patterns
-  if (order.note) {
-    const isoMatch = order.note.match(/\d{4}-\d{2}-\d{2}/);
-    if (isoMatch) return isoMatch[0];
-    const dmyMatch = order.note.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2]!.padStart(2, "0")}-${dmyMatch[1]!.padStart(2, "0")}`;
-  }
-  return null;
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -153,13 +103,12 @@ export async function POST(request: NextRequest) {
     return new NextResponse("Bad JSON", { status: 400 });
   }
 
-  const ownerId       = settings.ownerId;
-  const customerName  = order.customer
-    ? `${order.customer.first_name} ${order.customer.last_name}`.trim()
+  const ownerId            = settings.ownerId;
+  const customerEmail      = order.email || order.customer?.email || null;
+  const customerName       = order.customer
+    ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() || null
     : null;
-  const customerEmail = order.email || order.customer?.email || null;
-  const paymentStatus = mapPaymentStatus(order.financial_status);
-  const dueDate       = extractDueDate(order);
+  const dueDate            = extractDueDate(order);
   const shopifyOrderId     = String(order.id);
   const shopifyOrderNumber = order.name; // e.g. "#1042"
 
@@ -176,35 +125,13 @@ export async function POST(request: NextRequest) {
     where: eq(recipes.ownerId, ownerId),
     columns: { id: true, name: true },
   });
+  const recipesByLowerName = new Map(ownerRecipes.map((r) => [r.name.toLowerCase(), r.id]));
 
-  const noteLines: string[] = [];
-  if (order.note) noteLines.push(order.note);
-
-  const ordersToInsert = order.line_items.map((item) => {
-    // Case-insensitive name match
-    const matched = ownerRecipes.find(
-      (r) => r.name.toLowerCase() === item.title.toLowerCase()
-    );
-    if (!matched) {
-      noteLines.push(`Unlinked item: ${item.title}${item.variant_title ? ` (${item.variant_title})` : ""}`);
-    }
-    return {
-      ownerId,
-      customerName,
-      customerEmail,
-      recipeId:           matched?.id ?? null,
-      quantity:           String(item.quantity),
-      dueDate,
-      status:             "pending" as const,
-      paymentStatus,
-      shopifyOrderId,
-      shopifyOrderNumber,
-      notes: [
-        matched ? null : `Product: ${item.title}${item.variant_title ? ` — ${item.variant_title}` : ""}`,
-        order.note ?? null,
-      ].filter(Boolean).join("\n") || null,
-    };
-  });
+  // Convert the Shopify payload to cake_orders rows via the shared mapping
+  // helper. Bulk import (packages/api/src/routers/shopify.ts) uses the same
+  // helper so webhook and import produce identical dashboard-visible rows.
+  const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, recipesByLowerName);
+  const ordersToInsert = rows.map((r) => ({ ...r, ownerId }));
 
   let insertedOrders: { id: string; recipeId: string | null; quantity: string; dueDate: string | null; customerName: string | null; notes: string | null }[] = [];
   if (ordersToInsert.length > 0) {
@@ -217,13 +144,6 @@ export async function POST(request: NextRequest) {
       notes:        cakeOrders.notes,
     });
   }
-
-  // Auto-flip to "planned" for orders where every line item resolved to a
-  // recipe. The user's preference is to skip the manual planner step when
-  // there's nothing to disambiguate. Unmatched line items still need human
-  // review and stay "pending".
-  const allMatched = ordersToInsert.length > 0
-    && ordersToInsert.every((o) => o.recipeId !== null);
 
   if (allMatched && insertedOrders.length > 0) {
     const ids = insertedOrders.map((o) => o.id);

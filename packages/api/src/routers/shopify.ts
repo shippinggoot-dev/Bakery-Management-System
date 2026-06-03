@@ -1,13 +1,18 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, nonAnonymousProcedure } from "../trpc";
-import { shopifySettings, recipes, premadeCakes, customers, customerSales, encryptToken, decryptToken } from "@bakery/db";
+import { shopifySettings, recipes, premadeCakes, customers, cakeOrders, productionSchedules, encryptToken, decryptToken } from "@bakery/db";
 import {
   syncProductFromRecipe,
   syncProductFromPremadeCake,
   pushAllInventory,
 } from "../services/shopify-sync";
+import {
+  mapShopifyOrderToCakeOrderRows,
+  type ShopifyOrderForMapping,
+  type ShopifyLineItem,
+} from "../lib/shopify-order-mapping";
 
 // ── Shopify Admin API helper ──────────────────────────────────────────────────
 
@@ -357,9 +362,18 @@ export const shopifyRouter = createTRPCRouter({
   }),
 
   /**
-   * Import Shopify orders into the local customer_sales table.
-   * Fetches only orders created after the last import (incremental).
-   * Links each sale to a customer by matching the order email.
+   * Import Shopify orders into the local cake_orders table — same shape
+   * the real-time webhook produces. Fetches only orders created after
+   * the last import (incremental). For each order:
+   *   - Skip if a cake_orders row with this shopifyOrderId already exists
+   *     (covers webhook + import overlap on the same store).
+   *   - Create one cake_orders row per Shopify line item with recipe-name
+   *     matching, due-date extraction, and per-unit salePrice.
+   *   - When every line item resolved to a recipe, auto-flip the orders to
+   *     "planned" and create production_schedules entries — same behaviour
+   *     as the webhook so the dashboard's "Orders this week" / "Top seller"
+   *     / "Shopify activity" tiles populate identically regardless of
+   *     whether the order arrived live or via the bulk import.
    */
   importOrders: nonAnonymousProcedure.mutation(async ({ ctx }) => {
     const settings = await ctx.db.query.shopifySettings.findFirst({
@@ -367,16 +381,11 @@ export const shopifyRouter = createTRPCRouter({
     });
     if (!settings?.isConnected) throw new Error("Shopify is not connected.");
 
-    type ShopifyOrderLine = { title: string; quantity: number; price: string };
-    type ShopifyOrder = {
-      id: number;
-      name: string;
+    type ShopifyOrderResponse = ShopifyOrderForMapping & {
       total_price: string;
-      currency: string;
-      created_at: string;
-      financial_status: string;
-      customer?: { email?: string; first_name?: string; last_name?: string };
-      line_items: ShopifyOrderLine[];
+      currency:    string;
+      created_at:  string;
+      line_items:  ShopifyLineItem[];
     };
 
     // Fetch orders since the last import (or all if first run)
@@ -384,40 +393,101 @@ export const shopifyRouter = createTRPCRouter({
       ? `&created_at_min=${settings.lastOrderImportAt.toISOString()}`
       : "";
 
-    const { orders: shopifyOrders } = await shopifyFetch<{ orders: ShopifyOrder[] }>(
+    const { orders: shopifyOrders } = await shopifyFetch<{ orders: ShopifyOrderResponse[] }>(
       settings.shopDomain,
       decryptToken(settings.accessToken),
       `/orders.json?status=any&limit=250${sinceParam}`
     );
 
-    let imported = 0;
+    // Load recipes once and build the lookup map the mapper expects.
+    const ownerRecipes = await ctx.db.query.recipes.findMany({
+      where: eq(recipes.ownerId, ctx.user.id),
+      columns: { id: true, name: true },
+    });
+    const recipesByLowerName = new Map(ownerRecipes.map((r) => [r.name.toLowerCase(), r.id]));
+
+    let imported   = 0;
+    let skipped    = 0;
+    let autoPlanned = 0;
     const errors: string[] = [];
 
     for (const order of shopifyOrders) {
       try {
-        // Try to link to a local customer by the order's email
-        let customerId: string | null = null;
-        const email = order.customer?.email?.toLowerCase().trim();
-        if (email) {
-          const match = await ctx.db.query.customers.findFirst({
-            where: (c, { and, eq: eqFn, ilike }) =>
-              and(eqFn(c.ownerId, ctx.user.id), ilike(c.email, email)),
-            columns: { id: true },
-          });
-          customerId = match?.id ?? null;
-        }
+        const shopifyOrderId = String(order.id);
 
-        const items = order.line_items.map((l) => `${l.quantity}× ${l.title}`).join(", ");
-
-        await ctx.db.insert(customerSales).values({
-          ownerId:   ctx.user.id,
-          customerId,
-          amount:    order.total_price,
-          currency:  order.currency,
-          items:     items || null,
-          soldAt:    new Date(order.created_at),
+        // Idempotency — skip orders that already exist (re-runs, or orders
+        // that came in via the webhook and the import both).
+        const dupe = await ctx.db.query.cakeOrders.findFirst({
+          where: and(
+            eq(cakeOrders.ownerId,        ctx.user.id),
+            eq(cakeOrders.shopifyOrderId, shopifyOrderId),
+          ),
+          columns: { id: true },
         });
+        if (dupe) { skipped++; continue; }
+
+        const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, recipesByLowerName);
+        if (rows.length === 0) { skipped++; continue; }
+
+        const ordersToInsert = rows.map((r) => ({ ...r, ownerId: ctx.user.id }));
+        const inserted = await ctx.db
+          .insert(cakeOrders)
+          .values(ordersToInsert)
+          .returning({
+            id:       cakeOrders.id,
+            recipeId: cakeOrders.recipeId,
+            quantity: cakeOrders.quantity,
+            dueDate:  cakeOrders.dueDate,
+          });
+
         imported++;
+
+        // Auto-plan when every line item matched a recipe — same as webhook.
+        if (allMatched && inserted.length > 0) {
+          const ids = inserted.map((o) => o.id);
+          await ctx.db
+            .update(cakeOrders)
+            .set({ status: "planned", updatedAt: new Date() })
+            .where(and(
+              inArray(cakeOrders.id, ids),
+              eq(cakeOrders.ownerId, ctx.user.id),
+            ));
+
+          // Mirror the webhook's production-schedule side effect.
+          for (const o of inserted) {
+            if (!o.recipeId) continue;
+            const existingSchedule = await ctx.db.query.productionSchedules.findFirst({
+              where: and(
+                eq(productionSchedules.cakeOrderId, o.id),
+                eq(productionSchedules.ownerId,     ctx.user.id),
+              ),
+              columns: { id: true },
+            });
+            if (existingSchedule) continue;
+
+            const recipe = await ctx.db.query.recipes.findFirst({
+              where: and(eq(recipes.id, o.recipeId), eq(recipes.ownerId, ctx.user.id)),
+              columns: { name: true, yieldAmount: true },
+            });
+            const scheduledDate = o.dueDate ?? new Date().toISOString().slice(0, 10);
+            const recipeYield   = recipe?.yieldAmount ? parseFloat(recipe.yieldAmount) : 1;
+            const orderQty      = parseFloat(o.quantity || "1");
+            const batchCount    = recipeYield > 0 ? orderQty / recipeYield : orderQty;
+
+            await ctx.db.insert(productionSchedules).values({
+              ownerId:     ctx.user.id,
+              recipeId:    o.recipeId,
+              recipeName:  recipe?.name ?? null,
+              scheduledDate,
+              shift:       "morning",
+              batchCount:  String(batchCount),
+              notes:       `Shopify import ${order.name}`.slice(0, 500),
+              status:      "planned",
+              cakeOrderId: o.id,
+            });
+          }
+          autoPlanned++;
+        }
       } catch (err) {
         errors.push(
           `Order ${order.name}: ${err instanceof Error ? err.message : "failed"}`
@@ -429,7 +499,13 @@ export const shopifyRouter = createTRPCRouter({
       .set({ lastOrderImportAt: new Date(), updatedAt: new Date() })
       .where(eq(shopifySettings.ownerId, ctx.user.id));
 
-    return { imported, total: shopifyOrders.length, errors };
+    return {
+      imported,
+      skipped,
+      autoPlanned,
+      total: shopifyOrders.length,
+      errors,
+    };
   }),
 
   /** Save the Shopify webhook signing secret for this store. */
