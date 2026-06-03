@@ -97,7 +97,10 @@ export const publicProcedure = t.procedure.use(timingMiddleware);
 
 /**
  * Protected procedure — rejects the call with UNAUTHORIZED if there
- * is no authenticated user in context. All data-access procedures use this.
+ * is no authenticated user in context. Anonymous demo users ARE allowed
+ * through here; they can write to their own tenant data freely. Use
+ * `nonAnonymousProcedure` instead for anything that triggers a paid
+ * third-party API call (AI, Instagram publish, Shopify writes, email send).
  */
 export const protectedProcedure = t.procedure.use(timingMiddleware).use(({ ctx, next }) => {
   if (!ctx.user) {
@@ -108,4 +111,26 @@ export const protectedProcedure = t.procedure.use(timingMiddleware).use(({ ctx, 
   }
   // Re-expose ctx.user as non-null for downstream resolver inference
   return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+/**
+ * Stricter variant of `protectedProcedure` that also rejects anonymous
+ * demo users. Use for mutations that:
+ *   - call paid third-party APIs (Claude, Resend, Meta Graph, Shopify Admin)
+ *   - save third-party API credentials
+ *   - send communications on the user's behalf
+ *
+ * Without this gate an attacker can rotate IPs, mint fresh anonymous
+ * Supabase sessions (each with its own free quota), and drain paid-API
+ * budget. Anonymous users still get the full demo experience for
+ * data-only features via `protectedProcedure`.
+ */
+export const nonAnonymousProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.isAnonymous) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Create an account to use this feature.",
+    });
+  }
+  return next();
 });

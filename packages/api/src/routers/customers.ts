@@ -12,6 +12,15 @@ import {
   type SegmentCriteria,
 } from "@bakery/db";
 import {
+  shortText,
+  longText,
+  emailField,
+  phoneField,
+  searchQuery,
+  nonNegativeDecimalString,
+  stripLikeWildcards,
+} from "../lib/validation";
+import {
   generateCardNumber,
   getOwnerTiers,
   awardPoints,
@@ -27,16 +36,16 @@ export const customersRouter = createTRPCRouter({
 
   register: protectedProcedure
     .input(z.object({
-      firstName:           z.string().min(1),
-      lastName:            z.string().min(1),
-      phone:               z.string().optional().nullable(),
-      email:               z.string().email().optional().nullable(),
+      firstName:           shortText({ min: 1 }),
+      lastName:            shortText({ min: 1 }),
+      phone:               phoneField().optional().nullable(),
+      email:               emailField().optional().nullable(),
       birthday:            z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-      dietaryRequirements: z.array(z.enum(["gluten_free", "vegan", "nut_free"])).optional(),
+      dietaryRequirements: z.array(z.enum(["gluten_free", "vegan", "nut_free"])).max(10).optional(),
       favouriteCategory:   z.enum(["bread", "pastry", "cakes"]).optional().nullable(),
       loyaltyOptIn:        z.boolean().default(false),
       marketingOptIn:      z.boolean().default(false),
-      notes:               z.string().optional().nullable(),
+      notes:               longText().optional().nullable(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (!input.phone && !input.email) {
@@ -75,7 +84,7 @@ export const customersRouter = createTRPCRouter({
   // ── Quick lookup — for POS staff (phone or card number) ─────────────────────
 
   lookup: protectedProcedure
-    .input(z.object({ query: z.string().min(1) }))
+    .input(z.object({ query: z.string().min(1).max(200) }))
     .mutation(async ({ ctx, input }) => {
       const q = input.query.trim();
       const result = await ctx.db.query.customers.findFirst({
@@ -102,10 +111,10 @@ export const customersRouter = createTRPCRouter({
 
   getAll: protectedProcedure
     .input(z.object({
-      search:          z.string().optional(),
+      search:          searchQuery().optional(),
       tier:            z.enum(["bronze", "silver", "gold"]).optional(),
-      dietaryReq:      z.string().optional(),
-      minPoints:       z.number().optional(),
+      dietaryReq:      z.enum(["gluten_free", "vegan", "nut_free"]).optional(),
+      minPoints:       z.number().int().min(0).max(1_000_000).optional(),
       sort:            z.enum(["name", "points", "lastVisit", "spend"]).default("name"),
       limit:           z.number().min(1).max(200).default(50),
       offset:          z.number().min(0).default(0),
@@ -116,12 +125,16 @@ export const customersRouter = createTRPCRouter({
       if (input?.tier)      conditions.push(eq(customers.tier, input.tier) as ReturnType<typeof eq>);
       if (input?.minPoints) conditions.push(gte(customers.points, input.minPoints) as ReturnType<typeof eq>);
       if (input?.dietaryReq) {
-        // dietaryRequirements is stored as JSON array e.g. '["gluten_free","vegan"]'
-        // values are enum-validated at write time so this pattern match is safe
+        // dietaryRequirements is stored as JSON array e.g. '["gluten_free","vegan"]'.
+        // Zod constrains dietaryReq to the known enum values, so this pattern
+        // match cannot inject LIKE wildcards.
         conditions.push(like(customers.dietaryRequirements, `%"${input.dietaryReq}"%`) as ReturnType<typeof eq>);
       }
       if (input?.search) {
-        const q = `%${input.search}%`;
+        // Strip LIKE wildcards from user input — prevents a malicious
+        // "%%%%a%%%%" query from forcing a quadratic table scan.
+        const safe = stripLikeWildcards(input.search);
+        const q = `%${safe}%`;
         conditions.push(or(
           ilike(customers.firstName, q),
           ilike(customers.lastName, q),
@@ -177,16 +190,16 @@ export const customersRouter = createTRPCRouter({
   update: protectedProcedure
     .input(z.object({
       id:                  z.string().uuid(),
-      firstName:           z.string().min(1).optional(),
-      lastName:            z.string().min(1).optional(),
-      phone:               z.string().nullable().optional(),
-      email:               z.string().email().nullable().optional(),
-      birthday:            z.string().nullable().optional(),
-      dietaryRequirements: z.array(z.string()).nullable().optional(),
-      favouriteCategory:   z.string().nullable().optional(),
+      firstName:           shortText({ min: 1 }).optional(),
+      lastName:            shortText({ min: 1 }).optional(),
+      phone:               phoneField().nullable().optional(),
+      email:               emailField().nullable().optional(),
+      birthday:            z.string().max(32).nullable().optional(),
+      dietaryRequirements: z.array(z.string().max(64)).max(10).nullable().optional(),
+      favouriteCategory:   shortText().nullable().optional(),
       loyaltyOptIn:        z.boolean().optional(),
       marketingOptIn:      z.boolean().optional(),
-      notes:               z.string().nullable().optional(),
+      notes:               longText().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, dietaryRequirements, ...rest } = input;
@@ -207,7 +220,7 @@ export const customersRouter = createTRPCRouter({
           : undefined,
         consentTimestamp: consentGiven ? new Date() : existing.consentTimestamp,
         updatedAt: new Date(),
-      }).where(eq(customers.id, id)).returning();
+      }).where(and(eq(customers.id, id), eq(customers.ownerId, ctx.user.id))).returning();
 
       return updated!;
     }),
@@ -217,10 +230,10 @@ export const customersRouter = createTRPCRouter({
   awardPoints: protectedProcedure
     .input(z.object({
       customerId:       z.string().uuid(),
-      amount:           z.number().positive(),
-      currency:         z.string().default("NOK"),
-      items:            z.string().optional().nullable(),
-      notes:            z.string().optional().nullable(),
+      amount:           z.number().positive().finite().max(10_000_000),
+      currency:         z.string().max(8).default("NOK"),
+      items:            longText().optional().nullable(),
+      notes:            longText().optional().nullable(),
       rewardRedeemedId: z.string().uuid().optional().nullable(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -244,16 +257,16 @@ export const customersRouter = createTRPCRouter({
   recordSale: protectedProcedure
     .input(z.object({
       customerId:       z.string().uuid().nullable(),
-      currency:         z.string().default("NOK"),
-      notes:            z.string().optional().nullable(),
+      currency:         z.string().max(8).default("NOK"),
+      notes:            longText().optional().nullable(),
       rewardRedeemedId: z.string().uuid().optional().nullable(),
       items: z.array(z.object({
-        description:    z.string().min(1),
+        description:    shortText({ min: 1 }),
         recipeId:       z.string().uuid().optional().nullable(),
         premadeCakeId:  z.string().uuid().optional().nullable(),
-        quantity:       z.number().positive(),
-        unitPrice:      z.number().nullable(),
-      })).min(1),
+        quantity:       z.number().positive().finite().max(1_000_000),
+        unitPrice:      z.number().finite().nullable(),
+      })).min(1).max(200),
     }))
     .mutation(async ({ ctx, input }) => {
       return recordSale({
@@ -296,12 +309,12 @@ export const customersRouter = createTRPCRouter({
   upsertTier: protectedProcedure
     .input(z.object({
       id:         z.string().uuid().optional(),
-      name:       z.string().min(1),
-      slug:       z.string().min(1),
-      minPoints:  z.number().min(0),
-      multiplier: z.string().regex(/^\d+(\.\d+)?$/),
+      name:       shortText({ min: 1 }),
+      slug:       z.string().min(1).max(64),
+      minPoints:  z.number().int().min(0).max(10_000_000),
+      multiplier: nonNegativeDecimalString(),
       color:      z.string().regex(/^#[0-9A-Fa-f]{6}$/),
-      perks:      z.array(z.string()).optional(),
+      perks:      z.array(shortText()).max(20).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, perks, ...rest } = input;
@@ -344,14 +357,14 @@ export const customersRouter = createTRPCRouter({
 
   createSegment: protectedProcedure
     .input(z.object({
-      name:        z.string().min(1),
-      description: z.string().optional().nullable(),
+      name:        shortText({ min: 1 }),
+      description: longText().optional().nullable(),
       criteria:    z.object({
-        tier:               z.string().optional(),
-        minPoints:          z.number().optional(),
-        maxDaysSinceVisit:  z.number().optional(),
-        dietaryRequirement: z.string().optional(),
-        minLifetimeSpend:   z.number().optional(),
+        tier:               shortText().optional(),
+        minPoints:          z.number().int().min(0).max(10_000_000).optional(),
+        maxDaysSinceVisit:  z.number().int().min(0).max(36500).optional(),
+        dietaryRequirement: shortText().optional(),
+        minLifetimeSpend:   z.number().min(0).finite().max(1_000_000_000).optional(),
       }),
     }))
     .mutation(async ({ ctx, input }) => {

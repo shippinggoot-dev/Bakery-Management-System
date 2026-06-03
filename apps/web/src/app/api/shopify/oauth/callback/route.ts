@@ -79,7 +79,14 @@ export async function GET(req: NextRequest) {
     });
     tokenJson = await tokenRes.json() as typeof tokenJson;
     if (!tokenRes.ok || !tokenJson.access_token) {
-      console.error("[shopify-oauth] Token exchange failed:", tokenRes.status, tokenJson);
+      // Log only the error field — never the full body. If Shopify ever
+      // returns a token in an unexpected field, dumping the body would
+      // leak it into Vercel function logs.
+      console.error(
+        "[shopify-oauth] Token exchange failed:",
+        tokenRes.status,
+        { error: tokenJson.error ?? "unknown" },
+      );
       return fail(origin, "token_exchange_failed");
     }
   } catch (err) {

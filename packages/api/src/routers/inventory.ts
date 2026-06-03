@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, and, desc, gte } from "drizzle-orm";
+import { eq, and, desc, gte, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { lots, stockMovements, wasteLogs, productionBatches, ingredients } from "@bakery/db";
 import { inventoryService } from "../services/inventory";
@@ -24,23 +24,28 @@ export const inventoryRouter = createTRPCRouter({
       limit: z.number().min(1).max(200).default(50),
     }).optional())
     .query(async ({ ctx, input }) => {
-      const conditions = [eq(ingredients.ownerId, ctx.user.id)];
+      // Filter at the database layer via a subquery of this user's
+      // ingredient IDs. The previous implementation loaded EVERY tenant's
+      // lots and filtered in JavaScript — both a tenancy footgun and a
+      // database-DoS amplifier.
+      const ownedIngredientIds = ctx.db
+        .select({ id: ingredients.id })
+        .from(ingredients)
+        .where(eq(ingredients.ownerId, ctx.user.id));
 
-      const allLots = await ctx.db.query.lots.findMany({
+      return ctx.db.query.lots.findMany({
         where: and(
+          inArray(lots.ingredientId, ownedIngredientIds),
           input?.ingredientId ? eq(lots.ingredientId, input.ingredientId) : undefined,
           input?.status ? eq(lots.status, input.status) : undefined
         ),
         with: {
-          ingredient: { columns: { id: true, name: true, unit: true, ownerId: true } },
+          ingredient: { columns: { id: true, name: true, unit: true } },
           supplier: { columns: { id: true, name: true } },
         },
         orderBy: [desc(lots.receivedAt)],
         limit: input?.limit ?? 50,
       });
-
-      // Filter to this user's lots
-      return allLots.filter((l) => l.ingredient.ownerId === ctx.user.id);
     }),
 
   // ── Receive delivery ───────────────────────────────────────────────────────

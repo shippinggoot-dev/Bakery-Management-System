@@ -17,7 +17,7 @@
 import { z } from "zod";
 import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, nonAnonymousProcedure } from "../trpc";
 import { recipes, premadeCakes, brandVoice, instagramPosts } from "@bakery/db";
 import { checkQuota, recordUsage, getMonthlyUsageSummary } from "../lib/ai-quota";
 import {
@@ -142,7 +142,7 @@ export const aiAssistantRouter = createTRPCRouter({
    *     user pays for the attempt — prevents retry abuse on flaky network)
    *     and re-throws INTERNAL_SERVER_ERROR
    */
-  generateCaption: protectedProcedure
+  generateCaption: nonAnonymousProcedure
     .input(z.object({
       productType: z.enum(["recipe", "premade"]),
       productId:   z.string().uuid(),
@@ -301,7 +301,7 @@ export const aiAssistantRouter = createTRPCRouter({
    * automatically pick up the new voice (already wired — no caption code
    * change needed).
    */
-  learnBrandVoice: protectedProcedure
+  learnBrandVoice: nonAnonymousProcedure
     .input(z.object({
       language:   z.enum(["en", "nb"]).default("en"),
       bakeryName: z.string().min(1).max(80),
@@ -412,7 +412,7 @@ export const aiAssistantRouter = createTRPCRouter({
    * back to catalog UUIDs (when the model picked a real product) so the
    * UI's "Accept" action can create drafts with proper recipe links.
    */
-  generateWeeklyPlan: protectedProcedure
+  generateWeeklyPlan: nonAnonymousProcedure
     .input(z.object({
       language:   z.enum(["en", "nb"]).default("en"),
       bakeryName: z.string().min(1).max(80),

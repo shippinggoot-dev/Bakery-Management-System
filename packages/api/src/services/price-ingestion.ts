@@ -25,6 +25,7 @@ import {
   marginSettings,
   notifications,
 } from "@bakery/db";
+import { assertPublicHttpsUrl } from "../lib/ssrf-guard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -227,6 +228,14 @@ export class PriceIngestionService {
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter((l) => l.length > 0);
+
+    // Cap row count to prevent CPU exhaustion. matchItems runs Jaro-Winkler
+    // against every ingredient in the tenant's catalog for every row — at
+    // tens of thousands of rows this becomes a per-tenant DoS vector.
+    const MAX_ROWS = 5000;
+    if (lines.length > MAX_ROWS) {
+      throw new Error(`Too many rows in CSV (${lines.length}). Limit is ${MAX_ROWS}; split the file and try again.`);
+    }
 
     const start = columnMapping.hasHeader ? 1 : 0;
     const items: ExtractedLineItem[] = [];
@@ -507,6 +516,10 @@ export class PriceIngestionService {
     payload: object,
     maxRetries = 3
   ): Promise<boolean> {
+    // Block SSRF before any fetch. Refuses non-https, private networks,
+    // and cloud metadata endpoints (169.254.169.254 etc).
+    await assertPublicHttpsUrl(url);
+
     return withRetry(
       async () => {
         const res = await fetch(url, {

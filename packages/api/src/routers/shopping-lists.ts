@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { shoppingLists, shoppingListItems, recipeIngredients, ingredientSuppliers } from "@bakery/db";
+import { shoppingLists, shoppingListItems, recipes, recipeIngredients, ingredientSuppliers } from "@bakery/db";
 
 const listStatusSchema = z.enum(["draft", "in_progress", "completed"]);
 
@@ -168,6 +169,20 @@ export const shoppingListsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Validate every recipeId belongs to the caller before reading ingredients.
+      // Without this an attacker can pass another tenant's recipeId and the
+      // generator returns their full ingredient breakdown.
+      const requestedIds = input.recipes.map((r) => r.recipeId);
+      const owned = await ctx.db.query.recipes.findMany({
+        where: and(inArray(recipes.id, requestedIds), eq(recipes.ownerId, ctx.user.id)),
+        columns: { id: true },
+      });
+      const ownedSet = new Set(owned.map((r) => r.id));
+      const missing = requestedIds.filter((id) => !ownedSet.has(id));
+      if (missing.length > 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "One or more recipes not found." });
+      }
+
       const ingredientMap = new Map<string, { unit: string; quantityNeeded: number }>();
 
       for (const { recipeId, multiplier } of input.recipes) {

@@ -1,28 +1,36 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { eq, and, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { suppliers, supplierPrices } from "@bakery/db";
+import { suppliers, supplierPrices, ingredients } from "@bakery/db";
+import {
+  shortText,
+  longText,
+  emailField,
+  phoneField,
+  nonNegativeDecimalString,
+} from "../lib/validation";
 
 const supplierInputSchema = z.object({
-  name: z.string().min(1).max(255),
-  contactName: z.string().optional().nullable(),
-  email: z.string().email().optional().nullable(),
-  phone: z.string().optional().nullable(),
-  address: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
+  name: shortText({ min: 1 }),
+  contactName: shortText().optional().nullable(),
+  email: emailField().optional().nullable(),
+  phone: phoneField().optional().nullable(),
+  address: longText().optional().nullable(),
+  notes: longText().optional().nullable(),
   isActive: z.boolean().default(true),
 });
 
 const supplierPriceInputSchema = z.object({
   supplierId: z.string().uuid(),
   ingredientId: z.string().uuid(),
-  pricePerUnit: z.string(),
-  unit: z.string().min(1),
-  minOrderQty: z.string().optional().nullable(),
-  leadTimeDays: z.number().int().positive().optional().nullable(),
+  pricePerUnit: nonNegativeDecimalString(),
+  unit: z.string().min(1).max(32),
+  minOrderQty: nonNegativeDecimalString().optional().nullable(),
+  leadTimeDays: z.number().int().positive().max(3650).optional().nullable(),
   isPreferred: z.boolean().default(false),
-  validFrom: z.string().optional().nullable(),
-  validTo: z.string().optional().nullable(),
+  validFrom: z.string().max(32).optional().nullable(),
+  validTo: z.string().max(32).optional().nullable(),
 });
 
 export const suppliersRouter = createTRPCRouter({
@@ -107,6 +115,23 @@ export const suppliersRouter = createTRPCRouter({
   upsertPrice: protectedProcedure
     .input(supplierPriceInputSchema)
     .mutation(async ({ ctx, input }) => {
+      // Verify both supplier and ingredient belong to the caller before
+      // touching supplier_prices. Otherwise a tenant can overwrite another
+      // bakery's prices (cross-tenant write / poisoning COGS calculations).
+      const [supplier, ingredient] = await Promise.all([
+        ctx.db.query.suppliers.findFirst({
+          where: and(eq(suppliers.id, input.supplierId), eq(suppliers.ownerId, ctx.user.id)),
+          columns: { id: true },
+        }),
+        ctx.db.query.ingredients.findFirst({
+          where: and(eq(ingredients.id, input.ingredientId), eq(ingredients.ownerId, ctx.user.id)),
+          columns: { id: true },
+        }),
+      ]);
+      if (!supplier || !ingredient) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Supplier or ingredient not found." });
+      }
+
       const existing = await ctx.db.query.supplierPrices.findFirst({
         where: and(eq(supplierPrices.supplierId, input.supplierId), eq(supplierPrices.ingredientId, input.ingredientId)),
       });

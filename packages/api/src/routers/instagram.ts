@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, gte, lte, desc, inArray, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, nonAnonymousProcedure } from "../trpc";
 import {
   instagramConnections,
   instagramPosts,
@@ -9,6 +9,22 @@ import {
   encryptToken,
 } from "@bakery/db";
 import { publishToInstagram } from "../lib/instagram-publish";
+import { assertSupabaseImageUrl } from "../lib/image-validation";
+
+/**
+ * Wraps assertSupabaseImageUrl to produce a tRPC-shaped error rather than
+ * a raw Error. Returns the asserted URL for downstream use.
+ */
+function validateOrThrow(rawUrl: string): string {
+  try {
+    return assertSupabaseImageUrl(rawUrl).toString();
+  } catch (err) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: err instanceof Error ? err.message : "Invalid image URL.",
+    });
+  }
+}
 
 const draftStatusSchema = z.enum(["draft", "scheduled", "published", "failed"]);
 const userEditableStatusSchema = z.enum(["draft", "scheduled"]);
@@ -32,7 +48,7 @@ export const instagramRouter = createTRPCRouter({
   }),
 
   /** Called by the OAuth callback API route after token exchange. */
-  saveConnection: protectedProcedure
+  saveConnection: nonAnonymousProcedure
     .input(z.object({
       igUserId:       z.string(),
       igUsername:     z.string().nullable(),
@@ -81,15 +97,16 @@ export const instagramRouter = createTRPCRouter({
    * compatibility with the original /social composer that calls createPost
    * directly. New code should prefer createDraft + publishDraftNow.
    */
-  createPost: protectedProcedure
+  createPost: nonAnonymousProcedure
     .input(z.object({
       imageUrl: z.string().url(),
       caption:  z.string().max(2200),
     }))
     .mutation(async ({ ctx, input }) => {
+      const safeUrl = validateOrThrow(input.imageUrl);
       const result = await publishToInstagram({
         ownerId:  ctx.user.id,
-        imageUrl: input.imageUrl,
+        imageUrl: safeUrl,
         caption:  input.caption,
       });
       if (result.status === "failed") {
@@ -147,7 +164,7 @@ export const instagramRouter = createTRPCRouter({
       imageUrl:     z.string().url().optional().nullable(),
       caption:      z.string().max(2200).optional().nullable(),
       scheduledFor: z.date().optional().nullable(),
-      platforms:    z.array(z.string()).optional(),
+      platforms:    z.array(z.string()).max(8).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       // Refuse past-dated schedules — user almost certainly didn't mean it.
@@ -157,10 +174,11 @@ export const instagramRouter = createTRPCRouter({
           message: "Scheduled time must be in the future.",
         });
       }
+      const safeImageUrl = input.imageUrl ? validateOrThrow(input.imageUrl) : null;
       const status = input.scheduledFor ? "scheduled" : "draft";
       const [draft] = await ctx.db.insert(instagramDrafts).values({
         ownerId:      ctx.user.id,
-        imageUrl:     input.imageUrl ?? null,
+        imageUrl:     safeImageUrl,
         caption:      input.caption ?? null,
         scheduledFor: input.scheduledFor ?? null,
         status,
@@ -194,6 +212,12 @@ export const instagramRouter = createTRPCRouter({
           code:    "BAD_REQUEST",
           message: "Scheduled time must be in the future.",
         });
+      }
+
+      // Validate replacement imageUrl (if provided) against the Supabase
+      // bucket allowlist. Null is a deliberate clear and stays as-is.
+      if (patch.imageUrl) {
+        patch.imageUrl = validateOrThrow(patch.imageUrl);
       }
 
       // Infer status from scheduledFor change when the caller didn't specify
@@ -244,7 +268,7 @@ export const instagramRouter = createTRPCRouter({
    * already claimed it, the update returns no row and we refuse — this
    * is what prevents double-publish.
    */
-  publishDraftNow: protectedProcedure
+  publishDraftNow: nonAnonymousProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
       // Validate BEFORE the atomic claim. If the imageUrl/caption check ran

@@ -46,14 +46,19 @@ export const productionRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // If recipeId given but no name, look up the name for the snapshot
+      // Always validate recipeId ownership when provided, regardless of
+      // whether the caller also supplied a recipeName. Without this, a
+      // tenant could attach another tenant's recipeId to their own schedule
+      // by also passing a recipeName (which previously short-circuited the
+      // lookup). Downstream markDone() rechecks, but defense in depth.
       let recipeName = input.recipeName ?? null;
-      if (input.recipeId && !recipeName) {
+      if (input.recipeId) {
         const r = await ctx.db.query.recipes.findFirst({
           where: and(eq(recipes.id, input.recipeId), eq(recipes.ownerId, ctx.user.id)),
           columns: { name: true },
         });
-        recipeName = r?.name ?? null;
+        if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Recipe not found." });
+        if (!recipeName) recipeName = r.name;
       }
       const [row] = await ctx.db
         .insert(productionSchedules)
@@ -98,6 +103,18 @@ export const productionRouter = createTRPCRouter({
         where: and(eq(productionSchedules.id, id), eq(productionSchedules.ownerId, ctx.user.id)),
       });
       if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // If the caller is repointing the schedule at a different recipe,
+      // verify that the new recipeId belongs to them. markDone() also
+      // re-checks at deduction time, but we'd rather refuse the bad
+      // FK at write time so audit data stays clean.
+      if (rest.recipeId && rest.recipeId !== existing.recipeId) {
+        const r = await ctx.db.query.recipes.findFirst({
+          where: and(eq(recipes.id, rest.recipeId), eq(recipes.ownerId, ctx.user.id)),
+          columns: { id: true },
+        });
+        if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Recipe not found." });
+      }
 
       // If the batch has already been recorded, refuse mutations to fields
       // that would imply a different deduction. Cosmetic fields are still OK.

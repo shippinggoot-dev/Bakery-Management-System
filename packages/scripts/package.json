@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "sync-prices":    "tsx src/sync-prices.ts",
-    "encrypt-tokens": "tsx src/encrypt-existing-tokens.ts"
+    "encrypt-tokens": "tsx src/encrypt-existing-tokens.ts",
+    "rotate-tokens":  "tsx src/rotate-encrypted-tokens.ts"
   },
   "dependencies": {
     "@bakery/db": "workspace:*",

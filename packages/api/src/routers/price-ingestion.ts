@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq, and, desc, inArray } from "drizzle-orm";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure, nonAnonymousProcedure } from "../trpc";
 import {
   priceIngestionSessions,
   priceIngestionItems,
@@ -9,6 +9,7 @@ import {
   notifications,
 } from "@bakery/db";
 import { priceIngestion } from "../services/price-ingestion";
+import { assertPublicHttpsUrl } from "../lib/ssrf-guard";
 
 const columnMappingSchema = z.object({
   nameCol:     z.number().int().min(0),
@@ -53,7 +54,7 @@ export const priceIngestionRouter = createTRPCRouter({
 
   // ── CSV ingestion (text is sent directly — no file upload needed) ──────────
 
-  ingestCSV: protectedProcedure
+  ingestCSV: nonAnonymousProcedure
     .input(z.object({
       csvText:       z.string().min(1).max(500_000),
       fileName:      z.string().default("import.csv"),
@@ -61,12 +62,6 @@ export const priceIngestionRouter = createTRPCRouter({
       columnMapping: columnMappingSchema,
     }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.isAnonymous) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Create an account to import supplier prices.",
-        });
-      }
       return priceIngestion.ingestCSV({
         csvText:       input.csvText,
         fileName:      input.fileName,
@@ -179,6 +174,20 @@ export const priceIngestionRouter = createTRPCRouter({
       webhookEnabled:         z.boolean().default(false),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Reject SSRF targets at save-time so the user sees the error
+      // immediately rather than after the next ingest. Defense-in-depth:
+      // dispatchWebhook also re-validates before fetching.
+      if (input.webhookUrl) {
+        try {
+          await assertPublicHttpsUrl(input.webhookUrl);
+        } catch (err) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: err instanceof Error ? err.message : "Invalid webhook URL.",
+          });
+        }
+      }
+
       const existing = await ctx.db.query.marginSettings.findFirst({
         where: eq(marginSettings.ownerId, ctx.user.id),
         columns: { id: true },

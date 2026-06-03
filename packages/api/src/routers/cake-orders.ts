@@ -11,6 +11,13 @@ import {
 } from "@bakery/db";
 import { inventoryService } from "../services/inventory";
 import { recordSale } from "../services/loyalty";
+import {
+  shortText,
+  longText,
+  emailField,
+  positiveDecimalString,
+  nonNegativeDecimalString,
+} from "../lib/validation";
 
 const statusSchema = z.enum(["pending", "planned", "in_progress", "completed", "cancelled"]);
 
@@ -40,18 +47,18 @@ export const cakeOrdersRouter = createTRPCRouter({
     .input(
       z.object({
         customerId:     z.string().uuid().optional().nullable(),
-        customerName:   z.string().optional().nullable(),
-        customerEmail:  z.string().email().optional().nullable(),
+        customerName:   shortText().optional().nullable(),
+        customerEmail:  emailField().optional().nullable(),
         recipeId:       z.string().uuid().optional().nullable(),
-        quantity:       z.string().min(1),
-        dueDate:        z.string().optional().nullable(),
-        notes:          z.string().optional().nullable(),
-        salePrice:      z.string().optional().nullable(),
-        cakeStyle:      z.string().optional().nullable(),
-        cakeFormat:     z.string().optional().nullable(),
-        spongeFlavours: z.string().optional().nullable(),
-        frostings:      z.string().optional().nullable(),
-        fillings:       z.string().optional().nullable(),
+        quantity:       positiveDecimalString(),
+        dueDate:        z.string().max(32).optional().nullable(),
+        notes:          longText().optional().nullable(),
+        salePrice:      nonNegativeDecimalString().optional().nullable(),
+        cakeStyle:      shortText().optional().nullable(),
+        cakeFormat:     shortText().optional().nullable(),
+        spongeFlavours: longText().optional().nullable(),
+        frostings:      longText().optional().nullable(),
+        fillings:       longText().optional().nullable(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -80,19 +87,19 @@ export const cakeOrdersRouter = createTRPCRouter({
         id:            z.string().uuid(),
         status:        statusSchema.optional(),
         paymentStatus: z.enum(["pending", "paid", "unpaid", "refunded"]).optional(),
-        salePrice:      z.string().optional().nullable(),
-        notes:          z.string().optional().nullable(),
-        dueDate:        z.string().optional().nullable(),
-        quantity:       z.string().optional(),
+        salePrice:      nonNegativeDecimalString().optional().nullable(),
+        notes:          longText().optional().nullable(),
+        dueDate:        z.string().max(32).optional().nullable(),
+        quantity:       positiveDecimalString().optional(),
         customerId:     z.string().uuid().optional().nullable(),
-        customerName:   z.string().optional().nullable(),
-        customerEmail:  z.string().email().optional().nullable(),
+        customerName:   shortText().optional().nullable(),
+        customerEmail:  emailField().optional().nullable(),
         recipeId:       z.string().uuid().optional().nullable(),
-        cakeStyle:      z.string().optional().nullable(),
-        cakeFormat:     z.string().optional().nullable(),
-        spongeFlavours: z.string().optional().nullable(),
-        frostings:      z.string().optional().nullable(),
-        fillings:       z.string().optional().nullable(),
+        cakeStyle:      shortText().optional().nullable(),
+        cakeFormat:     shortText().optional().nullable(),
+        spongeFlavours: longText().optional().nullable(),
+        frostings:      longText().optional().nullable(),
+        fillings:       longText().optional().nullable(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -248,9 +255,9 @@ export const cakeOrdersRouter = createTRPCRouter({
   generateShoppingList: protectedProcedure
     .input(
       z.object({
-        orderIds: z.array(z.string().uuid()).min(1),
-        listName: z.string().min(1),
-        dueDate:  z.string().optional(),
+        orderIds: z.array(z.string().uuid()).min(1).max(200),
+        listName: shortText({ min: 1 }),
+        dueDate:  z.string().max(32).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

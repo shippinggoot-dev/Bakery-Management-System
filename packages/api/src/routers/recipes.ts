@@ -8,47 +8,53 @@ import {
   recipeCategories,
   supplierPrices,
 } from "@bakery/db";
+import {
+  shortText,
+  longText,
+  veryLongText,
+  nonNegativeDecimalString,
+  positiveDecimalString,
+} from "../lib/validation";
 
 const recipeInputSchema = z.object({
-  name: z.string().min(1).max(255),
-  description: z.string().optional(),
+  name: shortText({ min: 1 }),
+  description: longText().optional(),
   categoryId: z.string().uuid().optional().nullable(),
-  yieldAmount: z.string(),
-  yieldUnit: z.string().min(1),
-  prepTimeMinutes: z.number().int().positive().optional().nullable(),
-  bakeTimeMinutes: z.number().int().positive().optional().nullable(),
-  instructions: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
+  yieldAmount: positiveDecimalString(),
+  yieldUnit: z.string().min(1).max(32),
+  prepTimeMinutes: z.number().int().positive().max(100_000).optional().nullable(),
+  bakeTimeMinutes: z.number().int().positive().max(100_000).optional().nullable(),
+  instructions: veryLongText().optional().nullable(),
+  notes: longText().optional().nullable(),
   isActive: z.boolean().default(true),
-  sellingPrice: z.string().optional().nullable(),
-  flavours: z.string().optional().nullable(),
+  sellingPrice: nonNegativeDecimalString().optional().nullable(),
+  flavours: longText().optional().nullable(),
 });
 
 const recipeIngredientInputSchema = z.object({
   ingredientId: z.string().uuid(),
-  quantity: z.string(),
-  unit: z.string().min(1),
-  notes: z.string().optional().nullable(),
-  sortOrder: z.number().int().default(0),
+  quantity: positiveDecimalString(),
+  unit: z.string().min(1).max(32),
+  notes: longText().optional().nullable(),
+  sortOrder: z.number().int().min(0).max(10_000).default(0),
 });
 
 export const recipesRouter = createTRPCRouter({
-  // Categories are global reference data — no owner filter needed
+  // Categories are per-tenant — each bakery curates its own.
   getCategories: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) return [];
     return ctx.db.query.recipeCategories.findMany({
+      where: eq(recipeCategories.ownerId, ctx.user.id),
       orderBy: (c, { asc }) => [asc(c.name)],
     });
   }),
 
   createCategory: protectedProcedure
-    .input(z.object({ name: z.string().min(1).max(100) }))
+    .input(z.object({ name: shortText({ min: 1 }).max(100) }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.isAnonymous) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Create an account to manage categories." });
-      }
       const [category] = await ctx.db
         .insert(recipeCategories)
-        .values({ name: input.name.trim() })
+        .values({ name: input.name.trim(), ownerId: ctx.user.id })
         .returning();
       return category;
     }),
@@ -56,12 +62,9 @@ export const recipesRouter = createTRPCRouter({
   deleteCategory: protectedProcedure
     .input(z.string().uuid())
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.isAnonymous) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Create an account to manage categories." });
-      }
       await ctx.db
         .delete(recipeCategories)
-        .where(eq(recipeCategories.id, input));
+        .where(and(eq(recipeCategories.id, input), eq(recipeCategories.ownerId, ctx.user.id)));
       return { success: true };
     }),
 

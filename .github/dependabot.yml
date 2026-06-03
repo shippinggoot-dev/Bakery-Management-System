@@ -1,0 +1,38 @@
+version: 2
+
+# Dependabot configuration — bundles npm dependency updates into a small
+# number of weekly PRs grouped by risk profile, so security patches land
+# fast but routine bumps don't flood the review queue.
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    # Group routine updates so reviewers see one PR per "kind" rather than
+    # a per-package storm. Security fixes are NOT grouped (default behaviour)
+    # so they land in their own PR with high visibility.
+    groups:
+      next-and-react:
+        patterns: ["next", "next-*", "react", "react-*", "@types/react*"]
+      supabase:
+        patterns: ["@supabase/*"]
+      trpc-and-query:
+        patterns: ["@trpc/*", "@tanstack/*"]
+      drizzle:
+        patterns: ["drizzle-*"]
+      types-and-tooling:
+        patterns: ["@types/*", "typescript", "prettier", "turbo", "eslint", "eslint-*"]
+        dependency-type: "development"
+      tailwind:
+        patterns: ["tailwindcss", "postcss", "autoprefixer"]
+    # Pin major version bumps to the same group as their minors so reviewers
+    # see them in context, but flag the PR title clearly.
+    versioning-strategy: "increase"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 2

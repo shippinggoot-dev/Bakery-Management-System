@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, nonAnonymousProcedure } from "../trpc";
 import { emailSettings, encryptToken, decryptToken } from "@bakery/db";
 
 /** Mask an API key — show first 6 and last 4 chars only. */
@@ -26,7 +26,7 @@ export const emailSettingsRouter = createTRPCRouter({
     };
   }),
 
-  upsert: protectedProcedure
+  upsert: nonAnonymousProcedure
     .input(z.object({
       fromName:          z.string().max(80).optional().nullable(),
       fromEmail:         z.string().email("Enter a valid email address").optional().nullable(),
@@ -68,7 +68,7 @@ export const emailSettingsRouter = createTRPCRouter({
     }),
 
   /** Clear the stored Resend API key. */
-  removeKey: protectedProcedure.mutation(async ({ ctx }) => {
+  removeKey: nonAnonymousProcedure.mutation(async ({ ctx }) => {
     await ctx.db
       .update(emailSettings)
       .set({ resendApiKey: null, updatedAt: new Date() })

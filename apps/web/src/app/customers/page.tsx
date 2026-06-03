@@ -24,7 +24,7 @@ export default function CustomersPage() {
   const { data: customers = [], isLoading } = api.customers.getAll.useQuery({
     search:    search || undefined,
     tier:      (tier as "bronze" | "silver" | "gold") || undefined,
-    dietaryReq: dietaryReq || undefined,
+    dietaryReq: (dietaryReq as "gluten_free" | "vegan" | "nut_free") || undefined,
     sort,
     limit: 100,
   });

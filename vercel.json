@@ -1,5 +1,5 @@
 {
   "buildCommand": "cd ../.. && turbo run build --filter=@bakery/web",
   "outputDirectory": ".next",
-  "installCommand": "cd ../.. && pnpm install"
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile"
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq, and } from "drizzle-orm";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, nonAnonymousProcedure } from "../trpc";
 import { shopifySettings, recipes, premadeCakes, customers, customerSales, encryptToken, decryptToken } from "@bakery/db";
 import {
   syncProductFromRecipe,
@@ -115,7 +115,7 @@ export const shopifyRouter = createTRPCRouter({
   // access token, so there's no need for a credential-accepting endpoint.
 
   /** Update sync preferences without re-entering credentials. */
-  updatePreferences: protectedProcedure
+  updatePreferences: nonAnonymousProcedure
     .input(z.object({
       syncProducts: z.boolean(),
       syncOrders:   z.boolean(),
@@ -128,7 +128,7 @@ export const shopifyRouter = createTRPCRouter({
     }),
 
   /** Remove the Shopify connection. */
-  disconnect: protectedProcedure.mutation(async ({ ctx }) => {
+  disconnect: nonAnonymousProcedure.mutation(async ({ ctx }) => {
     await ctx.db.delete(shopifySettings)
       .where(eq(shopifySettings.ownerId, ctx.user.id));
     return { success: true };
@@ -145,7 +145,7 @@ export const shopifyRouter = createTRPCRouter({
    * Status maps from `isActive`: active local row → active Shopify product;
    * inactive → draft. (Drafts are hidden from the storefront.)
    */
-  syncProducts: protectedProcedure.mutation(async ({ ctx }) => {
+  syncProducts: nonAnonymousProcedure.mutation(async ({ ctx }) => {
     const settings = await ctx.db.query.shopifySettings.findFirst({
       where: eq(shopifySettings.ownerId, ctx.user.id),
     });
@@ -197,7 +197,7 @@ export const shopifyRouter = createTRPCRouter({
    * Backwards-compatibility alias for the older syncRecipes name. The UI
    * still calls this in some places — both names point at the same upsert.
    */
-  syncRecipes: protectedProcedure.mutation(async ({ ctx }) => {
+  syncRecipes: nonAnonymousProcedure.mutation(async ({ ctx }) => {
     const settings = await ctx.db.query.shopifySettings.findFirst({
       where: eq(shopifySettings.ownerId, ctx.user.id),
     });
@@ -232,7 +232,7 @@ export const shopifyRouter = createTRPCRouter({
    * and cake. Useful after a fresh connect, after bulk receiving, or to
    * recover from any push that errored out previously.
    */
-  pushInventory: protectedProcedure.mutation(async ({ ctx }) => {
+  pushInventory: nonAnonymousProcedure.mutation(async ({ ctx }) => {
     const settings = await ctx.db.query.shopifySettings.findFirst({
       where: eq(shopifySettings.ownerId, ctx.user.id),
     });
@@ -271,7 +271,7 @@ export const shopifyRouter = createTRPCRouter({
   }),
 
   /** Set the primary Shopify location for inventory pushes. */
-  setLocation: protectedProcedure
+  setLocation: nonAnonymousProcedure
     .input(z.object({ locationId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.update(shopifySettings)
@@ -285,7 +285,7 @@ export const shopifyRouter = createTRPCRouter({
    * Matches by email — skips customers that already exist.
    * New customers receive a generated loyalty card number.
    */
-  importCustomers: protectedProcedure.mutation(async ({ ctx }) => {
+  importCustomers: nonAnonymousProcedure.mutation(async ({ ctx }) => {
     const settings = await ctx.db.query.shopifySettings.findFirst({
       where: eq(shopifySettings.ownerId, ctx.user.id),
     });
@@ -361,7 +361,7 @@ export const shopifyRouter = createTRPCRouter({
    * Fetches only orders created after the last import (incremental).
    * Links each sale to a customer by matching the order email.
    */
-  importOrders: protectedProcedure.mutation(async ({ ctx }) => {
+  importOrders: nonAnonymousProcedure.mutation(async ({ ctx }) => {
     const settings = await ctx.db.query.shopifySettings.findFirst({
       where: eq(shopifySettings.ownerId, ctx.user.id),
     });
@@ -433,7 +433,7 @@ export const shopifyRouter = createTRPCRouter({
   }),
 
   /** Save the Shopify webhook signing secret for this store. */
-  updateWebhookSecret: protectedProcedure
+  updateWebhookSecret: nonAnonymousProcedure
     .input(z.object({ webhookSecret: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db

@@ -2,38 +2,47 @@ import { z } from "zod";
 import { eq, and, like } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { ingredients, ingredientAllergens, ingredientCategories, allergens, ingredientSuppliers, supplierPrices, suppliers } from "@bakery/db";
+import {
+  shortText,
+  longText,
+  searchQuery,
+  nonNegativeDecimalString,
+  stripLikeWildcards,
+} from "../lib/validation";
 
 const ingredientInputSchema = z.object({
-  name: z.string().min(1).max(255),
-  unit: z.string().min(1),
+  name: shortText({ min: 1 }),
+  unit: z.string().min(1).max(32),
   categoryId: z.string().uuid().optional().nullable(),
-  notes: z.string().optional().nullable(),
-  // Nutrition — per 100 g (all optional)
-  caloriesKcal:  z.string().optional().nullable(),
-  proteinG:      z.string().optional().nullable(),
-  fatTotalG:     z.string().optional().nullable(),
-  fatSaturatedG: z.string().optional().nullable(),
-  carbsTotalG:   z.string().optional().nullable(),
-  carbsSugarsG:  z.string().optional().nullable(),
-  fiberG:        z.string().optional().nullable(),
-  sodiumMg:      z.string().optional().nullable(),
-  gramsPerUnit:  z.string().optional().nullable(),
+  notes: longText().optional().nullable(),
+  // Nutrition — per 100 g (all optional, non-negative numbers as strings)
+  caloriesKcal:  nonNegativeDecimalString().optional().nullable(),
+  proteinG:      nonNegativeDecimalString().optional().nullable(),
+  fatTotalG:     nonNegativeDecimalString().optional().nullable(),
+  fatSaturatedG: nonNegativeDecimalString().optional().nullable(),
+  carbsTotalG:   nonNegativeDecimalString().optional().nullable(),
+  carbsSugarsG:  nonNegativeDecimalString().optional().nullable(),
+  fiberG:        nonNegativeDecimalString().optional().nullable(),
+  sodiumMg:      nonNegativeDecimalString().optional().nullable(),
+  gramsPerUnit:  nonNegativeDecimalString().optional().nullable(),
 });
 
 export const ingredientsRouter = createTRPCRouter({
-  // Reference data — global, no owner filter
+  // Categories are per-tenant — each bakery curates its own.
   getCategories: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) return [];
     return ctx.db.query.ingredientCategories.findMany({
+      where: eq(ingredientCategories.ownerId, ctx.user.id),
       orderBy: (c, { asc }) => [asc(c.name)],
     });
   }),
 
   createCategory: protectedProcedure
-    .input(z.object({ name: z.string().min(1).max(100) }))
+    .input(z.object({ name: shortText({ min: 1 }).max(100) }))
     .mutation(async ({ ctx, input }) => {
       const [category] = await ctx.db
         .insert(ingredientCategories)
-        .values({ name: input.name.trim() })
+        .values({ name: input.name.trim(), ownerId: ctx.user.id })
         .returning();
       return category;
     }),
@@ -50,7 +59,7 @@ export const ingredientsRouter = createTRPCRouter({
         limit: z.number().min(1).max(200).default(50),
         offset: z.number().min(0).default(0),
         categoryId: z.string().uuid().optional(),
-        search: z.string().optional(),
+        search: searchQuery().optional(),
       }).optional()
     )
     .query(async ({ ctx, input }) => {
@@ -60,7 +69,12 @@ export const ingredientsRouter = createTRPCRouter({
         eq(ingredients.ownerId, ctx.user.id),
       ];
       if (categoryId) conditions.push(eq(ingredients.categoryId, categoryId));
-      if (search)     conditions.push(like(ingredients.name, `%${search}%`));
+      if (search) {
+        // Strip LIKE wildcards from user input so "%%%%a%%%%" can't force a
+        // quadratic table scan on the ingredient catalog.
+        const safe = stripLikeWildcards(search);
+        conditions.push(like(ingredients.name, `%${safe}%`));
+      }
       return ctx.db.query.ingredients.findMany({
         where: and(...conditions),
         with: {

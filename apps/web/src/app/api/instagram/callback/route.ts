@@ -36,21 +36,37 @@ export async function GET(req: NextRequest) {
   const redirectUri = `${origin}/api/instagram/callback`;
 
   try {
-    // 1. Exchange code → short-lived token
-    const tokenRes = await fetch(
-      `${GRAPH}/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`,
-      { method: "GET" },
-    );
+    // 1. Exchange code → short-lived token. The OAuth code exchange itself
+    // cannot use a Bearer header (there's no token yet) — code, app_id and
+    // app_secret have to go in the body. Use POST + form body instead of
+    // GET + query string so secrets don't appear in URL/access logs.
+    const tokenRes = await fetch(`${GRAPH}/oauth/access_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id:     APP_ID,
+        client_secret: APP_SECRET,
+        redirect_uri:  redirectUri,
+        code,
+      }),
+    });
     const tokenData = await tokenRes.json() as { access_token?: string; error?: { message: string } };
     if (!tokenData.access_token) {
       throw new Error(tokenData.error?.message ?? "Token exchange failed.");
     }
     const shortToken = tokenData.access_token;
 
-    // 2. Exchange → long-lived token (60-day)
-    const llRes = await fetch(
-      `${GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${shortToken}`,
-    );
+    // 2. Exchange → long-lived token (60-day). Same reasoning as step 1.
+    const llRes = await fetch(`${GRAPH}/oauth/access_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type:        "fb_exchange_token",
+        client_id:         APP_ID,
+        client_secret:     APP_SECRET,
+        fb_exchange_token: shortToken,
+      }),
+    });
     const llData = await llRes.json() as { access_token?: string; expires_in?: number; error?: { message: string } };
     if (!llData.access_token) {
       throw new Error(llData.error?.message ?? "Long-lived token exchange failed.");
@@ -60,8 +76,12 @@ export async function GET(req: NextRequest) {
       ? new Date(Date.now() + llData.expires_in * 1000)
       : null;
 
-    // 3. Get the user's Facebook Pages
-    const pagesRes = await fetch(`${GRAPH}/me/accounts?access_token=${longToken}`);
+    // 3. Get the user's Facebook Pages — token via Authorization header
+    // (steps 3-5 below). Meta accepts both Bearer header and ?access_token=
+    // query param; the header keeps the token out of URL logs.
+    const pagesRes = await fetch(`${GRAPH}/me/accounts`, {
+      headers: { Authorization: `Bearer ${longToken}` },
+    });
     const pagesData = await pagesRes.json() as {
       data?: { id: string; name: string; access_token: string }[];
       error?: { message: string };
@@ -75,7 +95,8 @@ export async function GET(req: NextRequest) {
 
     // 4. Get the Instagram Business Account for that page
     const igRes = await fetch(
-      `${GRAPH}/${page.id}?fields=instagram_business_account,name&access_token=${page.access_token}`,
+      `${GRAPH}/${page.id}?fields=instagram_business_account,name`,
+      { headers: { Authorization: `Bearer ${page.access_token}` } },
     );
     const igData = await igRes.json() as {
       instagram_business_account?: { id: string };
@@ -88,7 +109,9 @@ export async function GET(req: NextRequest) {
     const igUserId = igData.instagram_business_account.id;
 
     // 5. Fetch the IG username
-    const userRes = await fetch(`${GRAPH}/${igUserId}?fields=username&access_token=${longToken}`);
+    const userRes = await fetch(`${GRAPH}/${igUserId}?fields=username`, {
+      headers: { Authorization: `Bearer ${longToken}` },
+    });
     const userData = await userRes.json() as { username?: string; error?: { message: string } };
     const igUsername = userData.username ?? null;
 

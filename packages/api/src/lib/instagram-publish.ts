@@ -17,20 +17,34 @@ import {
   decryptToken,
   encryptToken,
 } from "@bakery/db";
+import { assertSupabaseImageUrl, assertImageMagicBytes } from "./image-validation";
 
 const GRAPH = "https://graph.facebook.com/v20.0";
 
+/**
+ * Meta Graph API accepts the access token either as a URL query parameter
+ * or via the `Authorization: Bearer` header. We use the header so the
+ * token never appears in:
+ *   - server access logs at Meta or intermediate proxies
+ *   - browser referrer headers from any redirect chain
+ *   - URL-logging telemetry on either end
+ */
 async function graphGet<T>(path: string, token: string): Promise<T> {
-  const sep = path.includes("?") ? "&" : "?";
-  const res = await fetch(`${GRAPH}${path}${sep}access_token=${token}`);
+  const res = await fetch(`${GRAPH}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   const data = await res.json() as Record<string, unknown>;
   if (data.error) throw new Error((data.error as { message?: string }).message ?? "Instagram API error");
   return data as T;
 }
 
 async function graphPost<T>(path: string, token: string, body: Record<string, string>): Promise<T> {
-  const params = new URLSearchParams({ ...body, access_token: token });
-  const res = await fetch(`${GRAPH}${path}`, { method: "POST", body: params });
+  const params = new URLSearchParams(body);
+  const res = await fetch(`${GRAPH}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: params,
+  });
   const data = await res.json() as Record<string, unknown>;
   if (data.error) throw new Error((data.error as { message?: string }).message ?? "Instagram API error");
   return data as T;
@@ -80,6 +94,18 @@ export async function publishToInstagram({
   imageUrl: string;
   caption:  string;
 }): Promise<PublishResult> {
+  // Validate the image URL before any external API call. Belt and braces:
+  // the router already runs assertSupabaseImageUrl on save, but a draft
+  // could have been created before that check existed, and the magic-byte
+  // sniff catches files that pass the host check but aren't real images.
+  try {
+    const url = assertSupabaseImageUrl(imageUrl);
+    await assertImageMagicBytes(url);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Image validation failed.";
+    return { status: "failed", igMediaId: null, errorMessage: msg };
+  }
+
   const conn = await db.query.instagramConnections.findFirst({
     where: eq(instagramConnections.ownerId, ownerId),
   });

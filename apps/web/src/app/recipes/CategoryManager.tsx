@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api } from "@/trpc/react";
 
-type Category = { id: string; name: string; description: string | null };
+type Category = { id: string; ownerId: string; name: string; description: string | null };
 
 export function CategoryManager({ initialCategories }: { initialCategories: Category[] }) {
   const utils = api.useUtils();

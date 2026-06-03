@@ -11,41 +11,46 @@ import {
   premadeCakeAddons,
   recipes,
 } from "@bakery/db";
+import {
+  shortText,
+  longText,
+  nonNegativeDecimalString,
+} from "../lib/validation";
 
 // ── Input schemas ────────────────────────────────────────────────────────────
 
 const cakeBaseSchema = z.object({
-  name:         z.string().min(1).max(255),
-  description:  z.string().optional().nullable(),
-  basePrice:    z.string().min(1),
-  leadTimeDays: z.number().int().min(0).default(0),
+  name:         shortText({ min: 1 }),
+  description:  longText().optional().nullable(),
+  basePrice:    nonNegativeDecimalString(),
+  leadTimeDays: z.number().int().min(0).max(365).default(0),
   recipeId:     z.string().uuid().optional().nullable(),
-  allergens:    z.string().optional().nullable(),
+  allergens:    longText().optional().nullable(),
   isActive:     z.boolean().default(true),
-  displayOrder: z.number().int().default(0),
+  displayOrder: z.number().int().min(0).max(10_000).default(0),
 });
 
 const sizeInputSchema = z.object({
-  label:        z.string().min(1),
-  diameterCm:   z.number().int().positive().optional().nullable(),
-  heightCm:     z.number().int().positive().optional().nullable(),
-  serves:       z.number().int().positive().optional().nullable(),
-  displayOrder: z.number().int().default(0),
+  label:        shortText({ min: 1 }),
+  diameterCm:   z.number().int().positive().max(1000).optional().nullable(),
+  heightCm:     z.number().int().positive().max(1000).optional().nullable(),
+  serves:       z.number().int().positive().max(10_000).optional().nullable(),
+  displayOrder: z.number().int().min(0).max(10_000).default(0),
 });
 
 const flavourInputSchema = z.object({
-  name:         z.string().min(1).max(255),
-  description:  z.string().optional().nullable(),
+  name:         shortText({ min: 1 }),
+  description:  longText().optional().nullable(),
   isActive:     z.boolean().default(true),
-  displayOrder: z.number().int().default(0),
+  displayOrder: z.number().int().min(0).max(10_000).default(0),
 });
 
 const addonInputSchema = z.object({
-  name:         z.string().min(1).max(255),
-  description:  z.string().optional().nullable(),
-  priceDelta:   z.string().default("0"),
+  name:         shortText({ min: 1 }),
+  description:  longText().optional().nullable(),
+  priceDelta:   nonNegativeDecimalString().default("0"),
   isActive:     z.boolean().default(true),
-  displayOrder: z.number().int().default(0),
+  displayOrder: z.number().int().min(0).max(10_000).default(0),
 });
 
 // ── Sub-routers: shared catalogs ─────────────────────────────────────────────
