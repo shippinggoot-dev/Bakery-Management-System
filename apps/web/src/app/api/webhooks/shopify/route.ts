@@ -112,9 +112,15 @@ export async function POST(request: NextRequest) {
   const shopifyOrderId     = String(order.id);
   const shopifyOrderNumber = order.name; // e.g. "#1042"
 
-  // Check for duplicate (idempotency — Shopify may retry)
+  // Check for duplicate (idempotency — Shopify may retry). Scope the
+  // lookup to this owner: Shopify order IDs are 64-bit sequential ints
+  // that can collide between stores (notably dev stores reset to 1001),
+  // so a global ID match could silently drop another tenant's order.
   const existing = await db.query.cakeOrders.findFirst({
-    where: eq(cakeOrders.shopifyOrderId, shopifyOrderId),
+    where: and(
+      eq(cakeOrders.ownerId,        ownerId),
+      eq(cakeOrders.shopifyOrderId, shopifyOrderId),
+    ),
   });
   if (existing) {
     return NextResponse.json({ ok: true, duplicate: true });

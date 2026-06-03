@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {
@@ -8,6 +9,7 @@ import {
   shoppingListItems,
   productionSchedules,
   recipes,
+  customers,
 } from "@bakery/db";
 import { inventoryService } from "../services/inventory";
 import { recordSale } from "../services/loyalty";
@@ -20,6 +22,34 @@ import {
 } from "../lib/validation";
 
 const statusSchema = z.enum(["pending", "planned", "in_progress", "completed", "cancelled"]);
+
+/**
+ * Verify FK targets the client passed (recipeId, customerId) actually
+ * belong to the caller. Pass `null` for any value you don't need to
+ * check (e.g. on update when the field wasn't changed).
+ *
+ * Throws NOT_FOUND if any non-null target is missing or owned by
+ * another tenant — same surface the rest of the router uses.
+ */
+async function assertOwnedFkTargets(
+  ctx: { db: typeof import("@bakery/db").db; user: { id: string } },
+  targets: { recipeId: string | null; customerId: string | null },
+): Promise<void> {
+  if (targets.recipeId) {
+    const r = await ctx.db.query.recipes.findFirst({
+      where: and(eq(recipes.id, targets.recipeId), eq(recipes.ownerId, ctx.user.id)),
+      columns: { id: true },
+    });
+    if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Recipe not found." });
+  }
+  if (targets.customerId) {
+    const c = await ctx.db.query.customers.findFirst({
+      where: and(eq(customers.id, targets.customerId), eq(customers.ownerId, ctx.user.id)),
+      columns: { id: true },
+    });
+    if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found." });
+  }
+}
 
 export const cakeOrdersRouter = createTRPCRouter({
   getAll: publicProcedure
@@ -62,6 +92,14 @@ export const cakeOrdersRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Validate any FK targets that came from the client belong to the
+      // caller. Without this a tenant can plant a cake_order pointing at
+      // another bakery's recipe or customer; later transitions on the
+      // order would then read/write that foreign tenant's data.
+      await assertOwnedFkTargets(ctx, {
+        recipeId:   input.recipeId   ?? null,
+        customerId: input.customerId ?? null,
+      });
       const [order] = await ctx.db
         .insert(cakeOrders)
         .values({ ...input, ownerId: ctx.user.id, status: "pending" })
@@ -109,6 +147,14 @@ export const cakeOrdersRouter = createTRPCRouter({
         where: and(eq(cakeOrders.id, id), eq(cakeOrders.ownerId, ctx.user.id)),
       });
       if (!before) throw new Error("Cake order not found.");
+
+      // Validate any FK targets that came from the client. Only check when
+      // the caller is actually changing the value — saves a DB round-trip
+      // on the common "edit notes / status" path.
+      await assertOwnedFkTargets(ctx, {
+        recipeId:   data.recipeId   !== undefined && data.recipeId   !== before.recipeId   ? data.recipeId   : null,
+        customerId: data.customerId !== undefined && data.customerId !== before.customerId ? data.customerId : null,
+      });
 
       const [updated] = await ctx.db
         .update(cakeOrders)

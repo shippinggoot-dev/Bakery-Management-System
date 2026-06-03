@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { eq, and, like } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { ingredients, ingredientAllergens, ingredientCategories, allergens, ingredientSuppliers, supplierPrices, suppliers } from "@bakery/db";
@@ -119,6 +120,16 @@ export const ingredientsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.ingredient.categoryId) {
+        const cat = await ctx.db.query.ingredientCategories.findFirst({
+          where: and(
+            eq(ingredientCategories.id,      input.ingredient.categoryId),
+            eq(ingredientCategories.ownerId, ctx.user.id),
+          ),
+          columns: { id: true },
+        });
+        if (!cat) throw new TRPCError({ code: "NOT_FOUND", message: "Category not found." });
+      }
       return ctx.db.transaction(async (tx) => {
         const [ingredient] = await tx
           .insert(ingredients)
@@ -139,6 +150,18 @@ export const ingredientsRouter = createTRPCRouter({
   update: protectedProcedure
     .input(z.object({ id: z.string().uuid(), data: ingredientInputSchema.partial() }))
     .mutation(async ({ ctx, input }) => {
+      // categoryId is per-tenant — verify it belongs to this user before
+      // attaching. Same defensive check as recipes.update.
+      if (input.data.categoryId) {
+        const cat = await ctx.db.query.ingredientCategories.findFirst({
+          where: and(
+            eq(ingredientCategories.id,      input.data.categoryId),
+            eq(ingredientCategories.ownerId, ctx.user.id),
+          ),
+          columns: { id: true },
+        });
+        if (!cat) throw new TRPCError({ code: "NOT_FOUND", message: "Category not found." });
+      }
       const [updated] = await ctx.db
         .update(ingredients)
         .set({ ...input.data, updatedAt: new Date() })

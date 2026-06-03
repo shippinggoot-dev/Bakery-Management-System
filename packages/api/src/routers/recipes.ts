@@ -128,6 +128,16 @@ export const recipesRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.recipe.categoryId) {
+        const cat = await ctx.db.query.recipeCategories.findFirst({
+          where: and(
+            eq(recipeCategories.id,      input.recipe.categoryId),
+            eq(recipeCategories.ownerId, ctx.user.id),
+          ),
+          columns: { id: true },
+        });
+        if (!cat) throw new TRPCError({ code: "NOT_FOUND", message: "Category not found." });
+      }
       return ctx.db.transaction(async (tx) => {
         const [recipe] = await tx
           .insert(recipes)
@@ -145,6 +155,19 @@ export const recipesRouter = createTRPCRouter({
   update: protectedProcedure
     .input(z.object({ id: z.string().uuid(), data: recipeInputSchema.partial() }))
     .mutation(async ({ ctx, input }) => {
+      // categoryId is per-tenant — verify the target belongs to this user
+      // before attaching. Without this check a tenant could attach
+      // another bakery's category UUID to their recipe.
+      if (input.data.categoryId) {
+        const cat = await ctx.db.query.recipeCategories.findFirst({
+          where: and(
+            eq(recipeCategories.id,      input.data.categoryId),
+            eq(recipeCategories.ownerId, ctx.user.id),
+          ),
+          columns: { id: true },
+        });
+        if (!cat) throw new TRPCError({ code: "NOT_FOUND", message: "Category not found." });
+      }
       const [updated] = await ctx.db
         .update(recipes)
         .set({ ...input.data, updatedAt: new Date() })

@@ -62,17 +62,49 @@ export function mapPaymentStatus(status: string): PaymentStatus {
  * Try to extract a delivery / due date from the order. Bakery orders
  * often put the date in a Shopify note_attribute, or free-typed in
  * the order note in YYYY-MM-DD or DD/MM/YYYY form.
+ *
+ * IMPORTANT — DD/MM/YYYY is parsed BEFORE delegating to `new Date()`.
+ * `new Date("02/06/2026")` returns Feb 6 in US locale and June 2 in EU
+ * locale; this code runs on a Vercel Node runtime whose locale we don't
+ * control, so we cannot trust it for slash-separated values. Norwegian
+ * Shopify stores commonly send DD/MM/YYYY in note_attributes, and a
+ * locale-flip would book the order on the wrong day.
  */
+function parseLooseDate(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  // 1. ISO date — parse first.
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  // 2. DD/MM/YYYY or DD-MM-YYYY (Norwegian / European convention).
+  const dmyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmyMatch) {
+    const [, d, m, y] = dmyMatch;
+    return `${y}-${m!.padStart(2, "0")}-${d!.padStart(2, "0")}`;
+  }
+
+  // 3. Last resort: let JS try (covers RFC-style "Wed, 4 Jul 2026" etc).
+  //    Skipped above for slash-separated values precisely to avoid
+  //    locale-dependent DD/MM vs MM/DD interpretation.
+  const fallback = new Date(trimmed);
+  if (!isNaN(fallback.getTime())) return fallback.toISOString().slice(0, 10);
+
+  return null;
+}
+
 export function extractDueDate(order: Pick<ShopifyOrderForMapping, "note" | "note_attributes">): string | null {
   const keywords = ["delivery_date", "pickup_date", "due_date", "collection_date", "date"];
   for (const attr of order.note_attributes ?? []) {
     if (keywords.some((k) => attr.name.toLowerCase().includes(k))) {
-      const d = new Date(attr.value);
-      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-      return attr.value;
+      const parsed = parseLooseDate(attr.value);
+      if (parsed) return parsed;
+      return attr.value; // keep raw if unparseable so the user can see what came in
     }
   }
   if (order.note) {
+    // Search the free-text note for embedded ISO or DMY patterns.
     const isoMatch = order.note.match(/\d{4}-\d{2}-\d{2}/);
     if (isoMatch) return isoMatch[0];
     const dmyMatch = order.note.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
