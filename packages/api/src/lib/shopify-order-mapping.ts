@@ -235,9 +235,14 @@ export function mapShopifyOrderToCakeOrderRows(
     // calculation is SUM(salePrice × quantity), so storing the unit
     // price here gives the correct total without further work.
     const unitPrice = item.price && /^\d+(\.\d+)?$/.test(item.price) ? item.price : null;
-    // Per-line due date: order level wins; otherwise try to read a date
-    // out of the line item title (covers Bakeskole class dates).
-    const dueDate = orderLevelDueDate ?? extractDateFromTitle(item.title);
+    // Per-line due date: order level wins; otherwise scan BOTH the line
+    // item title and its variant_title. Sucre's class-style products put
+    // the date in the variant ("Bakeskole - August 2026" + variant
+    // "10-11. August (Safari)") — without the variant we'd miss it.
+    const titleForDate = item.variant_title
+      ? `${item.title} ${item.variant_title}`
+      : item.title;
+    const dueDate = orderLevelDueDate ?? extractDateFromTitle(titleForDate);
     return {
       customerName,
       customerEmail,
@@ -248,6 +253,9 @@ export function mapShopifyOrderToCakeOrderRows(
       paymentStatus,
       shopifyOrderId,
       shopifyOrderNumber,
+      // Keep just item.title here (NOT title + variant) so that the
+      // matcher and the "auto-link siblings" feature both work on the
+      // base product. The variant is captured in the order notes.
       shopifyLineItemTitle: item.title,
       salePrice:          unitPrice,
       notes: [
