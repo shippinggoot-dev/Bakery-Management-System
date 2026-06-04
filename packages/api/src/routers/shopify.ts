@@ -10,6 +10,7 @@ import {
 } from "../services/shopify-sync";
 import {
   mapShopifyOrderToCakeOrderRows,
+  buildRecipeTitleLookup,
   type ShopifyOrderForMapping,
   type ShopifyLineItem,
 } from "../lib/shopify-order-mapping";
@@ -399,12 +400,14 @@ export const shopifyRouter = createTRPCRouter({
       `/orders.json?status=any&limit=250${sinceParam}`
     );
 
-    // Load recipes once and build the lookup map the mapper expects.
+    // Load recipes once and build the title-aware lookup map the mapper
+    // expects. shopify_titles is included so recipes the user created
+    // via the planner "Create recipe from order" flow match their variants.
     const ownerRecipes = await ctx.db.query.recipes.findMany({
       where: eq(recipes.ownerId, ctx.user.id),
-      columns: { id: true, name: true },
+      columns: { id: true, name: true, shopifyTitles: true },
     });
-    const recipesByLowerName = new Map(ownerRecipes.map((r) => [r.name.toLowerCase(), r.id]));
+    const lookup = buildRecipeTitleLookup(ownerRecipes);
 
     let imported   = 0;
     let skipped    = 0;
@@ -426,7 +429,7 @@ export const shopifyRouter = createTRPCRouter({
         });
         if (dupe) { skipped++; continue; }
 
-        const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, recipesByLowerName);
+        const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, lookup);
         if (rows.length === 0) { skipped++; continue; }
 
         const ordersToInsert = rows.map((r) => ({ ...r, ownerId: ctx.user.id }));

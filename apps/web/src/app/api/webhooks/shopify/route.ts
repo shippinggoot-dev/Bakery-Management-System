@@ -7,6 +7,7 @@ import { sendOrderConfirmation } from "@/lib/email";
 import { checkRateLimit, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
 import {
   mapShopifyOrderToCakeOrderRows,
+  buildRecipeTitleLookup,
   extractDueDate,
   type ShopifyOrderForMapping,
   type ShopifyLineItem,
@@ -126,17 +127,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
-  // Load all recipes for this owner so we can try name-matching line items
+  // Load all recipes for this owner so we can try title-matching line
+  // items. We need shopify_titles too so the matcher catches variants
+  // registered via the "Create recipe from order" planner action.
   const ownerRecipes = await db.query.recipes.findMany({
     where: eq(recipes.ownerId, ownerId),
-    columns: { id: true, name: true },
+    columns: { id: true, name: true, shopifyTitles: true },
   });
-  const recipesByLowerName = new Map(ownerRecipes.map((r) => [r.name.toLowerCase(), r.id]));
+  const lookup = buildRecipeTitleLookup(ownerRecipes);
 
   // Convert the Shopify payload to cake_orders rows via the shared mapping
   // helper. Bulk import (packages/api/src/routers/shopify.ts) uses the same
   // helper so webhook and import produce identical dashboard-visible rows.
-  const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, recipesByLowerName);
+  const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, lookup);
   const ordersToInsert = rows.map((r) => ({ ...r, ownerId }));
 
   let insertedOrders: { id: string; recipeId: string | null; quantity: string; dueDate: string | null; customerName: string | null; notes: string | null }[] = [];

@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, and, desc, asc, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, isNull, sql } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {
   recipes,
   recipeIngredients,
   recipeCategories,
   supplierPrices,
+  cakeOrders,
 } from "@bakery/db";
 import {
   shortText,
@@ -29,6 +30,10 @@ const recipeInputSchema = z.object({
   isActive: z.boolean().default(true),
   sellingPrice: nonNegativeDecimalString().optional().nullable(),
   flavours: longText().optional().nullable(),
+  /** Shopify line-item titles this recipe should respond to. The "Create
+   *  recipe from order" flow populates this from the originating order;
+   *  the user can edit it later to add/remove variants. */
+  shopifyTitles: z.array(shortText()).max(50).optional(),
 });
 
 const recipeIngredientInputSchema = z.object({
@@ -150,6 +155,97 @@ export const recipesRouter = createTRPCRouter({
         }
         return recipe;
       });
+    }),
+
+  /**
+   * Create a recipe and immediately auto-link every pending Shopify-origin
+   * cake_order that matches the originating title. Used by the planner's
+   * "Create recipe from this order" button.
+   *
+   * The `shopifyTitle` is the EXACT Shopify line-item title that produced
+   * the originating unlinked order. We:
+   *   1. Verify the user actually has a pending unlinked order with that
+   *      title (so anonymous attempts to inflate the title list fail).
+   *   2. Insert the new recipe, seeding shopifyTitles with that one entry.
+   *   3. UPDATE every pending cake_order owned by this user where
+   *      shopify_line_item_title matches AND recipe_id IS NULL — points
+   *      them at the new recipe and reports the count.
+   *
+   * Returns the created recipe + linkedOrderCount.
+   */
+  createFromShopifyTitle: protectedProcedure
+    .input(
+      z.object({
+        shopifyTitle: shortText({ min: 1 }),
+        recipe:       recipeInputSchema,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const shopifyTitle = input.shopifyTitle.trim();
+
+      // Verify the title actually came from one of the caller's pending
+      // unlinked orders — prevents callers from silently seeding the
+      // titles array with anything they like.
+      const owningOrder = await ctx.db.query.cakeOrders.findFirst({
+        where: and(
+          eq(cakeOrders.ownerId,              ctx.user.id),
+          eq(cakeOrders.shopifyLineItemTitle, shopifyTitle),
+          isNull(cakeOrders.recipeId),
+        ),
+        columns: { id: true },
+      });
+      if (!owningOrder) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No pending unlinked order with that Shopify product title.",
+        });
+      }
+
+      if (input.recipe.categoryId) {
+        const cat = await ctx.db.query.recipeCategories.findFirst({
+          where: and(
+            eq(recipeCategories.id,      input.recipe.categoryId),
+            eq(recipeCategories.ownerId, ctx.user.id),
+          ),
+          columns: { id: true },
+        });
+        if (!cat) throw new TRPCError({ code: "NOT_FOUND", message: "Category not found." });
+      }
+
+      // Insert the recipe with the originating title seeded into the
+      // shopifyTitles array. Caller may have included more titles
+      // already (e.g. variants of the same product the user wants to
+      // consolidate); merge dedup'd.
+      const seedTitles = Array.from(new Set([
+        shopifyTitle,
+        ...(input.recipe.shopifyTitles ?? []),
+      ]));
+
+      const [created] = await ctx.db
+        .insert(recipes)
+        .values({
+          ...input.recipe,
+          shopifyTitles: seedTitles,
+          ownerId:       ctx.user.id,
+        })
+        .returning({ id: recipes.id, name: recipes.name });
+
+      // Link every pending unlinked order for this owner whose
+      // shopify_line_item_title matches ANY of the seed titles.
+      const linkResult = await ctx.db
+        .update(cakeOrders)
+        .set({ recipeId: created!.id, updatedAt: new Date() })
+        .where(and(
+          eq(cakeOrders.ownerId, ctx.user.id),
+          isNull(cakeOrders.recipeId),
+          inArray(cakeOrders.shopifyLineItemTitle, seedTitles),
+        ))
+        .returning({ id: cakeOrders.id });
+
+      return {
+        recipe:            created!,
+        linkedOrderCount:  linkResult.length,
+      };
     }),
 
   update: protectedProcedure

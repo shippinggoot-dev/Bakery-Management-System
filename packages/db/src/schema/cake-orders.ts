@@ -33,6 +33,12 @@ export const cakeOrders = pgTable("cake_orders", {
   shopifyOrderId:      text("shopify_order_id"),
   /** Shopify human-readable order name, e.g. "#1042" */
   shopifyOrderNumber:  text("shopify_order_number"),
+  /** The Shopify line-item title that produced this row. Set by the
+   *  webhook + bulk import even when a recipe match is found, so the
+   *  "Create recipe from this" planner action can find ALL pending
+   *  orders that share the same Shopify product without parsing the
+   *  free-text notes field. */
+  shopifyLineItemTitle: text("shopify_line_item_title"),
   /** Agreed sale price for this order (stored as text) */
   salePrice:           text("sale_price"),
   notes:               text("notes"),

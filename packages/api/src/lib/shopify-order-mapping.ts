@@ -114,21 +114,88 @@ export function extractDueDate(order: Pick<ShopifyOrderForMapping, "note" | "not
 }
 
 /**
+ * Try to extract a date from a Shopify line-item title. Sucre's
+ * Bakeskole and similar event-style products encode the date in the
+ * title itself, e.g. `Bakeskole - August 2026 — 10-11. August (Safari)`.
+ *
+ * We look for Norwegian and English month names plus a day or
+ * day-range. For ranges (`10-11. August`) we return the start day
+ * (the day the customer's fulfillment commitment begins). Year is
+ * read from a 4-digit number nearby if present, otherwise we fall
+ * back to the year of `today`, advancing to next year if the month
+ * has already passed (the event is in the future).
+ */
+const MONTHS: Record<string, number> = {
+  // Norwegian bokmål
+  januar:    1, februar: 2, mars:    3, april:    4, mai:      5, juni:     6,
+  juli:      7, august:  8, september: 9, oktober: 10, november: 11, desember: 12,
+  // English (we may see English titles too)
+  january:   1, february: 2, march:   3,           may:      5, june:     6,
+  july:      7,                       october: 10,            december: 12,
+  // Short forms / common
+  jan:       1, feb:     2, mar:     3, apr:     4,           jun:      6,
+  jul:       7, aug:     8, sep:     9, okt:    10, nov:     11, des:    12, dec: 12,
+};
+
+export function extractDateFromTitle(title: string, today: Date = new Date()): string | null {
+  if (!title) return null;
+  const lower = title.toLowerCase();
+
+  // Match "<day>[-<day>]. <month>[ <year>]" or "<day>. <month>[ <year>]".
+  // Examples: "10-11. august", "10. august 2026", "3-4. august"
+  const m = lower.match(/(\d{1,2})(?:\s*[-–]\s*\d{1,2})?\.\s*([a-zæøå]+)\.?(?:\s+(\d{4}))?/);
+  if (!m) return null;
+
+  const day   = parseInt(m[1]!, 10);
+  const monthName = m[2]!;
+  const month = MONTHS[monthName];
+  if (!month) return null;
+
+  let year: number;
+  if (m[3]) {
+    year = parseInt(m[3], 10);
+  } else {
+    // No year in the title — look elsewhere in the title for one,
+    // otherwise infer (current year if month hasn't passed, else next).
+    const yearMatch = lower.match(/\b(20\d{2})\b/);
+    if (yearMatch) {
+      year = parseInt(yearMatch[1]!, 10);
+    } else {
+      year = today.getFullYear();
+      const thisMonth = today.getMonth() + 1;
+      const thisDay   = today.getDate();
+      if (month < thisMonth || (month === thisMonth && day < thisDay)) {
+        year++;
+      }
+    }
+  }
+
+  // Sanity: day in range for month? Use Date to check rollover.
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (d.getUTCMonth() !== month - 1) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
  * One cake_orders row, ready to insert. Shape matches the Drizzle
  * insert spec for the table (ownerId is added by the caller).
  */
 export interface MappedCakeOrderRow {
-  customerName:       string | null;
-  customerEmail:      string | null;
-  recipeId:           string | null;
-  quantity:           string;
-  dueDate:            string | null;
-  status:             "pending";
-  paymentStatus:      PaymentStatus;
-  shopifyOrderId:     string;
-  shopifyOrderNumber: string;
-  salePrice:          string | null;
-  notes:              string | null;
+  customerName:         string | null;
+  customerEmail:        string | null;
+  recipeId:             string | null;
+  quantity:             string;
+  dueDate:              string | null;
+  status:               "pending";
+  paymentStatus:        PaymentStatus;
+  shopifyOrderId:       string;
+  shopifyOrderNumber:   string;
+  /** Original Shopify line-item title — preserved so we can find every
+   *  pending order produced by the same Shopify product when the user
+   *  creates a recipe for it later. */
+  shopifyLineItemTitle: string;
+  salePrice:            string | null;
+  notes:                string | null;
 }
 
 export interface MappingResult {
@@ -141,28 +208,36 @@ export interface MappingResult {
  * Convert a Shopify order into one or more cake_orders rows: one per
  * line item, with recipe-name matching and due-date extraction.
  *
- * Caller passes a lowercase-name → recipe-id map so the recipe lookup
- * is O(1) per line item rather than O(N) per call.
+ * Caller passes a lowercase-title → recipe-id map. The map should
+ * include BOTH `recipe.name.toLowerCase()` and every entry from
+ * `recipe.shopify_titles` (lowercased). When `recipe.shopify_titles`
+ * grows via the "Create recipe from order" flow, the next import
+ * picks up the new mapping automatically without further code change.
  */
 export function mapShopifyOrderToCakeOrderRows(
   order: ShopifyOrderForMapping,
-  recipesByLowerName: ReadonlyMap<string, string>,
+  recipesByLowerTitle: ReadonlyMap<string, string>,
 ): MappingResult {
   const customerName = order.customer
     ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() || null
     : null;
   const customerEmail = (order.email || order.customer?.email || null)?.trim() || null;
   const paymentStatus = mapPaymentStatus(order.financial_status);
-  const dueDate       = extractDueDate(order);
+  // Order-level due date (from note_attributes / order note). May still
+  // be null — line-item titles are checked per-row below.
+  const orderLevelDueDate = extractDueDate(order);
   const shopifyOrderId     = String(order.id);
   const shopifyOrderNumber = order.name;
 
   const rows: MappedCakeOrderRow[] = order.line_items.map((item) => {
-    const recipeId = recipesByLowerName.get(item.title.toLowerCase()) ?? null;
+    const recipeId = recipesByLowerTitle.get(item.title.toLowerCase()) ?? null;
     // Per-unit price as Shopify provides it. The dashboard revenue
     // calculation is SUM(salePrice × quantity), so storing the unit
     // price here gives the correct total without further work.
     const unitPrice = item.price && /^\d+(\.\d+)?$/.test(item.price) ? item.price : null;
+    // Per-line due date: order level wins; otherwise try to read a date
+    // out of the line item title (covers Bakeskole class dates).
+    const dueDate = orderLevelDueDate ?? extractDateFromTitle(item.title);
     return {
       customerName,
       customerEmail,
@@ -173,6 +248,7 @@ export function mapShopifyOrderToCakeOrderRows(
       paymentStatus,
       shopifyOrderId,
       shopifyOrderNumber,
+      shopifyLineItemTitle: item.title,
       salePrice:          unitPrice,
       notes: [
         recipeId ? null : `Product: ${item.title}${item.variant_title ? ` — ${item.variant_title}` : ""}`,
@@ -183,4 +259,24 @@ export function mapShopifyOrderToCakeOrderRows(
 
   const allMatched = rows.length > 0 && rows.every((r) => r.recipeId !== null);
   return { rows, allMatched };
+}
+
+/**
+ * Build the lookup map the mapper expects from a set of recipes loaded
+ * from the database. Each recipe contributes its name (lowercased) plus
+ * every entry in `shopifyTitles` (lowercased). Later inserts win on
+ * collision, but the practical result is "if any recipe answers to
+ * this title, return it."
+ */
+export function buildRecipeTitleLookup(
+  recipes: ReadonlyArray<{ id: string; name: string; shopifyTitles: string[] | null }>,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const r of recipes) {
+    map.set(r.name.toLowerCase(), r.id);
+    for (const t of r.shopifyTitles ?? []) {
+      if (t) map.set(t.toLowerCase(), r.id);
+    }
+  }
+  return map;
 }

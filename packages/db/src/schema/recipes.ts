@@ -29,6 +29,12 @@ export const recipes = pgTable("recipes", {
   shopifyProductId:       text("shopify_product_id"),
   shopifyVariantId:       text("shopify_variant_id"),
   shopifyInventoryItemId: text("shopify_inventory_item_id"),
+  /** Shopify line-item titles this recipe responds to (case-insensitive).
+   *  Lets one recipe match many Shopify variants (e.g. a single recipe
+   *  catches `Cupcake-Glowup — 18 / Krydder / Melkesjokolade` and every
+   *  other variant string). Populated by the "Create recipe from order"
+   *  flow on the planner page, editable later. */
+  shopifyTitles:          text("shopify_titles").array(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
