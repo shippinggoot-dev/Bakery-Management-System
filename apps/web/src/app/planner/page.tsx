@@ -385,6 +385,137 @@ function GeneratePanel({ orders, onClose, onGenerated }: {
   );
 }
 
+/**
+ * Modal: create a recipe for an unlinked Shopify-origin order. Pre-fills
+ * the name from the Shopify line-item title and pre-fills the selling
+ * price from the order. On save, calls createFromShopifyTitle which
+ * also auto-links every other pending order with the same Shopify title.
+ */
+function CreateRecipeFromOrderModal({
+  shopifyTitle, suggestedPrice, onClose, onCreated,
+}: {
+  shopifyTitle:   string;
+  suggestedPrice: string | null;
+  onClose:        () => void;
+  onCreated:      (linkedCount: number) => void;
+}) {
+  const [name,         setName]         = useState(shopifyTitle);
+  const [yieldAmount,  setYieldAmount]  = useState("1");
+  const [yieldUnit,    setYieldUnit]    = useState("stk");
+  const [sellingPrice, setSellingPrice] = useState(suggestedPrice ?? "");
+  const [error,        setError]        = useState<string | null>(null);
+
+  const create = api.recipes.createFromShopifyTitle.useMutation({
+    onSuccess: (result) => onCreated(result.linkedOrderCount),
+    onError:   (e)      => setError(e.message),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim())        return setError("Recipe name is required.");
+    if (!yieldAmount.trim()) return setError("Yield amount is required.");
+    if (!yieldUnit.trim())   return setError("Yield unit is required.");
+    setError(null);
+    create.mutate({
+      shopifyTitle,
+      recipe: {
+        name:         name.trim(),
+        yieldAmount:  yieldAmount.trim(),
+        yieldUnit:    yieldUnit.trim(),
+        sellingPrice: sellingPrice.trim() || null,
+        isActive:     true,
+      },
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-gray-900">Create recipe from order</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Saves to your recipes. Other pending orders with the same Shopify product link automatically.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none shrink-0">×</button>
+        </div>
+
+        <div className="rounded-lg bg-rose-50 border border-rose-100 px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-rose-600 font-semibold">Shopify product</p>
+          <p className="text-sm text-gray-800 mt-0.5 break-words">{shopifyTitle}</p>
+        </div>
+
+        {error && <p className="text-sm text-red-500">{error}</p>}
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="form-label">Recipe name *</label>
+            <input
+              className="form-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              required
+              maxLength={255}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">Shorten to a base name like “Razzle Dazzle Wedding Cake”. Variants are handled by the matcher.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Yield amount *</label>
+              <input
+                className="form-input"
+                type="number"
+                min="0.01"
+                step="any"
+                value={yieldAmount}
+                onChange={(e) => setYieldAmount(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="form-label">Yield unit *</label>
+              <input
+                className="form-input"
+                value={yieldUnit}
+                onChange={(e) => setYieldUnit(e.target.value)}
+                placeholder="stk, kg, dl…"
+                required
+                maxLength={32}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="form-label">Selling price (kr)</label>
+            <input
+              className="form-input"
+              type="text"
+              inputMode="decimal"
+              value={sellingPrice}
+              onChange={(e) => setSellingPrice(e.target.value)}
+              placeholder="0.00"
+            />
+            <p className="text-[11px] text-gray-400 mt-1">Pre-filled from the Shopify line price. Adjust if you charge differently.</p>
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={create.isPending} className="btn-primary disabled:opacity-50 flex-1">
+              {create.isPending ? "Creating…" : "Create recipe"}
+            </button>
+            <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
+          </div>
+          <p className="text-[11px] text-gray-400">
+            You can add ingredients, instructions, and edit the variant title list on the recipe page later.
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function ScheduleModal({
   orderId, recipeId, recipeName, dueDate, quantity,
   onClose,
@@ -461,11 +592,25 @@ export default function PlannerPage() {
   const [showGenerate, setShowGenerate] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("active");
   const [schedulingId, setSchedulingId] = useState<string | null>(null);
+  // When set, opens the "create recipe from Shopify title" modal for the
+  // selected unlinked order. We carry the source order so we can pre-fill
+  // the recipe form with its title and per-unit price.
+  const [creatingRecipeFor, setCreatingRecipeFor] = useState<{
+    shopifyTitle:   string;
+    suggestedPrice: string | null;
+  } | null>(null);
 
   const { data: allOrders = [], isLoading } = api.cakeOrders.getAll.useQuery();
 
   const updateStatus = api.cakeOrders.update.useMutation({ onSuccess: () => utils.cakeOrders.getAll.invalidate() });
   const deleteOrder  = api.cakeOrders.delete.useMutation({ onSuccess: () => utils.cakeOrders.getAll.invalidate() });
+
+  // Past-due: pending order whose due date is strictly before today.
+  // Today's orders are NOT past due — they're being worked on.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  function isPastDue(o: { status: string; dueDate: string | null }): boolean {
+    return o.status === "pending" && o.dueDate != null && o.dueDate < todayIso;
+  }
 
   const displayed = allOrders.filter((o) => {
     if (filterStatus === "active") return o.status === "pending" || o.status === "planned" || o.status === "in_progress";
@@ -531,6 +676,20 @@ export default function PlannerPage() {
         ) : null;
       })()}
 
+      {creatingRecipeFor && (
+        <CreateRecipeFromOrderModal
+          shopifyTitle={creatingRecipeFor.shopifyTitle}
+          suggestedPrice={creatingRecipeFor.suggestedPrice}
+          onClose={() => setCreatingRecipeFor(null)}
+          onCreated={(linkedCount) => {
+            setCreatingRecipeFor(null);
+            utils.cakeOrders.getAll.invalidate();
+            utils.recipes.getAll.invalidate();
+            alert(`Recipe created. ${linkedCount} order${linkedCount === 1 ? "" : "s"} now linked.`);
+          }}
+        />
+      )}
+
       <div className="flex gap-1">
         {[
           { id: "active", label: t("filterActive") },
@@ -569,7 +728,10 @@ export default function PlannerPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-rose-50">
-                {displayed.map((order) => (
+                {displayed.map((order) => {
+                  const pastDue   = isPastDue(order);
+                  const unlinked  = !order.recipeId && !!order.shopifyLineItemTitle;
+                  return (
                   <tr key={order.id} className="hover:bg-rose-50/40 transition-colors">
                     <td className="px-5 py-3">
                       <p className="text-sm font-medium text-gray-900">
@@ -588,7 +750,14 @@ export default function PlannerPage() {
                     </td>
                     <td className="px-5 py-3 text-sm text-gray-600">{order.customerName ?? <span className="text-gray-300">—</span>}</td>
                     <td className="px-5 py-3 text-sm text-gray-700 whitespace-nowrap">{order.quantity}{order.recipe ? ` ${order.recipe.yieldUnit}` : ""}</td>
-                    <td className="px-5 py-3 text-sm text-gray-500 whitespace-nowrap">{order.dueDate ?? <span className="text-gray-300">—</span>}</td>
+                    <td className="px-5 py-3 text-sm text-gray-500 whitespace-nowrap">
+                      {order.dueDate ? (
+                        <span className={pastDue ? "text-red-600 font-semibold" : ""}>
+                          {order.dueDate}
+                          {pastDue && <span className="ml-1.5 badge text-[10px] bg-red-100 text-red-700 border border-red-200">Past due</span>}
+                        </span>
+                      ) : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-5 py-3">
                       <select value={order.status} onChange={(e) => updateStatus.mutate({ id: order.id, status: e.target.value as never })}
                         className={`badge text-xs cursor-pointer border-0 focus:outline-none focus:ring-1 focus:ring-brand-400 ${statusStyle[order.status] ?? ""}`}>
@@ -597,6 +766,18 @@ export default function PlannerPage() {
                     </td>
                     <td className="px-5 py-3 text-right">
                       <div className="flex items-center justify-end gap-3">
+                        {unlinked && (
+                          <button
+                            onClick={() => setCreatingRecipeFor({
+                              shopifyTitle:   order.shopifyLineItemTitle!,
+                              suggestedPrice: order.salePrice ?? null,
+                            })}
+                            className="text-xs text-brand-500 hover:text-brand-700 font-medium transition-colors whitespace-nowrap"
+                            title="Create a recipe from this Shopify product. Other pending orders for the same product link automatically."
+                          >
+                            + Create recipe
+                          </button>
+                        )}
                         {order.recipeId && order.status !== "completed" && order.status !== "cancelled" && (
                           <button
                             onClick={() => setSchedulingId(order.id)}
@@ -610,7 +791,8 @@ export default function PlannerPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
