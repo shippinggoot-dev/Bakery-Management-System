@@ -213,10 +213,18 @@ export interface MappingResult {
  * `recipe.shopify_titles` (lowercased). When `recipe.shopify_titles`
  * grows via the "Create recipe from order" flow, the next import
  * picks up the new mapping automatically without further code change.
+ *
+ * The optional `ignoredTitlesLower` set lets the caller skip Shopify
+ * line items whose title is on the per-workspace ignore list. Skipped
+ * line items don't appear in the output rows at all. If every line
+ * item on an order is skipped, the result is an empty rows array and
+ * `allMatched: false` — caller should handle the "nothing to insert"
+ * case explicitly.
  */
 export function mapShopifyOrderToCakeOrderRows(
   order: ShopifyOrderForMapping,
   recipesByLowerTitle: ReadonlyMap<string, string>,
+  ignoredTitlesLower: ReadonlySet<string> = new Set(),
 ): MappingResult {
   const customerName = order.customer
     ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() || null
@@ -229,7 +237,9 @@ export function mapShopifyOrderToCakeOrderRows(
   const shopifyOrderId     = String(order.id);
   const shopifyOrderNumber = order.name;
 
-  const rows: MappedCakeOrderRow[] = order.line_items.map((item) => {
+  const rows: MappedCakeOrderRow[] = order.line_items
+    .filter((item) => !ignoredTitlesLower.has(item.title.toLowerCase()))
+    .map((item) => {
     const recipeId = recipesByLowerTitle.get(item.title.toLowerCase()) ?? null;
     // Per-unit price as Shopify provides it. The dashboard revenue
     // calculation is SUM(salePrice × quantity), so storing the unit

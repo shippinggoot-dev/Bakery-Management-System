@@ -604,6 +604,24 @@ export default function PlannerPage() {
 
   const updateStatus = api.cakeOrders.update.useMutation({ onSuccess: () => utils.cakeOrders.getAll.invalidate() });
   const deleteOrder  = api.cakeOrders.delete.useMutation({ onSuccess: () => utils.cakeOrders.getAll.invalidate() });
+  const ignoreProduct = api.shopify.ignoreProduct.useMutation();
+
+  /**
+   * Block + delete: adds the order's Shopify title to the per-workspace
+   * ignore list, then deletes the order. Future imports skip this product
+   * entirely until the user removes it from the ignore list (Settings →
+   * Shopify → Ignored products).
+   */
+  async function blockAndDelete(order: { id: string; shopifyLineItemTitle: string | null }) {
+    if (!order.shopifyLineItemTitle) return;
+    const confirmed = confirm(
+      `Block "${order.shopifyLineItemTitle}" from future Shopify imports and remove this order?\n\n` +
+      `You can unblock it later under Settings → Shopify.`
+    );
+    if (!confirmed) return;
+    await ignoreProduct.mutateAsync({ shopifyTitle: order.shopifyLineItemTitle });
+    await deleteOrder.mutateAsync(order.id);
+  }
 
   // Past-due: pending order whose due date is strictly before today.
   // Today's orders are NOT past due — they're being worked on.
@@ -786,8 +804,22 @@ export default function PlannerPage() {
                             + Schedule
                           </button>
                         )}
-                        <button onClick={() => { if (confirm(t("deleteOrder"))) deleteOrder.mutate(order.id); }}
-                          className="text-xs text-gray-300 hover:text-red-500 transition-colors">✕</button>
+                        {order.shopifyLineItemTitle && (
+                          <button
+                            onClick={() => blockAndDelete(order)}
+                            className="text-xs text-gray-400 hover:text-red-600 font-medium transition-colors whitespace-nowrap"
+                            title={`Block "${order.shopifyLineItemTitle}" from future Shopify imports and delete this order. Reversible from Settings.`}
+                          >
+                            🚫 Block
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { if (confirm(t("deleteOrder"))) deleteOrder.mutate(order.id); }}
+                          className="text-xs text-gray-400 hover:text-red-500 font-medium transition-colors"
+                          title="Delete this order"
+                        >
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>

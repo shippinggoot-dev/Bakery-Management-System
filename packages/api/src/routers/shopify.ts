@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq, and, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, nonAnonymousProcedure } from "../trpc";
-import { shopifySettings, recipes, premadeCakes, customers, cakeOrders, productionSchedules, encryptToken, decryptToken } from "@bakery/db";
+import { shopifySettings, recipes, premadeCakes, customers, cakeOrders, productionSchedules, shopifyIgnoredProducts, encryptToken, decryptToken } from "@bakery/db";
 import {
   syncProductFromRecipe,
   syncProductFromPremadeCake,
@@ -139,6 +139,57 @@ export const shopifyRouter = createTRPCRouter({
       .where(eq(shopifySettings.ownerId, ctx.user.id));
     return { success: true };
   }),
+
+  // ── Ignored-product list ─────────────────────────────────────────────────
+  //
+  // Per-workspace block list. Future webhook + bulk import deliveries skip
+  // any line item whose title is on this list. Use cases: gift cards,
+  // deposits, merchandise, anything Shopify sells that shouldn't appear in
+  // the BMS fulfillment queue.
+
+  /** List ignored Shopify product titles for this workspace. */
+  listIgnoredProducts: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db.query.shopifyIgnoredProducts.findMany({
+      where: eq(shopifyIgnoredProducts.ownerId, ctx.user.id),
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+    });
+  }),
+
+  /**
+   * Add a Shopify product title to the ignore list. Future imports skip
+   * it. Idempotent — calling twice with the same title is a no-op.
+   */
+  ignoreProduct: nonAnonymousProcedure
+    .input(z.object({
+      shopifyTitle: z.string().min(1).max(255),
+      reason:       z.string().max(500).optional().nullable(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .insert(shopifyIgnoredProducts)
+        .values({
+          ownerId:      ctx.user.id,
+          shopifyTitle: input.shopifyTitle.trim(),
+          reason:       input.reason?.trim() || null,
+        })
+        .onConflictDoNothing({
+          target: [shopifyIgnoredProducts.ownerId, shopifyIgnoredProducts.shopifyTitle],
+        });
+      return { ok: true };
+    }),
+
+  /** Remove a title from the ignore list — future imports will pick it up. */
+  unignoreProduct: nonAnonymousProcedure
+    .input(z.string().uuid())
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .delete(shopifyIgnoredProducts)
+        .where(and(
+          eq(shopifyIgnoredProducts.id,      input),
+          eq(shopifyIgnoredProducts.ownerId, ctx.user.id),
+        ));
+      return { ok: true };
+    }),
 
   /**
    * Push active recipes AND premade cakes to Shopify as products.
@@ -409,6 +460,15 @@ export const shopifyRouter = createTRPCRouter({
     });
     const lookup = buildRecipeTitleLookup(ownerRecipes);
 
+    // Load the per-workspace ignore list so we skip blocked Shopify
+    // products at import time. Stored case-sensitively but matched
+    // case-insensitively, same as the recipe title lookup.
+    const ignoredRows = await ctx.db.query.shopifyIgnoredProducts.findMany({
+      where: eq(shopifyIgnoredProducts.ownerId, ctx.user.id),
+      columns: { shopifyTitle: true },
+    });
+    const ignoredTitles = new Set(ignoredRows.map((r) => r.shopifyTitle.toLowerCase()));
+
     let imported   = 0;
     let skipped    = 0;
     let autoPlanned = 0;
@@ -429,7 +489,7 @@ export const shopifyRouter = createTRPCRouter({
         });
         if (dupe) { skipped++; continue; }
 
-        const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, lookup);
+        const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, lookup, ignoredTitles);
         if (rows.length === 0) { skipped++; continue; }
 
         const ordersToInsert = rows.map((r) => ({ ...r, ownerId: ctx.user.id }));

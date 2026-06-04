@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@bakery/db";
-import { shopifySettings, cakeOrders, recipes, emailSettings, productionSchedules, decryptToken } from "@bakery/db";
+import { shopifySettings, cakeOrders, recipes, emailSettings, productionSchedules, shopifyIgnoredProducts, decryptToken } from "@bakery/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { sendOrderConfirmation } from "@/lib/email";
 import { checkRateLimit, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
@@ -136,10 +136,18 @@ export async function POST(request: NextRequest) {
   });
   const lookup = buildRecipeTitleLookup(ownerRecipes);
 
+  // Load the per-workspace ignore list so we skip blocked Shopify products
+  // even when they arrive in real time via the webhook.
+  const ignoredRows = await db.query.shopifyIgnoredProducts.findMany({
+    where: eq(shopifyIgnoredProducts.ownerId, ownerId),
+    columns: { shopifyTitle: true },
+  });
+  const ignoredTitles = new Set(ignoredRows.map((r) => r.shopifyTitle.toLowerCase()));
+
   // Convert the Shopify payload to cake_orders rows via the shared mapping
   // helper. Bulk import (packages/api/src/routers/shopify.ts) uses the same
   // helper so webhook and import produce identical dashboard-visible rows.
-  const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, lookup);
+  const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, lookup, ignoredTitles);
   const ordersToInsert = rows.map((r) => ({ ...r, ownerId }));
 
   let insertedOrders: { id: string; recipeId: string | null; quantity: string; dueDate: string | null; customerName: string | null; notes: string | null }[] = [];
