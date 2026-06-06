@@ -100,10 +100,6 @@ export default function ProductionPage() {
 
   function requestMarkDone(entry: ScheduleEntry) {
     setActionError(null);
-    if (!entry.recipeId) {
-      setActionError(t("markDoneNoRecipe"));
-      return;
-    }
     if (prefs?.confirmBatchCompletion === false) {
       // User has opted out of confirmation — fire immediately.
       runMarkDone(entry);
@@ -114,6 +110,18 @@ export default function ProductionPage() {
 
   async function runMarkDone(entry: ScheduleEntry) {
     setActionError(null);
+    // Event-style entries (no recipe — e.g. classes, services) have no
+    // stock to deduct, so we just flip the status. Skip the deduction
+    // flow and the result modal that summarises deductions/reorders.
+    if (!entry.recipeId) {
+      try {
+        await update.mutateAsync({ id: entry.id, status: "done" });
+        setConfirmEntry(null);
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : t("markDoneFailed"));
+      }
+      return;
+    }
     try {
       const res = await markDone.mutateAsync({ id: entry.id });
       setConfirmEntry(null);
@@ -334,22 +342,28 @@ export default function ProductionPage() {
             className="bg-white rounded-2xl shadow-2xl border border-rose-100 p-6 w-full max-w-md space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="font-semibold text-gray-800">{t("confirmDoneTitle")}</h3>
+            <h3 className="font-semibold text-gray-800">
+              {confirmEntry.recipeId ? t("confirmDoneTitle") : t("confirmDoneTitleEvent")}
+            </h3>
             <div className="rounded-xl bg-rose-50 border border-rose-100 px-4 py-3 text-sm space-y-1">
               <p className="font-medium text-gray-800">
                 {confirmEntry.recipeName ?? confirmEntry.recipe?.name ?? "—"}
               </p>
-              <p className="text-brand-500">
-                {confirmEntry.batchCount}× {t("batch")}
-                {confirmEntry.recipe?.yieldAmount && (
-                  <span className="text-gray-500">
-                    {" "}· {(parseFloat(confirmEntry.recipe.yieldAmount) * parseFloat(confirmEntry.batchCount)).toFixed(2)}{" "}
-                    {confirmEntry.recipe.yieldUnit}
-                  </span>
-                )}
-              </p>
+              {confirmEntry.recipeId && (
+                <p className="text-brand-500">
+                  {confirmEntry.batchCount}× {t("batch")}
+                  {confirmEntry.recipe?.yieldAmount && (
+                    <span className="text-gray-500">
+                      {" "}· {(parseFloat(confirmEntry.recipe.yieldAmount) * parseFloat(confirmEntry.batchCount)).toFixed(2)}{" "}
+                      {confirmEntry.recipe.yieldUnit}
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
-            <p className="text-xs text-gray-500 leading-relaxed">{t("confirmDoneBody")}</p>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              {confirmEntry.recipeId ? t("confirmDoneBody") : t("confirmDoneBodyEvent")}
+            </p>
 
             <div className="flex items-center justify-between pt-1">
               <Link
@@ -367,10 +381,12 @@ export default function ProductionPage() {
                 </button>
                 <button
                   onClick={() => runMarkDone(confirmEntry)}
-                  disabled={markDone.isPending}
+                  disabled={markDone.isPending || update.isPending}
                   className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors disabled:opacity-40"
                 >
-                  {markDone.isPending ? t("recording") : t("recordAndDeduct")}
+                  {(markDone.isPending || update.isPending)
+                    ? t("recording")
+                    : (confirmEntry.recipeId ? t("recordAndDeduct") : t("markEventDone"))}
                 </button>
               </div>
             </div>

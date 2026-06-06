@@ -516,6 +516,116 @@ function CreateRecipeFromOrderModal({
   );
 }
 
+/**
+ * Modal: schedule an unlinked Shopify-origin order as a production event
+ * (no recipe authored). Used for class- or service-style products that
+ * don't have anything to bake but still need a slot on the production
+ * calendar — e.g. "Bakeskole - August 2026" weeks of kids' baking
+ * classes.
+ */
+function ScheduleEventModal({
+  cakeOrderId, shopifyTitle, dueDate, defaultNotes,
+  onClose, onScheduled,
+}: {
+  cakeOrderId:  string;
+  shopifyTitle: string;
+  dueDate:      string | null;
+  defaultNotes: string | null;
+  onClose:      () => void;
+  onScheduled:  () => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date,  setDate]  = useState(dueDate ?? today);
+  const [shift, setShift] = useState<"morning" | "afternoon" | "evening">("morning");
+  const [notes, setNotes] = useState(defaultNotes ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  const schedule = api.cakeOrders.scheduleAsEvent.useMutation({
+    onSuccess: () => onScheduled(),
+    onError:   (e) => setError(e.message),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!date) return setError("Pick a date.");
+    setError(null);
+    schedule.mutate({
+      cakeOrderId,
+      scheduledDate: date,
+      shift,
+      notes: notes.trim() || null,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-gray-900">Schedule as event</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              For services and classes that don't have a recipe to bake. Adds the booking to the production calendar.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none shrink-0">×</button>
+        </div>
+
+        <div className="rounded-lg bg-rose-50 border border-rose-100 px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-rose-600 font-semibold">Shopify product</p>
+          <p className="text-sm text-gray-800 mt-0.5 break-words">{shopifyTitle}</p>
+        </div>
+
+        {error && <p className="text-sm text-red-500">{error}</p>}
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Date *</label>
+              <input
+                className="form-input"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="form-label">Shift</label>
+              <select
+                className="form-input"
+                value={shift}
+                onChange={(e) => setShift(e.target.value as typeof shift)}
+              >
+                <option value="morning">Morning</option>
+                <option value="afternoon">Afternoon</option>
+                <option value="evening">Evening</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="form-label">Notes</label>
+            <textarea
+              className="form-input"
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional notes…"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={schedule.isPending} className="btn-primary disabled:opacity-50 flex-1">
+              {schedule.isPending ? "Scheduling…" : "Add to production"}
+            </button>
+            <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function ScheduleModal({
   orderId, recipeId, recipeName, dueDate, quantity,
   onClose,
@@ -598,6 +708,15 @@ export default function PlannerPage() {
   const [creatingRecipeFor, setCreatingRecipeFor] = useState<{
     shopifyTitle:   string;
     suggestedPrice: string | null;
+  } | null>(null);
+  // When set, opens the "schedule as event" modal — used for class- or
+  // service-style Shopify products that don't get a recipe. Holds the
+  // order context we need to pre-fill the form.
+  const [schedulingEventFor, setSchedulingEventFor] = useState<{
+    cakeOrderId:  string;
+    shopifyTitle: string;
+    dueDate:      string | null;
+    notes:        string | null;
   } | null>(null);
 
   const { data: allOrders = [], isLoading } = api.cakeOrders.getAll.useQuery();
@@ -708,6 +827,21 @@ export default function PlannerPage() {
         />
       )}
 
+      {schedulingEventFor && (
+        <ScheduleEventModal
+          cakeOrderId={schedulingEventFor.cakeOrderId}
+          shopifyTitle={schedulingEventFor.shopifyTitle}
+          dueDate={schedulingEventFor.dueDate}
+          defaultNotes={schedulingEventFor.notes}
+          onClose={() => setSchedulingEventFor(null)}
+          onScheduled={() => {
+            setSchedulingEventFor(null);
+            utils.cakeOrders.getAll.invalidate();
+            utils.production.getSchedule.invalidate();
+          }}
+        />
+      )}
+
       <div className="flex gap-1">
         {[
           { id: "active", label: t("filterActive") },
@@ -794,6 +928,20 @@ export default function PlannerPage() {
                             title="Create a recipe from this Shopify product. Other pending orders for the same product link automatically."
                           >
                             + Create recipe
+                          </button>
+                        )}
+                        {unlinked && (
+                          <button
+                            onClick={() => setSchedulingEventFor({
+                              cakeOrderId:  order.id,
+                              shopifyTitle: order.shopifyLineItemTitle!,
+                              dueDate:      order.dueDate ?? null,
+                              notes:        order.notes ?? null,
+                            })}
+                            className="text-xs text-brand-500 hover:text-brand-700 font-medium transition-colors whitespace-nowrap"
+                            title="For services and classes — adds the booking to the production calendar without creating a recipe."
+                          >
+                            + Schedule as event
                           </button>
                         )}
                         {order.recipeId && order.status !== "completed" && order.status !== "cancelled" && (
