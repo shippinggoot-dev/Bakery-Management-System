@@ -640,6 +640,116 @@ function ConnectedPanel({
   );
 }
 
+// ── Ignored Shopify products ──────────────────────────────────────────────────
+
+/**
+ * Per-workspace block list management. Items only ever enter this list via
+ * the Planner's 🚫 Block button (see `apps/web/src/app/planner/page.tsx`).
+ * From here the owner can review what's blocked and unblock individual
+ * titles so future Shopify imports pick them back up.
+ */
+function IgnoredShopifyProductsCard() {
+  const utils = api.useUtils();
+  const { data: ignored = [], isLoading } = api.shopify.listIgnoredProducts.useQuery();
+  const [confirmation, setConfirmation] = useState<string | null>(null);
+
+  const unignore = api.shopify.unignoreProduct.useMutation({
+    onSuccess: (_data, id) => {
+      const removed = ignored.find((i) => i.id === id);
+      setConfirmation(removed?.shopifyTitle ?? null);
+      utils.shopify.listIgnoredProducts.invalidate();
+    },
+  });
+
+  // Auto-dismiss the inline confirmation. The effect's cleanup cancels the
+  // previous timer if a second unblock fires before the first one expires,
+  // so the banner stays in sync with the most recent action.
+  useEffect(() => {
+    if (!confirmation) return;
+    const t = setTimeout(() => setConfirmation(null), 3500);
+    return () => clearTimeout(t);
+  }, [confirmation]);
+
+  if (isLoading) {
+    return (
+      <div className="card overflow-hidden" aria-hidden="true">
+        <div className="px-6 py-4 border-b border-rose-100 flex items-center gap-3 animate-pulse">
+          <div className="w-8 h-8 rounded-lg bg-rose-100" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3 bg-rose-100 rounded w-44" />
+            <div className="h-2.5 bg-rose-100 rounded w-64" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isEmpty = ignored.length === 0;
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="px-6 py-4 border-b border-rose-100 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-base flex-shrink-0">
+          🚫
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-gray-800 text-sm">Ignored Shopify products</p>
+          <p className="text-xs text-gray-500">Skipped during Shopify import — never reach the Planner</p>
+        </div>
+        {!isEmpty && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-brand-500 border border-rose-200 flex-shrink-0">
+            {ignored.length}
+          </span>
+        )}
+      </div>
+
+      {confirmation && (
+        <div className="px-6 py-2 bg-emerald-50 border-b border-emerald-100 text-xs text-emerald-700">
+          Unblocked &ldquo;{confirmation}&rdquo; — future imports will include it again.
+        </div>
+      )}
+
+      {unignore.error && !confirmation && (
+        <div className="px-6 py-2 bg-red-50 border-b border-red-100 text-xs text-red-700">
+          Couldn&apos;t unblock that item: {unignore.error.message}
+        </div>
+      )}
+
+      {isEmpty ? (
+        <div className="px-6 py-4">
+          <p className="text-sm text-gray-500">
+            No products blocked — items added via the Planner&apos;s 🚫 Block button appear here.
+          </p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-rose-100">
+          {ignored.map((item) => {
+            const pending = unignore.isPending && unignore.variables === item.id;
+            return (
+              <li key={item.id} className="px-6 py-3 flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-800 text-sm break-words">{item.shopifyTitle}</p>
+                  {item.reason && (
+                    <p className="text-xs text-gray-500 mt-0.5 break-words">{item.reason}</p>
+                  )}
+                  <p className="text-[11px] text-gray-400 mt-0.5">Blocked {fmtDate(item.createdAt)}</p>
+                </div>
+                <button
+                  onClick={() => unignore.mutate(item.id)}
+                  disabled={pending}
+                  className="flex-shrink-0 text-xs text-brand-500 hover:text-brand-400 font-medium transition-colors disabled:opacity-50"
+                >
+                  {pending ? "Unblocking…" : "Unblock"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ── Email settings section ────────────────────────────────────────────────────
 
 const RESEND_STEPS = [
@@ -1233,6 +1343,9 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Ignored Shopify products — visible whenever the user could have items here */}
+      {!isAnonymous && <IgnoredShopifyProductsCard />}
 
       {/* Email notifications */}
       {!isAnonymous && <EmailSettingsSection />}
