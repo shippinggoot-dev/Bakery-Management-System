@@ -35,6 +35,7 @@ export * from "./other-deliveries";
 export * from "./instagram";
 export * from "./custom-options";
 export * from "./premade-cakes";
+export * from "./premade-cake-variants";
 export * from "./user-preferences";
 export * from "./customer-sale-items";
 export * from "./query-metrics";
@@ -85,6 +86,7 @@ import {
   cakeAddons,
   premadeCakeAddons,
 } from "./premade-cakes";
+import { premadeCakeVariants } from "./premade-cake-variants";
 import { customerSaleItems } from "./customer-sale-items";
 
 export const allergensRelations = relations(allergens, ({ many }) => ({
@@ -378,6 +380,10 @@ export const cakeOrdersRelations = relations(cakeOrders, ({ one, many }) => ({
     fields: [cakeOrders.recipeId],
     references: [recipes.id],
   }),
+  premadeCakeVariant: one(premadeCakeVariants, {
+    fields: [cakeOrders.premadeCakeVariantId],
+    references: [premadeCakeVariants.id],
+  }),
   customer: one(customers, {
     fields: [cakeOrders.customerId],
     references: [customers.id],
@@ -425,6 +431,19 @@ export const premadeCakesRelations = relations(premadeCakes, ({ one, many }) => 
   sizes:    many(premadeCakeSizes),
   flavours: many(premadeCakeFlavours),
   addons:   many(premadeCakeAddons),
+  variants: many(premadeCakeVariants),
+}));
+
+export const premadeCakeVariantsRelations = relations(premadeCakeVariants, ({ one, many }) => ({
+  cake:    one(premadeCakes, {
+    fields:     [premadeCakeVariants.cakeId],
+    references: [premadeCakes.id],
+  }),
+  flavour: one(flavours, {
+    fields:     [premadeCakeVariants.flavourId],
+    references: [flavours.id],
+  }),
+  orders:  many(cakeOrders),
 }));
 
 export const premadeCakeSizesRelations = relations(premadeCakeSizes, ({ one }) => ({
