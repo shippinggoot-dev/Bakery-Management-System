@@ -294,6 +294,93 @@ export const cakeOrdersRouter = createTRPCRouter({
     }),
 
   /**
+   * Schedule an unlinked Shopify-origin order as a production event (no
+   * recipe authored). Used for class-style or service products like
+   * "Bakeskole - August 2026" that need a slot on the production calendar
+   * but have nothing to bake. Creates a production_schedules row with
+   * recipeId = null and recipeName = the Shopify line-item title, then
+   * flips the order's status to "planned" so it leaves the pending queue.
+   *
+   * Idempotent on re-call: if a schedule already exists for this order it
+   * is updated in-place rather than duplicated.
+   */
+  scheduleAsEvent: protectedProcedure
+    .input(
+      z.object({
+        cakeOrderId:   z.string().uuid(),
+        scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        shift:         z.enum(["morning", "afternoon", "evening"]).default("morning"),
+        notes:         longText().optional().nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const order = await ctx.db.query.cakeOrders.findFirst({
+        where: and(eq(cakeOrders.id, input.cakeOrderId), eq(cakeOrders.ownerId, ctx.user.id)),
+      });
+      if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Cake order not found." });
+      if (!order.shopifyLineItemTitle) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only Shopify-origin orders can be scheduled as events.",
+        });
+      }
+      if (order.recipeId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order is already linked to a recipe — schedule a batch instead.",
+        });
+      }
+
+      return ctx.db.transaction(async (tx) => {
+        const existing = await tx.query.productionSchedules.findFirst({
+          where: and(
+            eq(productionSchedules.cakeOrderId, order.id),
+            eq(productionSchedules.ownerId, ctx.user.id),
+          ),
+          columns: { id: true },
+        });
+
+        let schedule;
+        if (existing) {
+          [schedule] = await tx
+            .update(productionSchedules)
+            .set({
+              recipeId:      null,
+              recipeName:    order.shopifyLineItemTitle,
+              scheduledDate: input.scheduledDate,
+              shift:         input.shift,
+              notes:         input.notes ?? null,
+              updatedAt:     new Date(),
+            })
+            .where(eq(productionSchedules.id, existing.id))
+            .returning();
+        } else {
+          [schedule] = await tx
+            .insert(productionSchedules)
+            .values({
+              ownerId:       ctx.user.id,
+              recipeId:      null,
+              recipeName:    order.shopifyLineItemTitle,
+              scheduledDate: input.scheduledDate,
+              shift:         input.shift,
+              batchCount:    "1",
+              notes:         input.notes ?? null,
+              status:        "planned",
+              cakeOrderId:   order.id,
+            })
+            .returning();
+        }
+
+        await tx
+          .update(cakeOrders)
+          .set({ status: "planned", updatedAt: new Date() })
+          .where(and(eq(cakeOrders.id, order.id), eq(cakeOrders.ownerId, ctx.user.id)));
+
+        return schedule;
+      });
+    }),
+
+  /**
    * Aggregate ingredients across selected orders and create a shopping list.
    * Uses each order's recipe yield to calculate the exact ingredient multiplier.
    * Marks included orders as "planned".
