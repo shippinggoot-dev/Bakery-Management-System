@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq, and, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, nonAnonymousProcedure } from "../trpc";
-import { shopifySettings, recipes, premadeCakes, customers, cakeOrders, productionSchedules, shopifyIgnoredProducts, encryptToken, decryptToken } from "@bakery/db";
+import { shopifySettings, recipes, premadeCakes, premadeCakeVariants, customers, cakeOrders, productionSchedules, shopifyIgnoredProducts, encryptToken, decryptToken } from "@bakery/db";
 import {
   syncProductFromRecipe,
   syncProductFromPremadeCake,
@@ -11,6 +11,7 @@ import {
 import {
   mapShopifyOrderToCakeOrderRows,
   buildRecipeTitleLookup,
+  buildVariantTitleLookup,
   type ShopifyOrderForMapping,
   type ShopifyLineItem,
 } from "../lib/shopify-order-mapping";
@@ -458,7 +459,17 @@ export const shopifyRouter = createTRPCRouter({
       where: eq(recipes.ownerId, ctx.user.id),
       columns: { id: true, name: true, shopifyTitles: true },
     });
-    const lookup = buildRecipeTitleLookup(ownerRecipes);
+    const recipeLookup = buildRecipeTitleLookup(ownerRecipes);
+
+    // Phase 2: load premade cake variants too, joined through the parent
+    // cake for ownership filtering. The matcher prefers a variant hit
+    // over a recipe hit when the line item carries a variant_title.
+    const ownerVariants = await ctx.db
+      .select({ id: premadeCakeVariants.id, shopifyMatchTitle: premadeCakeVariants.shopifyMatchTitle })
+      .from(premadeCakeVariants)
+      .innerJoin(premadeCakes, eq(premadeCakeVariants.cakeId, premadeCakes.id))
+      .where(eq(premadeCakes.ownerId, ctx.user.id));
+    const variantLookup = buildVariantTitleLookup(ownerVariants);
 
     // Load the per-workspace ignore list so we skip blocked Shopify
     // products at import time. Stored case-sensitively but matched
@@ -489,7 +500,7 @@ export const shopifyRouter = createTRPCRouter({
         });
         if (dupe) { skipped++; continue; }
 
-        const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, lookup, ignoredTitles);
+        const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, recipeLookup, ignoredTitles, variantLookup);
         if (rows.length === 0) { skipped++; continue; }
 
         const ordersToInsert = rows.map((r) => ({ ...r, ownerId: ctx.user.id }));
@@ -497,15 +508,19 @@ export const shopifyRouter = createTRPCRouter({
           .insert(cakeOrders)
           .values(ordersToInsert)
           .returning({
-            id:       cakeOrders.id,
-            recipeId: cakeOrders.recipeId,
-            quantity: cakeOrders.quantity,
-            dueDate:  cakeOrders.dueDate,
+            id:                   cakeOrders.id,
+            recipeId:             cakeOrders.recipeId,
+            premadeCakeVariantId: cakeOrders.premadeCakeVariantId,
+            quantity:             cakeOrders.quantity,
+            dueDate:              cakeOrders.dueDate,
           });
 
         imported++;
 
-        // Auto-plan when every line item matched a recipe — same as webhook.
+        // Auto-plan when every line item resolved to a recipe or variant.
+        // Variant rows dereference to the parent cake's recipeId; rows
+        // whose parent cake has no recipe yet are skipped (the order is
+        // still "planned" but no production schedule is created).
         if (allMatched && inserted.length > 0) {
           const ids = inserted.map((o) => o.id);
           await ctx.db
@@ -518,7 +533,20 @@ export const shopifyRouter = createTRPCRouter({
 
           // Mirror the webhook's production-schedule side effect.
           for (const o of inserted) {
-            if (!o.recipeId) continue;
+            let effectiveRecipeId: string | null = o.recipeId;
+            if (!effectiveRecipeId && o.premadeCakeVariantId) {
+              const variant = await ctx.db
+                .select({ recipeId: premadeCakes.recipeId, ownerId: premadeCakes.ownerId })
+                .from(premadeCakeVariants)
+                .innerJoin(premadeCakes, eq(premadeCakeVariants.cakeId, premadeCakes.id))
+                .where(eq(premadeCakeVariants.id, o.premadeCakeVariantId))
+                .limit(1);
+              if (variant[0]?.ownerId === ctx.user.id && variant[0]?.recipeId) {
+                effectiveRecipeId = variant[0].recipeId;
+              }
+            }
+            if (!effectiveRecipeId) continue;
+
             const existingSchedule = await ctx.db.query.productionSchedules.findFirst({
               where: and(
                 eq(productionSchedules.cakeOrderId, o.id),
@@ -529,7 +557,7 @@ export const shopifyRouter = createTRPCRouter({
             if (existingSchedule) continue;
 
             const recipe = await ctx.db.query.recipes.findFirst({
-              where: and(eq(recipes.id, o.recipeId), eq(recipes.ownerId, ctx.user.id)),
+              where: and(eq(recipes.id, effectiveRecipeId), eq(recipes.ownerId, ctx.user.id)),
               columns: { name: true, yieldAmount: true },
             });
             const scheduledDate = o.dueDate ?? new Date().toISOString().slice(0, 10);
@@ -539,7 +567,7 @@ export const shopifyRouter = createTRPCRouter({
 
             await ctx.db.insert(productionSchedules).values({
               ownerId:     ctx.user.id,
-              recipeId:    o.recipeId,
+              recipeId:    effectiveRecipeId,
               recipeName:  recipe?.name ?? null,
               scheduledDate,
               shift:       "morning",

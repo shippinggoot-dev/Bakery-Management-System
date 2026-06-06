@@ -179,11 +179,19 @@ export function extractDateFromTitle(title: string, today: Date = new Date()): s
 /**
  * One cake_orders row, ready to insert. Shape matches the Drizzle
  * insert spec for the table (ownerId is added by the caller).
+ *
+ * Linkage rule (Phase 2): a row carries EITHER `recipeId` OR
+ * `premadeCakeVariantId`, never both. Both null = unlinked. Callers
+ * that auto-plan production schedules dereference variant rows to the
+ * parent cake's recipe at scheduling time.
  */
 export interface MappedCakeOrderRow {
   customerName:         string | null;
   customerEmail:        string | null;
   recipeId:             string | null;
+  /** Phase 2 — set when the Shopify variant_title matched a known
+   *  premade_cake_variants row. Mutually exclusive with recipeId. */
+  premadeCakeVariantId: string | null;
   quantity:             string;
   dueDate:              string | null;
   status:               "pending";
@@ -194,6 +202,9 @@ export interface MappedCakeOrderRow {
    *  pending order produced by the same Shopify product when the user
    *  creates a recipe for it later. */
   shopifyLineItemTitle: string;
+  /** Original Shopify variant_title preserved verbatim (or null for
+   *  simple products with no variants). */
+  shopifyVariantTitle:  string | null;
   salePrice:            string | null;
   notes:                string | null;
 }
@@ -205,14 +216,37 @@ export interface MappingResult {
 }
 
 /**
- * Convert a Shopify order into one or more cake_orders rows: one per
- * line item, with recipe-name matching and due-date extraction.
+ * Build the lowercase match key used to look up a Shopify line item in
+ * the premade_cake_variants table. Mirrored when seeding
+ * `premade_cake_variants.shopify_match_title` so writers and readers
+ * cannot drift. Format: `"<line_item_title> — <variant_title>"`,
+ * lowercased and trimmed.
  *
- * Caller passes a lowercase-title → recipe-id map. The map should
- * include BOTH `recipe.name.toLowerCase()` and every entry from
- * `recipe.shopify_titles` (lowercased). When `recipe.shopify_titles`
- * grows via the "Create recipe from order" flow, the next import
- * picks up the new mapping automatically without further code change.
+ * Callers only invoke this when `variant_title` is set — for simple
+ * products with no variant, recipe-title lookup handles matching.
+ */
+export function buildVariantMatchKey(title: string, variantTitle: string): string {
+  return `${title} — ${variantTitle}`.toLowerCase().trim();
+}
+
+/**
+ * Convert a Shopify order into one or more cake_orders rows: one per
+ * line item, with recipe/variant-name matching and due-date extraction.
+ *
+ * Matching order per line item (Phase 2):
+ *   1. If `variant_title` is set AND the variant lookup contains
+ *      `buildVariantMatchKey(title, variant_title)`, link to that
+ *      premade_cake_variants row.
+ *   2. Otherwise, fall back to the recipe lookup on lowercase `title`.
+ *      The recipe lookup map should include BOTH `recipe.name` and
+ *      every entry from `recipe.shopify_titles` (lowercased).
+ *   3. Otherwise, leave the row unlinked.
+ *
+ * Variant match preferred but recipe fallback still applies. This is
+ * intentional: Phase 1 setups using `recipes.shopify_titles[]` keep
+ * working until the user creates premade cake variants. Once variants
+ * exist for a product, they take precedence (variant_title gates the
+ * variant-lookup branch).
  *
  * The optional `ignoredTitlesLower` set lets the caller skip Shopify
  * line items whose title is on the per-workspace ignore list. Skipped
@@ -220,11 +254,16 @@ export interface MappingResult {
  * item on an order is skipped, the result is an empty rows array and
  * `allMatched: false` — caller should handle the "nothing to insert"
  * case explicitly.
+ *
+ * `allMatched` is true iff every row resolved to either a recipe or a
+ * variant. Auto-plan callers should also verify variant rows have a
+ * dereferenced recipe before creating production schedules.
  */
 export function mapShopifyOrderToCakeOrderRows(
   order: ShopifyOrderForMapping,
   recipesByLowerTitle: ReadonlyMap<string, string>,
   ignoredTitlesLower: ReadonlySet<string> = new Set(),
+  variantsByMatchKey: ReadonlyMap<string, string> = new Map(),
 ): MappingResult {
   const customerName = order.customer
     ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() || null
@@ -240,7 +279,16 @@ export function mapShopifyOrderToCakeOrderRows(
   const rows: MappedCakeOrderRow[] = order.line_items
     .filter((item) => !ignoredTitlesLower.has(item.title.toLowerCase()))
     .map((item) => {
-    const recipeId = recipesByLowerTitle.get(item.title.toLowerCase()) ?? null;
+    // Variant match takes precedence — only attempted when the line item
+    // has a Shopify variant_title (simple products skip straight to the
+    // recipe-name fallback).
+    const variantId = item.variant_title
+      ? variantsByMatchKey.get(buildVariantMatchKey(item.title, item.variant_title)) ?? null
+      : null;
+    const recipeId = variantId
+      ? null
+      : recipesByLowerTitle.get(item.title.toLowerCase()) ?? null;
+    const matched = variantId !== null || recipeId !== null;
     // Per-unit price as Shopify provides it. The dashboard revenue
     // calculation is SUM(salePrice × quantity), so storing the unit
     // price here gives the correct total without further work.
@@ -257,6 +305,7 @@ export function mapShopifyOrderToCakeOrderRows(
       customerName,
       customerEmail,
       recipeId,
+      premadeCakeVariantId: variantId,
       quantity:           String(item.quantity),
       dueDate,
       status:             "pending",
@@ -264,18 +313,20 @@ export function mapShopifyOrderToCakeOrderRows(
       shopifyOrderId,
       shopifyOrderNumber,
       // Keep just item.title here (NOT title + variant) so that the
-      // matcher and the "auto-link siblings" feature both work on the
-      // base product. The variant is captured in the order notes.
+      // legacy recipe-side "auto-link siblings" feature still works on
+      // the base product. The variant is captured separately in
+      // shopifyVariantTitle for the Phase 2 variant matcher.
       shopifyLineItemTitle: item.title,
+      shopifyVariantTitle:  item.variant_title ?? null,
       salePrice:          unitPrice,
       notes: [
-        recipeId ? null : `Product: ${item.title}${item.variant_title ? ` — ${item.variant_title}` : ""}`,
+        matched ? null : `Product: ${item.title}${item.variant_title ? ` — ${item.variant_title}` : ""}`,
         order.note ?? null,
       ].filter(Boolean).join("\n") || null,
     };
   });
 
-  const allMatched = rows.length > 0 && rows.every((r) => r.recipeId !== null);
+  const allMatched = rows.length > 0 && rows.every((r) => r.recipeId !== null || r.premadeCakeVariantId !== null);
   return { rows, allMatched };
 }
 
@@ -295,6 +346,27 @@ export function buildRecipeTitleLookup(
     for (const t of r.shopifyTitles ?? []) {
       if (t) map.set(t.toLowerCase(), r.id);
     }
+  }
+  return map;
+}
+
+/**
+ * Build the variant lookup map the mapper expects from a set of
+ * premade_cake_variants rows. Variants without a `shopifyMatchTitle`
+ * (e.g. created in the UI but not yet linked to Shopify) are skipped —
+ * they have nothing to match against and would just clutter the map.
+ *
+ * The match-key construction is delegated to `buildVariantMatchKey`,
+ * so writers (the planner UI when creating a variant) and readers
+ * (this mapper) cannot drift on case / trim / separator.
+ */
+export function buildVariantTitleLookup(
+  variants: ReadonlyArray<{ id: string; shopifyMatchTitle: string | null }>,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const v of variants) {
+    if (!v.shopifyMatchTitle) continue;
+    map.set(v.shopifyMatchTitle.toLowerCase().trim(), v.id);
   }
   return map;
 }

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@bakery/db";
-import { shopifySettings, cakeOrders, recipes, emailSettings, productionSchedules, shopifyIgnoredProducts, decryptToken } from "@bakery/db";
+import { shopifySettings, cakeOrders, recipes, premadeCakes, premadeCakeVariants, emailSettings, productionSchedules, shopifyIgnoredProducts, decryptToken } from "@bakery/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { sendOrderConfirmation } from "@/lib/email";
 import { checkRateLimit, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
 import {
   mapShopifyOrderToCakeOrderRows,
   buildRecipeTitleLookup,
+  buildVariantTitleLookup,
   extractDueDate,
   type ShopifyOrderForMapping,
   type ShopifyLineItem,
@@ -134,7 +135,17 @@ export async function POST(request: NextRequest) {
     where: eq(recipes.ownerId, ownerId),
     columns: { id: true, name: true, shopifyTitles: true },
   });
-  const lookup = buildRecipeTitleLookup(ownerRecipes);
+  const recipeLookup = buildRecipeTitleLookup(ownerRecipes);
+
+  // Load all premade cake variants for this owner via the parent cake's
+  // ownerId. The matcher prefers a variant hit over a recipe hit when
+  // the Shopify line item carries a variant_title.
+  const ownerVariants = await db
+    .select({ id: premadeCakeVariants.id, shopifyMatchTitle: premadeCakeVariants.shopifyMatchTitle })
+    .from(premadeCakeVariants)
+    .innerJoin(premadeCakes, eq(premadeCakeVariants.cakeId, premadeCakes.id))
+    .where(eq(premadeCakes.ownerId, ownerId));
+  const variantLookup = buildVariantTitleLookup(ownerVariants);
 
   // Load the per-workspace ignore list so we skip blocked Shopify products
   // even when they arrive in real time via the webhook.
@@ -147,18 +158,19 @@ export async function POST(request: NextRequest) {
   // Convert the Shopify payload to cake_orders rows via the shared mapping
   // helper. Bulk import (packages/api/src/routers/shopify.ts) uses the same
   // helper so webhook and import produce identical dashboard-visible rows.
-  const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, lookup, ignoredTitles);
+  const { rows, allMatched } = mapShopifyOrderToCakeOrderRows(order, recipeLookup, ignoredTitles, variantLookup);
   const ordersToInsert = rows.map((r) => ({ ...r, ownerId }));
 
-  let insertedOrders: { id: string; recipeId: string | null; quantity: string; dueDate: string | null; customerName: string | null; notes: string | null }[] = [];
+  let insertedOrders: { id: string; recipeId: string | null; premadeCakeVariantId: string | null; quantity: string; dueDate: string | null; customerName: string | null; notes: string | null }[] = [];
   if (ordersToInsert.length > 0) {
     insertedOrders = await db.insert(cakeOrders).values(ordersToInsert).returning({
-      id:           cakeOrders.id,
-      recipeId:     cakeOrders.recipeId,
-      quantity:     cakeOrders.quantity,
-      dueDate:      cakeOrders.dueDate,
-      customerName: cakeOrders.customerName,
-      notes:        cakeOrders.notes,
+      id:                   cakeOrders.id,
+      recipeId:             cakeOrders.recipeId,
+      premadeCakeVariantId: cakeOrders.premadeCakeVariantId,
+      quantity:             cakeOrders.quantity,
+      dueDate:              cakeOrders.dueDate,
+      customerName:         cakeOrders.customerName,
+      notes:                cakeOrders.notes,
     });
   }
 
@@ -175,8 +187,26 @@ export async function POST(request: NextRequest) {
     // to "planned" we auto-create a production_schedules entry so the baker
     // sees the order on the scheduler. We can't call the tRPC router from
     // here so we replicate the logic inline.
+    //
+    // Variant-linked orders dereference to the parent cake's recipeId.
+    // If the parent cake has no recipe linked yet, we skip auto-planning
+    // for that row — the order is still inserted as "planned" but no
+    // production schedule. User fixes by linking a recipe to the cake.
     for (const o of insertedOrders) {
-      if (!o.recipeId) continue;
+      let effectiveRecipeId: string | null = o.recipeId;
+      if (!effectiveRecipeId && o.premadeCakeVariantId) {
+        const variant = await db
+          .select({ recipeId: premadeCakes.recipeId, ownerId: premadeCakes.ownerId })
+          .from(premadeCakeVariants)
+          .innerJoin(premadeCakes, eq(premadeCakeVariants.cakeId, premadeCakes.id))
+          .where(eq(premadeCakeVariants.id, o.premadeCakeVariantId))
+          .limit(1);
+        if (variant[0]?.ownerId === ownerId && variant[0]?.recipeId) {
+          effectiveRecipeId = variant[0].recipeId;
+        }
+      }
+      if (!effectiveRecipeId) continue;
+
       const existing = await db.query.productionSchedules.findFirst({
         where: and(
           eq(productionSchedules.cakeOrderId, o.id),
@@ -187,7 +217,7 @@ export async function POST(request: NextRequest) {
       if (existing) continue;
 
       const recipe = await db.query.recipes.findFirst({
-        where: and(eq(recipes.id, o.recipeId), eq(recipes.ownerId, ownerId)),
+        where: and(eq(recipes.id, effectiveRecipeId), eq(recipes.ownerId, ownerId)),
         columns: { name: true, yieldAmount: true },
       });
 
@@ -198,7 +228,7 @@ export async function POST(request: NextRequest) {
 
       await db.insert(productionSchedules).values({
         ownerId,
-        recipeId:    o.recipeId,
+        recipeId:    effectiveRecipeId,
         recipeName:  recipe?.name ?? null,
         scheduledDate,
         shift:       "morning",
