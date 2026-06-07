@@ -44,6 +44,18 @@ export default function EditPremadeCakePage({ params }: { params: Promise<{ id: 
         .map((s) => ({ ...s, label: s.label.trim() })),
       flavourIds: values.flavourIds,
       addonIds:   values.addonIds,
+      variants: values.variants
+        .filter((v) => v.label.trim() && v.price.trim())
+        .map((v, idx) => ({
+          id:                v.id,
+          label:             v.label.trim(),
+          sizeLabel:         v.sizeLabel.trim() || null,
+          serves:            v.serves,
+          occasion:          v.occasion.trim() || null,
+          price:             v.price.trim(),
+          shopifyMatchTitle: v.shopifyMatchTitle.trim() || null,
+          displayOrder:      idx,
+        })),
     });
   }
 
@@ -80,6 +92,17 @@ export default function EditPremadeCakePage({ params }: { params: Promise<{ id: 
     })),
     flavourIds: cake.flavours.map((f) => f.flavour.id),
     addonIds:   cake.addons.map((a) => a.addon.id),
+    variants: cake.variants.map((v) => ({
+      id:                v.id,
+      label:             v.label,
+      sizeLabel:         v.sizeLabel ?? "",
+      serves:            v.serves,
+      occasion:          v.occasion ?? "",
+      price:             v.price,
+      shopifyMatchTitle: v.shopifyMatchTitle ?? "",
+      shopifyVariantId:  v.shopifyVariantId,
+      displayOrder:      v.displayOrder,
+    })),
   };
 
   return (

@@ -131,6 +131,30 @@ export default function PremadeCakeDetailPage({ params }: { params: Promise<{ id
         <div className="card p-4 text-sm text-gray-500 italic">{t("marginNoRecipe")}</div>
       )}
 
+      {/* Variants */}
+      {cake.variants.length > 0 && (
+        <div className="card p-6 space-y-3">
+          <h3 className="section-title">{t("variantsTitle")}</h3>
+          <ul className="divide-y divide-rose-100">
+            {cake.variants.map((v) => (
+              <li key={v.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-800 truncate">{v.label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {[
+                      v.sizeLabel,
+                      v.occasion,
+                      v.serves ? `${v.serves} ${t("variantServes").toLowerCase()}` : null,
+                    ].filter(Boolean).join(" · ") || <>&nbsp;</>}
+                  </p>
+                </div>
+                <span className="font-semibold text-brand-700 whitespace-nowrap">{v.price} kr</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Sizes */}
       {cake.sizes.length > 0 && (
         <div className="card p-6 space-y-3">

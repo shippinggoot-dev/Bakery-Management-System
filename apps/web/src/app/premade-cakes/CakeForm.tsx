@@ -17,6 +17,7 @@ export type CakeFormValues = {
   sizes:        SizeRow[];
   flavourIds:   string[];
   addonIds:     string[];
+  variants:     VariantRow[];
 };
 
 export type SizeRow = {
@@ -25,6 +26,22 @@ export type SizeRow = {
   heightCm:     number | null;
   serves:       number | null;
   displayOrder: number;
+};
+
+/** Form-side variant row. `id` present = existing variant (UPDATE on
+ *  save); absent = new variant (INSERT). `shopifyVariantId` is shown
+ *  as a "Linked to Shopify" badge but cannot be edited — that value
+ *  comes from two-way Shopify sync. */
+export type VariantRow = {
+  id?:               string;
+  label:             string;
+  sizeLabel:         string;
+  serves:            number | null;
+  occasion:          string;
+  price:             string;
+  shopifyMatchTitle: string;
+  shopifyVariantId?: string | null;
+  displayOrder:      number;
 };
 
 export const EMPTY_FORM: CakeFormValues = {
@@ -39,6 +56,7 @@ export const EMPTY_FORM: CakeFormValues = {
   sizes:        [],
   flavourIds:   [],
   addonIds:     [],
+  variants:     [],
 };
 
 export function CakeForm({ initial, onSubmit, submitLabel, isSubmitting }: {
@@ -70,6 +88,29 @@ export function CakeForm({ initial, onSubmit, submitLabel, isSubmitting }: {
   }
   function removeSize(i: number) {
     patch({ sizes: values.sizes.filter((_, j) => j !== i) });
+  }
+
+  function addVariant() {
+    patch({
+      variants: [
+        ...values.variants,
+        {
+          label:             "",
+          sizeLabel:         "",
+          serves:            null,
+          occasion:          "",
+          price:             "",
+          shopifyMatchTitle: "",
+          displayOrder:      values.variants.length,
+        },
+      ],
+    });
+  }
+  function patchVariant(i: number, p: Partial<VariantRow>) {
+    patch({ variants: values.variants.map((v, j) => (i === j ? { ...v, ...p } : v)) });
+  }
+  function removeVariant(i: number) {
+    patch({ variants: values.variants.filter((_, j) => j !== i) });
   }
 
   function toggleFlavour(id: string) {
@@ -250,6 +291,120 @@ export function CakeForm({ initial, onSubmit, submitLabel, isSubmitting }: {
                 >
                   <TrashIcon />
                 </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Variants */}
+      <div className="card p-6 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="section-title">{t("variantsTitle")}</h3>
+            <p className="text-sm text-gray-500 mt-1">{t("variantsHint")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={addVariant}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-50 border border-brand-200 text-brand-700 text-sm font-semibold hover:bg-brand-100 transition-colors"
+          >
+            <PlusIcon /> {t("addVariant")}
+          </button>
+        </div>
+
+        {values.variants.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">— {t("addVariant")} —</p>
+        ) : (
+          <div className="space-y-3">
+            {values.variants.map((variant, i) => (
+              <div key={variant.id ?? `new-${i}`} className="rounded-lg border border-rose-200 bg-white p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    {variant.shopifyVariantId && (
+                      <span className="badge text-[10px] bg-rose-50 text-rose-700 border-rose-200 mb-1 inline-block">
+                        {t("variantLinkedToShopify")}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeVariant(i)}
+                    title={t("removeVariant")}
+                    className="h-9 w-9 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="form-label text-xs">{t("variantLabel")}</label>
+                  <input
+                    className="form-input text-sm"
+                    value={variant.label}
+                    onChange={(e) => patchVariant(i, { label: e.target.value })}
+                    placeholder={t("variantLabelPlaceholder")}
+                    required
+                    maxLength={255}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="form-label text-xs">{t("variantSize")}</label>
+                    <input
+                      className="form-input text-sm"
+                      value={variant.sizeLabel}
+                      onChange={(e) => patchVariant(i, { sizeLabel: e.target.value })}
+                      placeholder={t("variantSizePlaceholder")}
+                      maxLength={255}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label text-xs">{t("variantOccasion")}</label>
+                    <input
+                      className="form-input text-sm"
+                      value={variant.occasion}
+                      onChange={(e) => patchVariant(i, { occasion: e.target.value })}
+                      placeholder={t("variantOccasionPlaceholder")}
+                      maxLength={255}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label text-xs">{t("variantServes")}</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="form-input text-sm"
+                      value={variant.serves ?? ""}
+                      onChange={(e) => patchVariant(i, { serves: e.target.value ? parseInt(e.target.value, 10) : null })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label text-xs">{t("variantPrice")}</label>
+                  <input
+                    className="form-input text-sm"
+                    inputMode="decimal"
+                    value={variant.price}
+                    onChange={(e) => patchVariant(i, { price: e.target.value })}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label text-xs">{t("variantMatchTitle")}</label>
+                  <input
+                    className="form-input text-sm font-mono"
+                    value={variant.shopifyMatchTitle}
+                    onChange={(e) => patchVariant(i, { shopifyMatchTitle: e.target.value })}
+                    placeholder={t("variantMatchTitlePlaceholder")}
+                    maxLength={255}
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">{t("variantMatchTitleHint")}</p>
+                </div>
               </div>
             ))}
           </div>

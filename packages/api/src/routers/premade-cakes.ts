@@ -41,6 +41,20 @@ const sizeInputSchema = z.object({
   displayOrder: z.number().int().min(0).max(10_000).default(0),
 });
 
+/** Variant input — `id` present = existing variant (UPDATE);
+ *  absent = new variant (INSERT). The update mutation reconciles by id
+ *  so existing cake_order.premadeCakeVariantId FKs aren't orphaned. */
+const variantInputSchema = z.object({
+  id:                z.string().uuid().optional(),
+  label:             shortText({ min: 1 }),
+  sizeLabel:         shortText().optional().nullable(),
+  serves:            z.number().int().positive().max(10_000).optional().nullable(),
+  occasion:          shortText().optional().nullable(),
+  price:             nonNegativeDecimalString(),
+  shopifyMatchTitle: shortText().optional().nullable(),
+  displayOrder:      z.number().int().min(0).max(10_000).default(0),
+});
+
 const flavourInputSchema = z.object({
   name:         shortText({ min: 1 }),
   description:  longText().optional().nullable(),
@@ -169,6 +183,7 @@ export const premadeCakesRouter = createTRPCRouter({
           sizes:    { orderBy: [asc(premadeCakeSizes.displayOrder)] },
           flavours: { with: { flavour: true } },
           addons:   { with: { addon: true } },
+          variants: { orderBy: [asc(premadeCakeVariants.displayOrder)], with: { flavour: true } },
         },
       });
     }),
@@ -183,6 +198,7 @@ export const premadeCakesRouter = createTRPCRouter({
           sizes:    { orderBy: [asc(premadeCakeSizes.displayOrder)] },
           flavours: { with: { flavour: true } },
           addons:   { with: { addon: true } },
+          variants: { orderBy: [asc(premadeCakeVariants.displayOrder)], with: { flavour: true } },
           recipe:   true,
         },
       });
@@ -194,6 +210,7 @@ export const premadeCakesRouter = createTRPCRouter({
       sizes:      z.array(sizeInputSchema).default([]),
       flavourIds: z.array(z.string().uuid()).default([]),
       addonIds:   z.array(z.string().uuid()).default([]),
+      variants:   z.array(variantInputSchema).default([]),
     }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user.isAnonymous) {
@@ -221,6 +238,20 @@ export const premadeCakesRouter = createTRPCRouter({
             input.addonIds.map((addonId) => ({ cakeId: cake.id, addonId })),
           );
         }
+        if (input.variants.length) {
+          await tx.insert(premadeCakeVariants).values(
+            input.variants.map((v) => ({
+              cakeId:            cake.id,
+              label:             v.label,
+              sizeLabel:         v.sizeLabel ?? null,
+              serves:            v.serves ?? null,
+              occasion:          v.occasion ?? null,
+              price:             v.price,
+              shopifyMatchTitle: v.shopifyMatchTitle?.toLowerCase().trim() || null,
+              displayOrder:      v.displayOrder,
+            })),
+          );
+        }
         return cake;
       });
     }),
@@ -232,6 +263,12 @@ export const premadeCakesRouter = createTRPCRouter({
       sizes:      z.array(sizeInputSchema).optional(),
       flavourIds: z.array(z.string().uuid()).optional(),
       addonIds:   z.array(z.string().uuid()).optional(),
+      /** When present, reconciles the cake's variants: rows with `id`
+       *  are UPDATEd, rows without `id` are INSERTed, and any existing
+       *  variant not appearing in the submitted list is DELETEd.
+       *  ON DELETE SET NULL on cake_orders.premade_cake_variant_id
+       *  cleans up any order links to deleted variants. */
+      variants:   z.array(variantInputSchema).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       // Verify ownership before any writes.
@@ -270,6 +307,51 @@ export const premadeCakesRouter = createTRPCRouter({
             await tx.insert(premadeCakeAddons).values(
               input.addonIds.map((addonId) => ({ cakeId: input.id, addonId })),
             );
+          }
+        }
+        if (input.variants) {
+          // Diff-and-reconcile so existing cake_order.premadeCakeVariantId
+          // FKs aren't orphaned by a blanket delete-and-reinsert.
+          const existing = await tx
+            .select({ id: premadeCakeVariants.id })
+            .from(premadeCakeVariants)
+            .where(eq(premadeCakeVariants.cakeId, input.id));
+          const submittedIds = new Set(input.variants.map((v) => v.id).filter((x): x is string => !!x));
+          const toDelete = existing.filter((e) => !submittedIds.has(e.id)).map((e) => e.id);
+          if (toDelete.length) {
+            await tx.delete(premadeCakeVariants).where(inArray(premadeCakeVariants.id, toDelete));
+          }
+          for (const v of input.variants) {
+            const normalisedMatchTitle = v.shopifyMatchTitle?.toLowerCase().trim() || null;
+            if (v.id) {
+              await tx
+                .update(premadeCakeVariants)
+                .set({
+                  label:             v.label,
+                  sizeLabel:         v.sizeLabel ?? null,
+                  serves:            v.serves ?? null,
+                  occasion:          v.occasion ?? null,
+                  price:             v.price,
+                  shopifyMatchTitle: normalisedMatchTitle,
+                  displayOrder:      v.displayOrder,
+                  updatedAt:         new Date(),
+                })
+                .where(and(
+                  eq(premadeCakeVariants.id,     v.id),
+                  eq(premadeCakeVariants.cakeId, input.id),
+                ));
+            } else {
+              await tx.insert(premadeCakeVariants).values({
+                cakeId:            input.id,
+                label:             v.label,
+                sizeLabel:         v.sizeLabel ?? null,
+                serves:            v.serves ?? null,
+                occasion:          v.occasion ?? null,
+                price:             v.price,
+                shopifyMatchTitle: normalisedMatchTitle,
+                displayOrder:      v.displayOrder,
+              });
+            }
           }
         }
         return { success: true };

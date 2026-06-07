@@ -37,6 +37,17 @@ export default function NewPremadeCakePage() {
         .map((s) => ({ ...s, label: s.label.trim() })),
       flavourIds: values.flavourIds,
       addonIds:   values.addonIds,
+      variants: values.variants
+        .filter((v) => v.label.trim() && v.price.trim())
+        .map((v, idx) => ({
+          label:             v.label.trim(),
+          sizeLabel:         v.sizeLabel.trim() || null,
+          serves:            v.serves,
+          occasion:          v.occasion.trim() || null,
+          price:             v.price.trim(),
+          shopifyMatchTitle: v.shopifyMatchTitle.trim() || null,
+          displayOrder:      idx,
+        })),
     });
   }
 
