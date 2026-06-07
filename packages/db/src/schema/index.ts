@@ -80,7 +80,6 @@ import { productionSchedules } from "./production-schedules";
 import { otherDeliveries } from "./other-deliveries";
 import {
   premadeCakes,
-  premadeCakeSizes,
   flavours,
   premadeCakeFlavours,
   cakeAddons,
@@ -428,7 +427,6 @@ export const premadeCakesRelations = relations(premadeCakes, ({ one, many }) => 
     fields:     [premadeCakes.recipeId],
     references: [recipes.id],
   }),
-  sizes:    many(premadeCakeSizes),
   flavours: many(premadeCakeFlavours),
   addons:   many(premadeCakeAddons),
   variants: many(premadeCakeVariants),
@@ -444,13 +442,6 @@ export const premadeCakeVariantsRelations = relations(premadeCakeVariants, ({ on
     references: [flavours.id],
   }),
   orders:  many(cakeOrders),
-}));
-
-export const premadeCakeSizesRelations = relations(premadeCakeSizes, ({ one }) => ({
-  cake: one(premadeCakes, {
-    fields:     [premadeCakeSizes.cakeId],
-    references: [premadeCakes.id],
-  }),
 }));
 
 export const flavoursRelations = relations(flavours, ({ many }) => ({

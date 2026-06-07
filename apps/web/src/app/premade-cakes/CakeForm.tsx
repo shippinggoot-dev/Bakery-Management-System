@@ -14,18 +14,9 @@ export type CakeFormValues = {
   allergens:    string;
   isActive:     boolean;
   displayOrder: number;
-  sizes:        SizeRow[];
   flavourIds:   string[];
   addonIds:     string[];
   variants:     VariantRow[];
-};
-
-export type SizeRow = {
-  label:        string;
-  diameterCm:   number | null;
-  heightCm:     number | null;
-  serves:       number | null;
-  displayOrder: number;
 };
 
 /** Form-side variant row. `id` present = existing variant (UPDATE on
@@ -53,7 +44,6 @@ export const EMPTY_FORM: CakeFormValues = {
   allergens:    "",
   isActive:     true,
   displayOrder: 0,
-  sizes:        [],
   flavourIds:   [],
   addonIds:     [],
   variants:     [],
@@ -74,21 +64,6 @@ export function CakeForm({ initial, onSubmit, submitLabel, isSubmitting }: {
   const { data: addons   = [] } = api.premadeCakes.addons.list.useQuery();
 
   function patch(p: Partial<CakeFormValues>) { setValues((v) => ({ ...v, ...p })); }
-
-  function addSize() {
-    patch({
-      sizes: [
-        ...values.sizes,
-        { label: "", diameterCm: null, heightCm: null, serves: null, displayOrder: values.sizes.length },
-      ],
-    });
-  }
-  function patchSize(i: number, p: Partial<SizeRow>) {
-    patch({ sizes: values.sizes.map((s, j) => (i === j ? { ...s, ...p } : s)) });
-  }
-  function removeSize(i: number) {
-    patch({ sizes: values.sizes.filter((_, j) => j !== i) });
-  }
 
   function addVariant() {
     patch({
@@ -219,82 +194,6 @@ export function CakeForm({ initial, onSubmit, submitLabel, isSubmitting }: {
             <span className="text-sm text-gray-700">{t("isActive")}</span>
           </label>
         </div>
-      </div>
-
-      {/* Sizes */}
-      <div className="card p-6 space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="section-title">{t("sizesTitle")}</h3>
-            <p className="text-sm text-gray-500 mt-1">{t("sizesHint")}</p>
-          </div>
-          <button
-            type="button"
-            onClick={addSize}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-50 border border-brand-200 text-brand-700 text-sm font-semibold hover:bg-brand-100 transition-colors"
-          >
-            <PlusIcon /> {t("addSize")}
-          </button>
-        </div>
-
-        {values.sizes.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">— {t("addSize")} —</p>
-        ) : (
-          <div className="space-y-3">
-            {values.sizes.map((size, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-end">
-                <div className="col-span-12 sm:col-span-5">
-                  <label className="form-label text-xs">{t("sizeLabel")}</label>
-                  <input
-                    className="form-input text-sm"
-                    value={size.label}
-                    onChange={(e) => patchSize(i, { label: e.target.value })}
-                    placeholder={t("sizeLabelPlaceholder")}
-                    required
-                  />
-                </div>
-                <div className="col-span-4 sm:col-span-2">
-                  <label className="form-label text-xs">{t("sizeDiameter")}</label>
-                  <input
-                    type="number"
-                    min={1}
-                    className="form-input text-sm"
-                    value={size.diameterCm ?? ""}
-                    onChange={(e) => patchSize(i, { diameterCm: e.target.value ? parseInt(e.target.value, 10) : null })}
-                  />
-                </div>
-                <div className="col-span-4 sm:col-span-2">
-                  <label className="form-label text-xs">{t("sizeHeight")}</label>
-                  <input
-                    type="number"
-                    min={1}
-                    className="form-input text-sm"
-                    value={size.heightCm ?? ""}
-                    onChange={(e) => patchSize(i, { heightCm: e.target.value ? parseInt(e.target.value, 10) : null })}
-                  />
-                </div>
-                <div className="col-span-3 sm:col-span-2">
-                  <label className="form-label text-xs">{t("sizeServes")}</label>
-                  <input
-                    type="number"
-                    min={1}
-                    className="form-input text-sm"
-                    value={size.serves ?? ""}
-                    onChange={(e) => patchSize(i, { serves: e.target.value ? parseInt(e.target.value, 10) : null })}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeSize(i)}
-                  title={t("removeSize")}
-                  className="col-span-1 h-9 w-9 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors"
-                >
-                  <TrashIcon />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Variants */}

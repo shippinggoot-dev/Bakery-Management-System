@@ -34,23 +34,6 @@ export const premadeCakes = pgTable("premade_cakes", {
 ]);
 
 /**
- * Size variants per cake. Descriptive only — Sucre's pricing model is one
- * flat price per SKU regardless of size.
- */
-export const premadeCakeSizes = pgTable("premade_cake_sizes", {
-  id:           uuid("id").primaryKey().defaultRandom(),
-  cakeId:       uuid("cake_id").notNull().references(() => premadeCakes.id, { onDelete: "cascade" }),
-  /** Display label, e.g. "20cm — 18 servings". */
-  label:        text("label").notNull(),
-  diameterCm:   integer("diameter_cm"),
-  heightCm:     integer("height_cm"),
-  serves:       integer("serves"),
-  displayOrder: integer("display_order").notNull().default(0),
-}, (t) => [
-  index("idx_premade_cake_sizes_cake_id").on(t.cakeId),
-]);
-
-/**
  * Shared catalog of flavour profiles, reused across cakes.
  */
 export const flavours = pgTable("flavours", {
@@ -106,8 +89,6 @@ export const premadeCakeAddons = pgTable("premade_cake_addons", {
 
 export type PremadeCake         = typeof premadeCakes.$inferSelect;
 export type NewPremadeCake      = typeof premadeCakes.$inferInsert;
-export type PremadeCakeSize     = typeof premadeCakeSizes.$inferSelect;
-export type NewPremadeCakeSize  = typeof premadeCakeSizes.$inferInsert;
 export type Flavour             = typeof flavours.$inferSelect;
 export type NewFlavour          = typeof flavours.$inferInsert;
 export type CakeAddon           = typeof cakeAddons.$inferSelect;

@@ -4,7 +4,6 @@ import { eq, and, asc, isNull, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {
   premadeCakes,
-  premadeCakeSizes,
   premadeCakeVariants,
   flavours,
   premadeCakeFlavours,
@@ -30,14 +29,6 @@ const cakeBaseSchema = z.object({
   recipeId:     z.string().uuid().optional().nullable(),
   allergens:    longText().optional().nullable(),
   isActive:     z.boolean().default(true),
-  displayOrder: z.number().int().min(0).max(10_000).default(0),
-});
-
-const sizeInputSchema = z.object({
-  label:        shortText({ min: 1 }),
-  diameterCm:   z.number().int().positive().max(1000).optional().nullable(),
-  heightCm:     z.number().int().positive().max(1000).optional().nullable(),
-  serves:       z.number().int().positive().max(10_000).optional().nullable(),
   displayOrder: z.number().int().min(0).max(10_000).default(0),
 });
 
@@ -180,7 +171,6 @@ export const premadeCakesRouter = createTRPCRouter({
         where: and(...conditions),
         orderBy: [asc(premadeCakes.displayOrder), asc(premadeCakes.name)],
         with: {
-          sizes:    { orderBy: [asc(premadeCakeSizes.displayOrder)] },
           flavours: { with: { flavour: true } },
           addons:   { with: { addon: true } },
           variants: { orderBy: [asc(premadeCakeVariants.displayOrder)], with: { flavour: true } },
@@ -195,7 +185,6 @@ export const premadeCakesRouter = createTRPCRouter({
       return ctx.db.query.premadeCakes.findFirst({
         where: and(eq(premadeCakes.id, input), eq(premadeCakes.ownerId, ctx.user.id)),
         with: {
-          sizes:    { orderBy: [asc(premadeCakeSizes.displayOrder)] },
           flavours: { with: { flavour: true } },
           addons:   { with: { addon: true } },
           variants: { orderBy: [asc(premadeCakeVariants.displayOrder)], with: { flavour: true } },
@@ -207,7 +196,6 @@ export const premadeCakesRouter = createTRPCRouter({
   create: protectedProcedure
     .input(z.object({
       cake:       cakeBaseSchema,
-      sizes:      z.array(sizeInputSchema).default([]),
       flavourIds: z.array(z.string().uuid()).default([]),
       addonIds:   z.array(z.string().uuid()).default([]),
       variants:   z.array(variantInputSchema).default([]),
@@ -223,11 +211,6 @@ export const premadeCakesRouter = createTRPCRouter({
           .returning();
         if (!cake) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        if (input.sizes.length) {
-          await tx.insert(premadeCakeSizes).values(
-            input.sizes.map((s) => ({ ...s, cakeId: cake.id })),
-          );
-        }
         if (input.flavourIds.length) {
           await tx.insert(premadeCakeFlavours).values(
             input.flavourIds.map((flavourId) => ({ cakeId: cake.id, flavourId })),
@@ -260,7 +243,6 @@ export const premadeCakesRouter = createTRPCRouter({
     .input(z.object({
       id:         z.string().uuid(),
       cake:       cakeBaseSchema.partial().optional(),
-      sizes:      z.array(sizeInputSchema).optional(),
       flavourIds: z.array(z.string().uuid()).optional(),
       addonIds:   z.array(z.string().uuid()).optional(),
       /** When present, reconciles the cake's variants: rows with `id`
@@ -284,14 +266,6 @@ export const premadeCakesRouter = createTRPCRouter({
             .update(premadeCakes)
             .set({ ...input.cake, updatedAt: new Date() })
             .where(eq(premadeCakes.id, input.id));
-        }
-        if (input.sizes) {
-          await tx.delete(premadeCakeSizes).where(eq(premadeCakeSizes.cakeId, input.id));
-          if (input.sizes.length) {
-            await tx.insert(premadeCakeSizes).values(
-              input.sizes.map((s) => ({ ...s, cakeId: input.id })),
-            );
-          }
         }
         if (input.flavourIds) {
           await tx.delete(premadeCakeFlavours).where(eq(premadeCakeFlavours.cakeId, input.id));

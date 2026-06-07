@@ -39,9 +39,6 @@ export default function EditPremadeCakePage({ params }: { params: Promise<{ id: 
         isActive:     values.isActive,
         displayOrder: values.displayOrder,
       },
-      sizes: values.sizes
-        .filter((s) => s.label.trim())
-        .map((s) => ({ ...s, label: s.label.trim() })),
       flavourIds: values.flavourIds,
       addonIds:   values.addonIds,
       variants: values.variants
@@ -83,13 +80,6 @@ export default function EditPremadeCakePage({ params }: { params: Promise<{ id: 
     allergens:    cake.allergens ?? "",
     isActive:     cake.isActive,
     displayOrder: cake.displayOrder,
-    sizes: cake.sizes.map((s) => ({
-      label:        s.label,
-      diameterCm:   s.diameterCm,
-      heightCm:     s.heightCm,
-      serves:       s.serves,
-      displayOrder: s.displayOrder,
-    })),
     flavourIds: cake.flavours.map((f) => f.flavour.id),
     addonIds:   cake.addons.map((a) => a.addon.id),
     variants: cake.variants.map((v) => ({

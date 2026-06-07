@@ -81,9 +81,9 @@ export default function PremadeCakesPage() {
                       </span>
                     )}
                   </div>
-                  {(cake.sizes.length > 0 || cake.flavours.length > 0) && (
+                  {(cake.variants.length > 0 || cake.flavours.length > 0 || cake.addons.length > 0) && (
                     <div className="flex items-center gap-3 text-xs text-gray-500">
-                      {cake.sizes.length > 0 && <span>📐 {cake.sizes.length}</span>}
+                      {cake.variants.length > 0 && <span>📐 {cake.variants.length}</span>}
                       {cake.flavours.length > 0 && <span>🍰 {cake.flavours.length}</span>}
                       {cake.addons.length > 0 && <span>➕ {cake.addons.length}</span>}
                     </div>

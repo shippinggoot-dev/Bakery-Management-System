@@ -32,9 +32,6 @@ export default function NewPremadeCakePage() {
         isActive:     values.isActive,
         displayOrder: values.displayOrder,
       },
-      sizes: values.sizes
-        .filter((s) => s.label.trim())
-        .map((s) => ({ ...s, label: s.label.trim() })),
       flavourIds: values.flavourIds,
       addonIds:   values.addonIds,
       variants: values.variants

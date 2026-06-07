@@ -155,25 +155,6 @@ export default function PremadeCakeDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {/* Sizes */}
-      {cake.sizes.length > 0 && (
-        <div className="card p-6 space-y-3">
-          <h3 className="section-title">{t("sizesTitle")}</h3>
-          <ul className="divide-y divide-rose-100">
-            {cake.sizes.map((s) => (
-              <li key={s.id} className="flex items-center justify-between py-2 text-sm">
-                <span className="font-medium text-gray-800">{s.label}</span>
-                <span className="text-xs text-gray-500">
-                  {s.diameterCm && `Ø${s.diameterCm}cm`}
-                  {s.heightCm && ` · h${s.heightCm}cm`}
-                  {s.serves && ` · ${s.serves} serv`}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* Flavours */}
       {cake.flavours.length > 0 && (
         <div className="card p-6 space-y-3">

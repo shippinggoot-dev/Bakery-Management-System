@@ -1,6 +1,6 @@
 # Phase 2 — Shopify Product Variants
 
-**Status:** Approved 2026-06-06. Option B chosen. Open questions resolved in §6.
+**Status:** Approved 2026-06-06. Option B chosen. Open questions resolved in §6. All five PRs landed 2026-06-07.
 **Audience:** project decision-makers. **Author:** engineering (Claude).
 **Date written:** 2026-06-06.
 
