@@ -517,6 +517,314 @@ function CreateRecipeFromOrderModal({
 }
 
 /**
+ * Phase 2 — Modal: create a premade cake with N variants from a Shopify
+ * product whose orders carry a variant_title. Pre-fills the variant
+ * list from sibling pending unlinked orders for the same base product.
+ * Auto-parses each variant_title on " / " into size + occasion (Shopify
+ * default order is flavour / size / occasion, so slot 0 = flavour stays
+ * in the full label, slot 1 = size, slot 2 = occasion). User adjusts
+ * any field before saving. The save call creates the cake + variants
+ * and links every matching pending unlinked order to the new variant.
+ */
+type SiblingOrder = {
+  id:                   string;
+  shopifyLineItemTitle: string | null;
+  shopifyVariantTitle:  string | null;
+  salePrice:            string | null;
+};
+type VariantDraft = {
+  shopifyVariantTitle: string;
+  include:             boolean;
+  label:               string;
+  sizeLabel:           string;
+  occasion:            string;
+  price:               string;
+  orderCount:          number;
+};
+
+function CreateCakeFromVariantsModal({
+  shopifyLineItemTitle, siblingOrders, onClose, onCreated,
+}: {
+  shopifyLineItemTitle: string;
+  siblingOrders:        SiblingOrder[];
+  onClose:              () => void;
+  onCreated:            (linkedCount: number, variantCount: number) => void;
+}) {
+  const t = useTranslations("planner");
+  // Existing recipes for the optional "base recipe" dropdown so the
+  // user can wire cost / margin through on creation.
+  const { data: recipeOptions = [] } = api.recipes.getAll.useQuery({ limit: 100 });
+
+  // Collapse the sibling orders into one draft per distinct
+  // variant_title, counting how many orders each represents.
+  const initialDrafts: VariantDraft[] = (() => {
+    const grouped = new Map<string, { count: number; price: string | null }>();
+    for (const o of siblingOrders) {
+      const vt = o.shopifyVariantTitle;
+      if (!vt) continue;
+      const existing = grouped.get(vt);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        grouped.set(vt, { count: 1, price: o.salePrice ?? null });
+      }
+    }
+    return Array.from(grouped.entries()).map(([variantTitle, info]) => {
+      // Shopify default variant order: flavour / size / occasion.
+      // Slot 0 (flavour) stays in the full label so nothing is lost;
+      // slot 1 becomes size; slot 2 becomes occasion.
+      const parts = variantTitle.split(" / ").map((s) => s.trim());
+      const size     = parts[1] ?? "";
+      const occasion = parts[2] ?? "";
+      return {
+        shopifyVariantTitle: variantTitle,
+        include:             true,
+        label:               variantTitle,
+        sizeLabel:           size,
+        occasion:            occasion,
+        price:               info.price ?? "",
+        orderCount:          info.count,
+      };
+    });
+  })();
+
+  const [name,         setName]         = useState(shopifyLineItemTitle);
+  const [description,  setDescription]  = useState("");
+  const [leadTimeDays, setLeadTimeDays] = useState("0");
+  const [baseRecipeId, setBaseRecipeId] = useState<string>("");
+  const [variants,     setVariants]     = useState<VariantDraft[]>(initialDrafts);
+  const [error,        setError]        = useState<string | null>(null);
+
+  const create = api.premadeCakes.createFromShopifyVariants.useMutation({
+    onSuccess: (result) => onCreated(result.linkedOrderCount, result.variantCount),
+    onError:   (e)      => setError(e.message),
+  });
+
+  function updateVariant(idx: number, patch: Partial<VariantDraft>) {
+    setVariants((prev) => prev.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
+  }
+
+  const includedCount     = variants.filter((v) => v.include).length;
+  const linkableOrderTotal = variants.filter((v) => v.include).reduce((sum, v) => sum + v.orderCount, 0);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return setError(t("cvmErrorNameRequired"));
+    const included = variants.filter((v) => v.include);
+    if (included.length === 0) return setError(t("cvmErrorPickOne"));
+    for (const v of included) {
+      if (!v.label.trim()) return setError(t("cvmErrorLabelRequired", { variant: v.shopifyVariantTitle }));
+      if (!/^\d+(\.\d+)?$/.test(v.price.trim())) {
+        return setError(t("cvmErrorPriceInvalid", { variant: v.shopifyVariantTitle }));
+      }
+    }
+    setError(null);
+    create.mutate({
+      shopifyLineItemTitle,
+      cake: {
+        name:         name.trim(),
+        description:  description.trim() || null,
+        leadTimeDays: Math.max(0, parseInt(leadTimeDays) || 0),
+        recipeId:     baseRecipeId || null,
+      },
+      variants: included.map((v, i) => ({
+        shopifyVariantTitle: v.shopifyVariantTitle,
+        label:               v.label.trim(),
+        sizeLabel:           v.sizeLabel.trim() || null,
+        serves:              null,
+        occasion:            v.occasion.trim() || null,
+        price:               v.price.trim(),
+        displayOrder:        i,
+      })),
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-gray-900">{t("cvmTitle")}</h3>
+            <p className="text-xs text-gray-500 mt-1">{t("cvmSubtitle")}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none shrink-0">×</button>
+        </div>
+
+        <div className="rounded-lg bg-rose-50 border border-rose-100 px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-rose-600 font-semibold">{t("cvmShopifyProduct")}</p>
+          <p className="text-sm text-gray-800 mt-0.5 break-words">{shopifyLineItemTitle}</p>
+          <p className="text-[11px] text-gray-500 mt-1">
+            {(() => {
+              const ordersPlural   = siblingOrders.length !== 1;
+              const variantsPlural = initialDrafts.length !== 1;
+              const key = ordersPlural && variantsPlural ? "cvmSummaryBothPlural"
+                       : ordersPlural                    ? "cvmSummaryOrdersPlural"
+                       : variantsPlural                  ? "cvmSummaryVariantsPlural"
+                                                         : "cvmSummary";
+              return t(key, { orders: siblingOrders.length, variants: initialDrafts.length });
+            })()}
+          </p>
+        </div>
+
+        {error && <p className="text-sm text-red-500">{error}</p>}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="form-label">{t("cvmCakeName")}</label>
+            <input
+              className="form-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              required
+              maxLength={255}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">{t("cvmCakeNameHint")}</p>
+          </div>
+
+          <div>
+            <label className="form-label">{t("cvmDescription")}</label>
+            <textarea
+              className="form-input"
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t("cvmDescriptionPlaceholder")}
+              maxLength={2000}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">{t("cvmLeadTime")}</label>
+              <input
+                className="form-input"
+                type="number"
+                min="0"
+                max="365"
+                value={leadTimeDays}
+                onChange={(e) => setLeadTimeDays(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="form-label">{t("cvmBaseRecipe")}</label>
+              <select
+                className="form-input"
+                value={baseRecipeId}
+                onChange={(e) => setBaseRecipeId(e.target.value)}
+              >
+                <option value="">{t("cvmBaseRecipeNone")}</option>
+                {recipeOptions.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">{t("cvmBaseRecipeHint")}</p>
+            </div>
+          </div>
+
+          <div className="border-t border-rose-100 pt-3 space-y-3">
+            <div className="flex items-baseline justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">{t("cvmVariantsHeader")}</p>
+              <p className="text-[11px] text-gray-500">
+                {t(linkableOrderTotal === 1 ? "cvmVariantsCounter" : "cvmVariantsCounterPlural",
+                  { included: includedCount, orders: linkableOrderTotal })}
+              </p>
+            </div>
+
+            {variants.length === 0 && (
+              <p className="text-sm text-gray-400 italic">{t("cvmNoVariants")}</p>
+            )}
+
+            {variants.map((v, idx) => (
+              <div
+                key={v.shopifyVariantTitle}
+                className={`rounded-lg border p-3 space-y-2 transition-colors ${
+                  v.include ? "border-rose-200 bg-white" : "border-gray-200 bg-gray-50 opacity-60"
+                }`}
+              >
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={v.include}
+                    onChange={(e) => updateVariant(idx, { include: e.target.checked })}
+                    className="mt-1 accent-brand-600"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 break-words">{v.shopifyVariantTitle}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {t(v.orderCount === 1 ? "cvmVariantOrderCount" : "cvmVariantOrderCountPlural", { count: v.orderCount })}
+                    </p>
+                  </div>
+                </label>
+
+                {v.include && (
+                  <div className="ml-6 grid grid-cols-2 gap-2">
+                    <div className="col-span-2">
+                      <label className="form-label">{t("cvmVariantLabel")}</label>
+                      <input
+                        className="form-input"
+                        value={v.label}
+                        onChange={(e) => updateVariant(idx, { label: e.target.value })}
+                        maxLength={255}
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label">{t("cvmVariantSize")}</label>
+                      <input
+                        className="form-input"
+                        value={v.sizeLabel}
+                        onChange={(e) => updateVariant(idx, { sizeLabel: e.target.value })}
+                        placeholder={t("cvmVariantSizePlaceholder")}
+                        maxLength={255}
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label">{t("cvmVariantOccasion")}</label>
+                      <input
+                        className="form-input"
+                        value={v.occasion}
+                        onChange={(e) => updateVariant(idx, { occasion: e.target.value })}
+                        placeholder={t("cvmVariantOccasionPlaceholder")}
+                        maxLength={255}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="form-label">{t("cvmVariantPrice")}</label>
+                      <input
+                        className="form-input"
+                        type="text"
+                        inputMode="decimal"
+                        value={v.price}
+                        onChange={(e) => updateVariant(idx, { price: e.target.value })}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button
+              type="submit"
+              disabled={create.isPending || includedCount === 0}
+              className="btn-primary disabled:opacity-50 flex-1"
+            >
+              {create.isPending
+                ? t("cvmSubmitting")
+                : t(linkableOrderTotal === 1 ? "cvmSubmit" : "cvmSubmitPlural", { count: linkableOrderTotal })}
+            </button>
+            <button type="button" onClick={onClose} className="btn-ghost">{t("cvmCancel")}</button>
+          </div>
+          <p className="text-[11px] text-gray-400">{t("cvmFootnote")}</p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Modal: schedule an unlinked Shopify-origin order as a production event
  * (no recipe authored). Used for class- or service-style products that
  * don't have anything to bake but still need a slot on the production
@@ -718,6 +1026,14 @@ export default function PlannerPage() {
     dueDate:      string | null;
     notes:        string | null;
   } | null>(null);
+  // Phase 2 — opens the "create premade cake with variants" modal for a
+  // Shopify product whose orders carry a variant_title. We pass just the
+  // base line-item title; the modal looks up every sibling pending
+  // unlinked order from the loaded orders list to pre-fill the variant
+  // form.
+  const [creatingCakeFor, setCreatingCakeFor] = useState<{
+    shopifyLineItemTitle: string;
+  } | null>(null);
 
   const { data: allOrders = [], isLoading } = api.cakeOrders.getAll.useQuery();
 
@@ -842,6 +1158,32 @@ export default function PlannerPage() {
         />
       )}
 
+      {creatingCakeFor && (
+        <CreateCakeFromVariantsModal
+          shopifyLineItemTitle={creatingCakeFor.shopifyLineItemTitle}
+          siblingOrders={allOrders.filter((o) =>
+            o.shopifyLineItemTitle === creatingCakeFor.shopifyLineItemTitle
+            && o.status === "pending"
+            && !o.recipeId
+            && !o.premadeCakeVariantId
+            && !!o.shopifyVariantTitle,
+          )}
+          onClose={() => setCreatingCakeFor(null)}
+          onCreated={(linkedCount, variantCount) => {
+            setCreatingCakeFor(null);
+            utils.cakeOrders.getAll.invalidate();
+            utils.premadeCakes.list.invalidate();
+            const variantsPlural = variantCount !== 1;
+            const ordersPlural   = linkedCount !== 1;
+            const key = variantsPlural && ordersPlural ? "cvmSuccessAlertBothPlural"
+                     : variantsPlural                  ? "cvmSuccessAlertVariantsPlural"
+                     : ordersPlural                    ? "cvmSuccessAlertOrdersPlural"
+                                                       : "cvmSuccessAlert";
+            alert(t(key, { variants: variantCount, orders: linkedCount }));
+          }}
+        />
+      )}
+
       <div className="flex gap-1">
         {[
           { id: "active", label: t("filterActive") },
@@ -881,8 +1223,9 @@ export default function PlannerPage() {
               </thead>
               <tbody className="divide-y divide-rose-50">
                 {displayed.map((order) => {
-                  const pastDue   = isPastDue(order);
-                  const unlinked  = !order.recipeId && !!order.shopifyLineItemTitle;
+                  const pastDue    = isPastDue(order);
+                  const unlinked   = !order.recipeId && !order.premadeCakeVariantId && !!order.shopifyLineItemTitle;
+                  const hasVariant = unlinked && !!order.shopifyVariantTitle;
                   return (
                   <tr key={order.id} className="hover:bg-rose-50/40 transition-colors">
                     <td className="px-5 py-3">
@@ -928,6 +1271,17 @@ export default function PlannerPage() {
                             title="Create a recipe from this Shopify product. Other pending orders for the same product link automatically."
                           >
                             + Create recipe
+                          </button>
+                        )}
+                        {hasVariant && (
+                          <button
+                            onClick={() => setCreatingCakeFor({
+                              shopifyLineItemTitle: order.shopifyLineItemTitle!,
+                            })}
+                            className="text-xs text-brand-500 hover:text-brand-700 font-medium transition-colors whitespace-nowrap"
+                            title={t("cvmButtonTitle")}
+                          >
+                            {t("cvmButton")}
                           </button>
                         )}
                         {unlinked && (

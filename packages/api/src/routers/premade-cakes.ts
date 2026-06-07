@@ -1,21 +1,24 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, isNull, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {
   premadeCakes,
   premadeCakeSizes,
+  premadeCakeVariants,
   flavours,
   premadeCakeFlavours,
   cakeAddons,
   premadeCakeAddons,
   recipes,
+  cakeOrders,
 } from "@bakery/db";
 import {
   shortText,
   longText,
   nonNegativeDecimalString,
 } from "../lib/validation";
+import { buildVariantMatchKey } from "../lib/shopify-order-mapping";
 
 // ── Input schemas ────────────────────────────────────────────────────────────
 
@@ -336,6 +339,153 @@ export const premadeCakesRouter = createTRPCRouter({
         marginAbsolute: parseFloat((sale - cogs).toFixed(4)),
         pricedAll,
         recipeName:     recipe.name,
+      };
+    }),
+
+  /**
+   * Phase 2 of the Shopify variant work. Create a premade cake and its
+   * variants from a set of pending unlinked Shopify orders that share
+   * the same base line-item title but differ in variant_title.
+   *
+   * Mirrors `recipes.createFromShopifyTitle` (planner "Create recipe
+   * from order" flow) but produces a premade_cake + N variants instead
+   * of a single recipe. After insert, every pending cake_order owned
+   * by the caller whose (shopifyLineItemTitle, shopifyVariantTitle)
+   * pair matches one of the new variants gets linked via
+   * premade_cake_variant_id.
+   *
+   * basePrice on the parent cake is set to the minimum variant price
+   * so the catalog can show "from N kr" semantically. The user can
+   * override later in the cake editor.
+   */
+  createFromShopifyVariants: protectedProcedure
+    .input(
+      z.object({
+        shopifyLineItemTitle: shortText({ min: 1 }),
+        cake: z.object({
+          name:         shortText({ min: 1 }),
+          description:  longText().optional().nullable(),
+          leadTimeDays: z.number().int().min(0).max(365).default(0),
+          recipeId:     z.string().uuid().optional().nullable(),
+        }),
+        variants: z.array(z.object({
+          shopifyVariantTitle: shortText({ min: 1 }),
+          label:               shortText({ min: 1 }),
+          sizeLabel:           shortText().optional().nullable(),
+          serves:              z.number().int().positive().max(10_000).optional().nullable(),
+          occasion:            shortText().optional().nullable(),
+          price:               nonNegativeDecimalString(),
+          displayOrder:        z.number().int().min(0).max(10_000).default(0),
+        })).min(1).max(50),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.isAnonymous) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Create an account to manage premade cakes." });
+      }
+
+      const lineItemTitle = input.shopifyLineItemTitle.trim();
+
+      // Verify the caller has at least one pending unlinked order with
+      // this Shopify line-item title. Prevents callers from seeding
+      // shopify_match_title with arbitrary strings.
+      const owningOrder = await ctx.db.query.cakeOrders.findFirst({
+        where: and(
+          eq(cakeOrders.ownerId,              ctx.user.id),
+          eq(cakeOrders.shopifyLineItemTitle, lineItemTitle),
+          isNull(cakeOrders.recipeId),
+          isNull(cakeOrders.premadeCakeVariantId),
+        ),
+        columns: { id: true },
+      });
+      if (!owningOrder) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No pending unlinked order with that Shopify product title.",
+        });
+      }
+
+      // Verify optional base recipe is owned by the caller.
+      if (input.cake.recipeId) {
+        const r = await ctx.db.query.recipes.findFirst({
+          where: and(eq(recipes.id, input.cake.recipeId), eq(recipes.ownerId, ctx.user.id)),
+          columns: { id: true },
+        });
+        if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Base recipe not found." });
+      }
+
+      // Minimum variant price → cake.basePrice. Falls back to "0" if
+      // for some reason the array is empty (shouldn't happen due to
+      // z.array().min(1) above, but the guard is cheap).
+      const minPrice = input.variants
+        .map((v) => parseFloat(v.price))
+        .filter((n) => !isNaN(n))
+        .reduce((a, b) => Math.min(a, b), Infinity);
+      const basePrice = isFinite(minPrice) ? String(minPrice) : "0";
+
+      const created = await ctx.db.transaction(async (tx) => {
+        const [cake] = await tx
+          .insert(premadeCakes)
+          .values({
+            name:         input.cake.name,
+            description:  input.cake.description ?? null,
+            basePrice,
+            leadTimeDays: input.cake.leadTimeDays,
+            recipeId:     input.cake.recipeId ?? null,
+            ownerId:      ctx.user.id,
+          })
+          .returning();
+        if (!cake) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const variantRows = input.variants.map((v) => ({
+          cakeId:            cake.id,
+          label:             v.label,
+          sizeLabel:         v.sizeLabel ?? null,
+          serves:            v.serves ?? null,
+          occasion:          v.occasion ?? null,
+          price:             v.price,
+          // The matcher uses this exact lowercase key (built via the
+          // shared helper) to route incoming Shopify line items.
+          shopifyMatchTitle: buildVariantMatchKey(lineItemTitle, v.shopifyVariantTitle),
+          displayOrder:      v.displayOrder,
+        }));
+        const insertedVariants = await tx
+          .insert(premadeCakeVariants)
+          .values(variantRows)
+          .returning({
+            id:                  premadeCakeVariants.id,
+            shopifyMatchTitle:   premadeCakeVariants.shopifyMatchTitle,
+          });
+
+        // Link every pending unlinked order owned by the caller whose
+        // (shopifyLineItemTitle, shopifyVariantTitle) builds to one of
+        // the new variants' match keys. Done as N UPDATEs (one per
+        // variant) so each set-clause has a known target id.
+        let linkedCount = 0;
+        for (let i = 0; i < input.variants.length; i++) {
+          const v = input.variants[i]!;
+          const newVariant = insertedVariants[i]!;
+          const matched = await tx
+            .update(cakeOrders)
+            .set({ premadeCakeVariantId: newVariant.id, updatedAt: new Date() })
+            .where(and(
+              eq(cakeOrders.ownerId,              ctx.user.id),
+              eq(cakeOrders.shopifyLineItemTitle, lineItemTitle),
+              eq(cakeOrders.shopifyVariantTitle,  v.shopifyVariantTitle),
+              isNull(cakeOrders.recipeId),
+              isNull(cakeOrders.premadeCakeVariantId),
+            ))
+            .returning({ id: cakeOrders.id });
+          linkedCount += matched.length;
+        }
+
+        return { cake, linkedCount };
+      });
+
+      return {
+        cake:             { id: created.cake.id, name: created.cake.name },
+        linkedOrderCount: created.linkedCount,
+        variantCount:     input.variants.length,
       };
     }),
 });
