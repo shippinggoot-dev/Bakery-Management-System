@@ -10,7 +10,19 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code  = searchParams.get("code");
-  const next  = searchParams.get("next") ?? "/";
+
+  // Only accept same-origin paths for `next`. An unvalidated value lets an
+  // attacker craft `?next=@evil.com/login` — concatenated to `origin` that
+  // becomes `https://yoursite.com@evil.com/login`, which browsers parse as
+  // the host evil.com. Also reject `//evil.com` (protocol-relative) and
+  // `/\evil.com` (some browsers treat `\` like `/`).
+  const rawNext = searchParams.get("next") ?? "/";
+  const next =
+    rawNext.startsWith("/") &&
+    !rawNext.startsWith("//") &&
+    !rawNext.startsWith("/\\")
+      ? rawNext
+      : "/";
 
   if (code) {
     const cookieStore = await cookies();
