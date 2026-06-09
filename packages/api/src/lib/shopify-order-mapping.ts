@@ -18,6 +18,11 @@ export interface ShopifyLineItem {
   variant_title: string | null;
   /** Per-unit price as a string, Shopify's convention. */
   price:         string;
+  /** Shopify per-line custom fields. Cake-order checkout apps on Sucre's
+   *  storefront put the pickup date here as e.g.
+   *  `{ name: "Desired pickup date", value: "18/06/2026" }`. May be missing
+   *  on older/simpler orders. */
+  properties?:   ShopifyNoteAttribute[];
 }
 
 export interface ShopifyNoteAttribute {
@@ -94,15 +99,42 @@ function parseLooseDate(raw: string): string | null {
   return null;
 }
 
-export function extractDueDate(order: Pick<ShopifyOrderForMapping, "note" | "note_attributes">): string | null {
-  const keywords = ["delivery_date", "pickup_date", "due_date", "collection_date", "date"];
-  for (const attr of order.note_attributes ?? []) {
-    if (keywords.some((k) => attr.name.toLowerCase().includes(k))) {
+/**
+ * Substrings we treat as date-related field names. Matched case-insensitively
+ * via `.includes()` so compound labels like "Desired pickup date" or
+ * "Avhentingsdato" resolve through the constituent keyword.
+ *
+ * Norwegian (bokmål) coverage is mandatory per CLAUDE.md's i18n rule —
+ * Sucre's storefront ships English property labels today (e.g.
+ * "Desired pickup date"), but a label rename in a Shopify cake-order app
+ * shouldn't silently break date extraction.
+ */
+const DATE_FIELD_KEYWORDS = [
+  // English
+  "delivery_date", "pickup_date", "due_date", "collection_date", "date",
+  // Norwegian — "dato" alone covers all `*dato` compound forms
+  // (avhentingsdato, leveringsdato, bestillingsdato, forfallsdato).
+  "dato", "henting", "avhenting", "levering", "frist",
+];
+
+function findDateInAttributes(
+  attrs: readonly ShopifyNoteAttribute[] | undefined,
+): string | null {
+  if (!attrs) return null;
+  for (const attr of attrs) {
+    const name = attr.name.toLowerCase();
+    if (DATE_FIELD_KEYWORDS.some((k) => name.includes(k))) {
       const parsed = parseLooseDate(attr.value);
       if (parsed) return parsed;
       return attr.value; // keep raw if unparseable so the user can see what came in
     }
   }
+  return null;
+}
+
+export function extractDueDate(order: Pick<ShopifyOrderForMapping, "note" | "note_attributes">): string | null {
+  const fromAttrs = findDateInAttributes(order.note_attributes);
+  if (fromAttrs) return fromAttrs;
   if (order.note) {
     // Search the free-text note for embedded ISO or DMY patterns.
     const isoMatch = order.note.match(/\d{4}-\d{2}-\d{2}/);
@@ -111,6 +143,22 @@ export function extractDueDate(order: Pick<ShopifyOrderForMapping, "note" | "not
     if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2]!.padStart(2, "0")}-${dmyMatch[1]!.padStart(2, "0")}`;
   }
   return null;
+}
+
+/**
+ * Pick a date out of a Shopify line item's `properties` array. Cake-order
+ * checkout apps on Sucre's storefront attach the customer's chosen pickup
+ * date here as e.g. `{ name: "Desired pickup date", value: "18/06/2026" }`,
+ * which the order-level `note_attributes`/`note` never sees.
+ *
+ * Falls back to the same keyword + `parseLooseDate` pipeline that
+ * `extractDueDate` uses, so the DD/MM/YYYY format Norwegian customers
+ * type in resolves to a proper ISO date.
+ */
+export function extractDueDateFromLineItem(
+  item: Pick<ShopifyLineItem, "properties">,
+): string | null {
+  return findDateInAttributes(item.properties);
 }
 
 /**
@@ -293,14 +341,22 @@ export function mapShopifyOrderToCakeOrderRows(
     // calculation is SUM(salePrice × quantity), so storing the unit
     // price here gives the correct total without further work.
     const unitPrice = item.price && /^\d+(\.\d+)?$/.test(item.price) ? item.price : null;
-    // Per-line due date: order level wins; otherwise scan BOTH the line
-    // item title and its variant_title. Sucre's class-style products put
-    // the date in the variant ("Bakeskole - August 2026" + variant
-    // "10-11. August (Safari)") — without the variant we'd miss it.
+    // Per-line due date fallback chain (highest priority first):
+    //   1. Order-level note_attributes / free note (the cake order applies
+    //      to the whole order).
+    //   2. Line-item `properties` — where Sucre's storefront app stores
+    //      the customer's "Desired pickup date" picker value, one per line
+    //      item. This is the common case for cake orders today.
+    //   3. A date encoded in the line-item title or variant_title — e.g.
+    //      "Bakeskole - August 2026 — 10-11. August (Safari)" for
+    //      class-style products.
     const titleForDate = item.variant_title
       ? `${item.title} ${item.variant_title}`
       : item.title;
-    const dueDate = orderLevelDueDate ?? extractDateFromTitle(titleForDate);
+    const dueDate =
+      orderLevelDueDate
+      ?? extractDueDateFromLineItem(item)
+      ?? extractDateFromTitle(titleForDate);
     return {
       customerName,
       customerEmail,

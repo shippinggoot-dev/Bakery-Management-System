@@ -10,6 +10,7 @@ import {
   buildRecipeTitleLookup,
   buildVariantTitleLookup,
   extractDueDate,
+  extractDueDateFromLineItem,
   type ShopifyOrderForMapping,
   type ShopifyLineItem,
 } from "@bakery/api/lib/shopify-order-mapping";
@@ -110,7 +111,14 @@ export async function POST(request: NextRequest) {
   const customerName       = order.customer
     ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() || null
     : null;
-  const dueDate            = extractDueDate(order);
+  // Order-level date first (note_attributes / free note); fall back to the
+  // first line item's "Desired pickup date" property since that's where
+  // Sucre's storefront actually puts it. Used only for the confirmation
+  // email — the per-line dueDate stored in cake_orders comes from the
+  // mapper which applies the same fallback per line item.
+  const dueDate            =
+    extractDueDate(order)
+    ?? (order.line_items[0] ? extractDueDateFromLineItem(order.line_items[0]) : null);
   const shopifyOrderId     = String(order.id);
   const shopifyOrderNumber = order.name; // e.g. "#1042"
 
