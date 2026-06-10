@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
+import { formatDate } from "@/lib/format-date";
 
 export default function ShoppingListDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -90,7 +91,7 @@ export default function ShoppingListDetailPage() {
         {list.description && <p className="text-gray-500 mt-1">{list.description}</p>}
         {list.dueDate && (
           <p className="text-xs text-brand-400 mt-2">
-            {t("dueDate")}: <span className="font-medium">{list.dueDate}</span>
+            {t("dueDate")}: <span className="font-medium">{formatDate(list.dueDate)}</span>
           </p>
         )}
       </div>

@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { api } from "@/trpc/react";
 import { createClientSupabase } from "@/lib/supabase/client";
+import { formatDate } from "@/lib/format-date";
 import { usePersonalization, THEMES, type ThemeId } from "@/components/ThemeProvider";
 import { GlobalSearchTrigger } from "@/components/GlobalSearch";
 
@@ -364,7 +365,7 @@ function TodoSidebar({ open, onClose }: { open: boolean; onClose: () => void }) 
                   <p className="text-sm text-gray-800 leading-snug">{td.title}</p>
                   {td.dueDate && (
                     <p className={`text-xs mt-0.5 ${td.dueDate < today() ? "text-red-400" : "text-gray-400"}`}>
-                      {td.dueDate < today() ? "Overdue · " : ""}{td.dueDate}
+                      {td.dueDate < today() ? "Overdue · " : ""}{formatDate(td.dueDate)}
                     </p>
                   )}
                 </div>

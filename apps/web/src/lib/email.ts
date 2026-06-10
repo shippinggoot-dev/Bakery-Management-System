@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { formatDate } from "./format-date";
 
 /** Build a Resend client — use user's key if provided, else fall back to platform key. */
 function getResend(apiKey?: string | null) {
@@ -26,7 +27,7 @@ export interface OrderConfirmationData {
 export async function sendOrderConfirmation(data: OrderConfirmationData) {
   const greeting = data.customerName ? `Hi ${data.customerName.split(" ")[0]},` : "Hi there,";
   const orderRef = data.shopifyOrderNumber ? ` (${data.shopifyOrderNumber})` : "";
-  const dueLine  = data.dueDate ? `<p>Your order is due on <strong>${data.dueDate}</strong>.</p>` : "";
+  const dueLine  = data.dueDate ? `<p>Your order is due on <strong>${formatDate(data.dueDate)}</strong>.</p>` : "";
   const noteLine = data.notes  ? `<p><em>${data.notes}</em></p>` : "";
 
   const itemRows = data.items

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
+import { formatDate } from "@/lib/format-date";
 import { PlusIcon } from "@/components/icons";
 import type { AppRouter } from "@bakery/api";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -156,7 +157,7 @@ export default function ShoppingListsClient({
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {list.dueDate ?? <span className="text-gray-400">—</span>}
+                    {list.dueDate ? formatDate(list.dueDate) : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
                     {list.notes ?? <span className="text-gray-400">—</span>}

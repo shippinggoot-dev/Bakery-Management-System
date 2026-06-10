@@ -5,19 +5,14 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
 import { TagCombobox } from "@/components/TagCombobox";
+import { formatDate } from "@/lib/format-date";
 
 type SourceMode = "custom" | "catalog";
 
-// Render an ISO YYYY-MM-DD date as DD-MM-YYYY for display. Non-ISO
-// inputs (raw values left over before the parser-extension backfill)
-// pass through untouched so we never hide a value we can't reformat.
+// Keep the ISO regex local — past-due comparisons need it and we'd
+// rather not export it alongside formatDate (the lib should stay a
+// pure rendering helper, not a validator).
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-function formatDate(d: string | null | undefined): string {
-  if (!d) return "";
-  if (!ISO_DATE.test(d)) return d;
-  const [y, mo, da] = d.split("-");
-  return `${da}-${mo}-${y}`;
-}
 
 function AddOrderForm({ onClose }: { onClose: () => void }) {
   const t = useTranslations("planner");

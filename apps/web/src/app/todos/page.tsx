@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/trpc/react";
+import { formatDate } from "@/lib/format-date";
 
 type Priority = "low" | "medium" | "high";
 
@@ -196,7 +197,7 @@ function TodoRow({ todo, onMutate }: {
           </span>
           {todo.dueDate && (
             <span className={`text-[10px] ${overdue ? "text-red-400 font-semibold" : "text-gray-600"}`}>
-              {overdue ? t("overdue") : t("due")}{todo.dueDate}
+              {overdue ? t("overdue") : t("due")}{formatDate(todo.dueDate)}
             </span>
           )}
         </div>
