@@ -203,14 +203,19 @@ export async function POST(request: NextRequest) {
     for (const o of insertedOrders) {
       let effectiveRecipeId: string | null = o.recipeId;
       if (!effectiveRecipeId && o.premadeCakeVariantId) {
+        // Variant override wins; fall back to the parent cake's recipe.
         const variant = await db
-          .select({ recipeId: premadeCakes.recipeId, ownerId: premadeCakes.ownerId })
+          .select({
+            variantRecipeId: premadeCakeVariants.recipeId,
+            cakeRecipeId:    premadeCakes.recipeId,
+            ownerId:         premadeCakes.ownerId,
+          })
           .from(premadeCakeVariants)
           .innerJoin(premadeCakes, eq(premadeCakeVariants.cakeId, premadeCakes.id))
           .where(eq(premadeCakeVariants.id, o.premadeCakeVariantId))
           .limit(1);
-        if (variant[0]?.ownerId === ownerId && variant[0]?.recipeId) {
-          effectiveRecipeId = variant[0].recipeId;
+        if (variant[0]?.ownerId === ownerId) {
+          effectiveRecipeId = variant[0].variantRecipeId ?? variant[0].cakeRecipeId ?? null;
         }
       }
       if (!effectiveRecipeId) continue;

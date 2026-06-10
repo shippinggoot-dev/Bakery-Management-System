@@ -42,6 +42,7 @@ export default function NewPremadeCakePage() {
           serves:            v.serves,
           occasion:          v.occasion.trim() || null,
           price:             v.price.trim(),
+          recipeId:          v.recipeId,
           shopifyMatchTitle: v.shopifyMatchTitle.trim() || null,
           displayOrder:      idx,
         })),

@@ -535,14 +535,19 @@ export const shopifyRouter = createTRPCRouter({
           for (const o of inserted) {
             let effectiveRecipeId: string | null = o.recipeId;
             if (!effectiveRecipeId && o.premadeCakeVariantId) {
+              // Variant override wins; fall back to the parent cake's recipe.
               const variant = await ctx.db
-                .select({ recipeId: premadeCakes.recipeId, ownerId: premadeCakes.ownerId })
+                .select({
+                  variantRecipeId: premadeCakeVariants.recipeId,
+                  cakeRecipeId:    premadeCakes.recipeId,
+                  ownerId:         premadeCakes.ownerId,
+                })
                 .from(premadeCakeVariants)
                 .innerJoin(premadeCakes, eq(premadeCakeVariants.cakeId, premadeCakes.id))
                 .where(eq(premadeCakeVariants.id, o.premadeCakeVariantId))
                 .limit(1);
-              if (variant[0]?.ownerId === ctx.user.id && variant[0]?.recipeId) {
-                effectiveRecipeId = variant[0].recipeId;
+              if (variant[0]?.ownerId === ctx.user.id) {
+                effectiveRecipeId = variant[0].variantRecipeId ?? variant[0].cakeRecipeId ?? null;
               }
             }
             if (!effectiveRecipeId) continue;

@@ -545,6 +545,9 @@ type VariantDraft = {
   sizeLabel:           string;
   occasion:            string;
   price:               string;
+  /** Optional per-variant recipe override. Empty string = inherit
+   *  the parent cake's base recipe (or stay unscheduled if it has none). */
+  recipeId:            string;
   orderCount:          number;
 };
 
@@ -589,6 +592,7 @@ function CreateCakeFromVariantsModal({
         sizeLabel:           size,
         occasion:            occasion,
         price:               info.price ?? "",
+        recipeId:            "",
         orderCount:          info.count,
       };
     });
@@ -640,6 +644,7 @@ function CreateCakeFromVariantsModal({
         serves:              null,
         occasion:            v.occasion.trim() || null,
         price:               v.price.trim(),
+        recipeId:            v.recipeId || null,
         displayOrder:        i,
       })),
     });
@@ -794,7 +799,7 @@ function CreateCakeFromVariantsModal({
                         maxLength={255}
                       />
                     </div>
-                    <div className="col-span-2">
+                    <div>
                       <label className="form-label">{t("cvmVariantPrice")}</label>
                       <input
                         className="form-input"
@@ -804,6 +809,20 @@ function CreateCakeFromVariantsModal({
                         onChange={(e) => updateVariant(idx, { price: e.target.value })}
                         placeholder="0.00"
                       />
+                    </div>
+                    <div>
+                      <label className="form-label">{t("cvmVariantRecipe")}</label>
+                      <select
+                        className="form-input"
+                        value={v.recipeId}
+                        onChange={(e) => updateVariant(idx, { recipeId: e.target.value })}
+                      >
+                        <option value="">{t("cvmVariantRecipeInherit")}</option>
+                        {recipeOptions.map((r) => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-gray-400 mt-1">{t("cvmVariantRecipeHint")}</p>
                     </div>
                   </div>
                 )}

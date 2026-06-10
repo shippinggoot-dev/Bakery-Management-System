@@ -1,5 +1,6 @@
 import { pgTable, text, uuid, timestamp, integer, boolean, index } from "drizzle-orm/pg-core";
 import { premadeCakes, flavours } from "./premade-cakes";
+import { recipes } from "./recipes";
 
 /**
  * Orderable variants of a premade cake. One row per Shopify variant the
@@ -12,10 +13,13 @@ import { premadeCakes, flavours } from "./premade-cakes";
  * import / webhook matcher uses to route incoming line items to the
  * right variant.
  *
- * Per the Phase 2 design doc (docs/phase2-variants.md §6), there is
- * intentionally no per-variant `recipeId` override — cost flows through
- * the parent `premade_cakes.recipeId`. Fondant / filling swaps are
- * handled via `cake_addons`, not via a separate recipe per variant.
+ * `recipeId` is an OPTIONAL per-variant override. Sucre's `Custom-Kake`
+ * product on Shopify ships flavour names like "Cookies & Cream" and
+ * "Midnight Cherry" that are genuinely different sponge recipes — not
+ * the same recipe with a filling swap. When a variant's recipeId is
+ * non-null, the production scheduler dereferences to it directly; when
+ * null, it falls back to the parent `premade_cakes.recipeId`. See
+ * docs/phase2-variants.md §6.1 (reversed by 2026-06-10 migration).
  */
 export const premadeCakeVariants = pgTable("premade_cake_variants", {
   id:                     uuid("id").primaryKey().defaultRandom(),
@@ -32,6 +36,9 @@ export const premadeCakeVariants = pgTable("premade_cake_variants", {
   occasion:               text("occasion"),
   /** Per-variant price in NOK as text (preserves decimal precision). */
   price:                  text("price").notNull(),
+  /** Optional recipe override. Null = inherit from parent cake. */
+  recipeId:               uuid("recipe_id")
+                            .references(() => recipes.id, { onDelete: "set null" }),
   /** Shopify two-way sync IDs for THIS variant. Null until pushed. */
   shopifyVariantId:       text("shopify_variant_id"),
   shopifyInventoryItemId: text("shopify_inventory_item_id"),
@@ -46,6 +53,7 @@ export const premadeCakeVariants = pgTable("premade_cake_variants", {
   index("idx_premade_cake_variants_cake_id").on(t.cakeId),
   index("idx_premade_cake_variants_shopify_variant_id").on(t.shopifyVariantId),
   index("idx_premade_cake_variants_shopify_match_title").on(t.shopifyMatchTitle),
+  index("idx_premade_cake_variants_recipe_id").on(t.recipeId),
 ]);
 
 export type PremadeCakeVariant    = typeof premadeCakeVariants.$inferSelect;

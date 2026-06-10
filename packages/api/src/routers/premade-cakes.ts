@@ -42,6 +42,8 @@ const variantInputSchema = z.object({
   serves:            z.number().int().positive().max(10_000).optional().nullable(),
   occasion:          shortText().optional().nullable(),
   price:             nonNegativeDecimalString(),
+  /** Optional per-variant recipe override. Null = inherit from parent cake. */
+  recipeId:          z.string().uuid().optional().nullable(),
   shopifyMatchTitle: shortText().optional().nullable(),
   displayOrder:      z.number().int().min(0).max(10_000).default(0),
 });
@@ -222,6 +224,20 @@ export const premadeCakesRouter = createTRPCRouter({
           );
         }
         if (input.variants.length) {
+          // Validate per-variant recipe overrides belong to the caller.
+          const variantRecipeIds = Array.from(
+            new Set(input.variants.map((v) => v.recipeId).filter((id): id is string => !!id))
+          );
+          if (variantRecipeIds.length > 0) {
+            const owned = await tx.query.recipes.findMany({
+              where: and(inArray(recipes.id, variantRecipeIds), eq(recipes.ownerId, ctx.user.id)),
+              columns: { id: true },
+            });
+            if (owned.length !== variantRecipeIds.length) {
+              throw new TRPCError({ code: "NOT_FOUND", message: "One or more variant recipes not found." });
+            }
+          }
+
           await tx.insert(premadeCakeVariants).values(
             input.variants.map((v) => ({
               cakeId:            cake.id,
@@ -230,6 +246,7 @@ export const premadeCakesRouter = createTRPCRouter({
               serves:            v.serves ?? null,
               occasion:          v.occasion ?? null,
               price:             v.price,
+              recipeId:          v.recipeId ?? null,
               shopifyMatchTitle: v.shopifyMatchTitle?.toLowerCase().trim() || null,
               displayOrder:      v.displayOrder,
             })),
@@ -284,6 +301,21 @@ export const premadeCakesRouter = createTRPCRouter({
           }
         }
         if (input.variants) {
+          // Validate per-variant recipe overrides belong to the caller
+          // BEFORE issuing any writes. One round-trip with inArray.
+          const variantRecipeIds = Array.from(
+            new Set(input.variants.map((v) => v.recipeId).filter((id): id is string => !!id))
+          );
+          if (variantRecipeIds.length > 0) {
+            const owned = await tx.query.recipes.findMany({
+              where: and(inArray(recipes.id, variantRecipeIds), eq(recipes.ownerId, ctx.user.id)),
+              columns: { id: true },
+            });
+            if (owned.length !== variantRecipeIds.length) {
+              throw new TRPCError({ code: "NOT_FOUND", message: "One or more variant recipes not found." });
+            }
+          }
+
           // Diff-and-reconcile so existing cake_order.premadeCakeVariantId
           // FKs aren't orphaned by a blanket delete-and-reinsert.
           const existing = await tx
@@ -306,6 +338,7 @@ export const premadeCakesRouter = createTRPCRouter({
                   serves:            v.serves ?? null,
                   occasion:          v.occasion ?? null,
                   price:             v.price,
+                  recipeId:          v.recipeId ?? null,
                   shopifyMatchTitle: normalisedMatchTitle,
                   displayOrder:      v.displayOrder,
                   updatedAt:         new Date(),
@@ -322,6 +355,7 @@ export const premadeCakesRouter = createTRPCRouter({
                 serves:            v.serves ?? null,
                 occasion:          v.occasion ?? null,
                 price:             v.price,
+                recipeId:          v.recipeId ?? null,
                 shopifyMatchTitle: normalisedMatchTitle,
                 displayOrder:      v.displayOrder,
               });
@@ -431,6 +465,10 @@ export const premadeCakesRouter = createTRPCRouter({
           serves:              z.number().int().positive().max(10_000).optional().nullable(),
           occasion:            shortText().optional().nullable(),
           price:               nonNegativeDecimalString(),
+          /** Optional per-variant recipe override. Distinct flavours
+           *  often bake from different sponges; null = inherit the
+           *  parent cake's recipeId. */
+          recipeId:            z.string().uuid().optional().nullable(),
           displayOrder:        z.number().int().min(0).max(10_000).default(0),
         })).min(1).max(50),
       })
@@ -470,6 +508,21 @@ export const premadeCakesRouter = createTRPCRouter({
         if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Base recipe not found." });
       }
 
+      // Verify every per-variant recipe override is owned by the caller.
+      // One round-trip with inArray instead of N queries.
+      const variantRecipeIds = Array.from(
+        new Set(input.variants.map((v) => v.recipeId).filter((id): id is string => !!id))
+      );
+      if (variantRecipeIds.length > 0) {
+        const owned = await ctx.db.query.recipes.findMany({
+          where: and(inArray(recipes.id, variantRecipeIds), eq(recipes.ownerId, ctx.user.id)),
+          columns: { id: true },
+        });
+        if (owned.length !== variantRecipeIds.length) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "One or more variant recipes not found." });
+        }
+      }
+
       // Minimum variant price → cake.basePrice. Falls back to "0" if
       // for some reason the array is empty (shouldn't happen due to
       // z.array().min(1) above, but the guard is cheap).
@@ -500,6 +553,7 @@ export const premadeCakesRouter = createTRPCRouter({
           serves:            v.serves ?? null,
           occasion:          v.occasion ?? null,
           price:             v.price,
+          recipeId:          v.recipeId ?? null,
           // The matcher uses this exact lowercase key (built via the
           // shared helper) to route incoming Shopify line items.
           shopifyMatchTitle: buildVariantMatchKey(lineItemTitle, v.shopifyVariantTitle),

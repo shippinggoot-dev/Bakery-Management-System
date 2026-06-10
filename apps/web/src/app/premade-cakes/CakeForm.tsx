@@ -30,6 +30,8 @@ export type VariantRow = {
   serves:            number | null;
   occasion:          string;
   price:             string;
+  /** Optional per-variant recipe override. Null = inherit from parent cake. */
+  recipeId:          string | null;
   shopifyMatchTitle: string;
   shopifyVariantId?: string | null;
   displayOrder:      number;
@@ -75,6 +77,7 @@ export function CakeForm({ initial, onSubmit, submitLabel, isSubmitting }: {
           serves:            null,
           occasion:          "",
           price:             "",
+          recipeId:          null,
           shopifyMatchTitle: "",
           displayOrder:      values.variants.length,
         },
@@ -281,16 +284,32 @@ export function CakeForm({ initial, onSubmit, submitLabel, isSubmitting }: {
                   </div>
                 </div>
 
-                <div>
-                  <label className="form-label text-xs">{t("variantPrice")}</label>
-                  <input
-                    className="form-input text-sm"
-                    inputMode="decimal"
-                    value={variant.price}
-                    onChange={(e) => patchVariant(i, { price: e.target.value })}
-                    placeholder="0.00"
-                    required
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="form-label text-xs">{t("variantPrice")}</label>
+                    <input
+                      className="form-input text-sm"
+                      inputMode="decimal"
+                      value={variant.price}
+                      onChange={(e) => patchVariant(i, { price: e.target.value })}
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label text-xs">{t("variantRecipe")}</label>
+                    <select
+                      className="form-input text-sm"
+                      value={variant.recipeId ?? ""}
+                      onChange={(e) => patchVariant(i, { recipeId: e.target.value || null })}
+                    >
+                      <option value="">{t("variantRecipeInherit")}</option>
+                      {recipes.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-gray-400 mt-1">{t("variantRecipeHint")}</p>
+                  </div>
                 </div>
 
                 <div>
