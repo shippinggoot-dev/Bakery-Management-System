@@ -8,6 +8,17 @@ import { TagCombobox } from "@/components/TagCombobox";
 
 type SourceMode = "custom" | "catalog";
 
+// Render an ISO YYYY-MM-DD date as DD-MM-YYYY for display. Non-ISO
+// inputs (raw values left over before the parser-extension backfill)
+// pass through untouched so we never hide a value we can't reformat.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function formatDate(d: string | null | undefined): string {
+  if (!d) return "";
+  if (!ISO_DATE.test(d)) return d;
+  const [y, mo, da] = d.split("-");
+  return `${da}-${mo}-${y}`;
+}
+
 function AddOrderForm({ onClose }: { onClose: () => void }) {
   const t = useTranslations("planner");
   const utils = api.useUtils();
@@ -354,7 +365,7 @@ function GeneratePanel({ orders, onClose, onGenerated }: {
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {o.quantity} {o.recipe.yieldUnit} ({isNaN(multiplier) ? "?" : multiplier.toFixed(2)}× {t("batchCount").replace("{count}", "").trim()})
-                      {o.dueDate && ` · ${t("due")} ${o.dueDate}`}
+                      {o.dueDate && ` · ${t("due")} ${formatDate(o.dueDate)}`}
                     </p>
                   </div>
                   <span className={`badge text-xs mt-0.5 ${
@@ -1065,7 +1076,6 @@ export default function PlannerPage() {
   // Older free-typed dueDates (pre-parser-extension) may still be raw
   // strings like "Lørdag 16. Mai" — those skip the past-due check and
   // remain visible until the backfill normalises them.
-  const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
   function isPastDue(o: { status: string; dueDate: string | null }): boolean {
     return o.status === "pending" && o.dueDate != null && ISO_DATE.test(o.dueDate) && o.dueDate < todayIso;
   }
@@ -1264,7 +1274,7 @@ export default function PlannerPage() {
                     <td className="px-5 py-3 text-sm text-gray-500 whitespace-nowrap">
                       {order.dueDate ? (
                         <span className={pastDue ? "text-red-600 font-semibold" : ""}>
-                          {order.dueDate}
+                          {formatDate(order.dueDate)}
                           {pastDue && <span className="ml-1.5 badge text-[10px] bg-red-100 text-red-700 border border-red-200">Past due</span>}
                         </span>
                       ) : <span className="text-gray-300">—</span>}
