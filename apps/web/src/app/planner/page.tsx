@@ -1061,12 +1061,28 @@ export default function PlannerPage() {
   // Past-due: pending order whose due date is strictly before today.
   // Today's orders are NOT past due — they're being worked on.
   const todayIso = new Date().toISOString().slice(0, 10);
+  // ISO YYYY-MM-DD is the only form we lexicographically compare safely.
+  // Older free-typed dueDates (pre-parser-extension) may still be raw
+  // strings like "Lørdag 16. Mai" — those skip the past-due check and
+  // remain visible until the backfill normalises them.
+  const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
   function isPastDue(o: { status: string; dueDate: string | null }): boolean {
-    return o.status === "pending" && o.dueDate != null && o.dueDate < todayIso;
+    return o.status === "pending" && o.dueDate != null && ISO_DATE.test(o.dueDate) && o.dueDate < todayIso;
+  }
+  function hasPassed(dueDate: string | null): boolean {
+    return dueDate != null && ISO_DATE.test(dueDate) && dueDate < todayIso;
   }
 
   const displayed = allOrders.filter((o) => {
-    if (filterStatus === "active") return o.status === "pending" || o.status === "planned" || o.status === "in_progress";
+    if (filterStatus === "active") {
+      const active = o.status === "pending" || o.status === "planned" || o.status === "in_progress";
+      if (!active) return false;
+      // Hide already-passed pickup dates from the Active tab so the
+      // baker's working list stays focused on what's still upcoming.
+      // Past-due rows remain visible under "All" for record-keeping.
+      if (hasPassed(o.dueDate)) return false;
+      return true;
+    }
     if (filterStatus === "done")   return o.status === "completed" || o.status === "cancelled";
     return true;
   });

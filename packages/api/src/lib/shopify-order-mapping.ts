@@ -90,7 +90,37 @@ function parseLooseDate(raw: string): string | null {
     return `${y}-${m!.padStart(2, "0")}-${d!.padStart(2, "0")}`;
   }
 
-  // 3. Last resort: let JS try (covers RFC-style "Wed, 4 Jul 2026" etc).
+  // 3. Human-readable form with a month NAME, with or without a leading
+  //    weekday or trailing year. Examples we see from Sucre's storefront:
+  //      "Lørdag 16. Mai"            -> 2026-05-16 (current year, no year given)
+  //      "16. mai 2026"              -> 2026-05-16
+  //      "Saturday 16 May 2027"      -> 2027-05-16
+  //      "Fri, 14 March 2027"        -> 2027-03-14
+  //
+  //    Year inference rule (per user direction): if no explicit year is
+  //    present, assume the CURRENT calendar year. We do NOT advance to
+  //    next year when the date has already passed — past-due orders are
+  //    filtered out at the planner UI layer, not silently re-dated.
+  const nameMatch = trimmed.toLowerCase().match(
+    /(\d{1,2})\.?\s+([a-zæøå]+)\.?(?:\s+(\d{4}))?/
+  );
+  if (nameMatch) {
+    const day   = parseInt(nameMatch[1]!, 10);
+    const month = MONTHS[nameMatch[2]!];
+    if (month && day >= 1 && day <= 31) {
+      const year = nameMatch[3]
+        ? parseInt(nameMatch[3], 10)
+        : new Date().getFullYear();
+      const d = new Date(Date.UTC(year, month - 1, day));
+      // Reject impossible day/month combinations (e.g. "31 February")
+      // by checking the Date constructor didn't roll over.
+      if (d.getUTCMonth() === month - 1 && d.getUTCDate() === day) {
+        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      }
+    }
+  }
+
+  // 4. Last resort: let JS try (covers other RFC-style strings).
   //    Skipped above for slash-separated values precisely to avoid
   //    locale-dependent DD/MM vs MM/DD interpretation.
   const fallback = new Date(trimmed);
