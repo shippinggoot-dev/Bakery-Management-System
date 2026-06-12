@@ -755,7 +755,7 @@
   },
   "consent": {
     "title": "Før du fortsetter",
-    "intro": "Les og godta følgende for å bruke bakeriets styringssystem.",
+    "intro": "Les og godta følgende for å bruke RisenShine.",
     "dataStorageTitle": "Datalagring",
     "dataStorageText": "Oppskriftene, ingrediensene, bestillingene og handlelistene dine lagres sikkert i databasen vår og er kun tilgjengelige med kontoen din. Vi deler ikke dataene dine med tredjeparter.",
     "personalDataTitle": "Personopplysninger",

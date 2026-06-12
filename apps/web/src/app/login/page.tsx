@@ -41,7 +41,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="text-center">
-          <p className="font-script text-5xl text-brand-700 leading-none">Sucré</p>
+          <p className="text-4xl font-bold text-brand-700 leading-none tracking-tight">RisenShine</p>
           <p className="text-brand-400 mt-2 text-sm">{t("title")}</p>
         </div>
 

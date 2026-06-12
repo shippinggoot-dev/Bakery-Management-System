@@ -33,14 +33,14 @@ interface Ctx {
 const PersonalizationCtx = createContext<Ctx>({
   theme: "rose",      setTheme: () => {},
   dark: false,        setDark: () => {},
-  bakeryName: "My Bakery", setBakeryName: () => {},
+  bakeryName: "Your bakery", setBakeryName: () => {},
   logoUrl: null,      setLogoUrl: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme,      setThemeState]     = useState<ThemeId>("rose");
   const [dark,       setDarkState]      = useState<boolean>(false);
-  const [bakeryName, setBakeryNameState] = useState("My Bakery");
+  const [bakeryName, setBakeryNameState] = useState("Your bakery");
   const [logoUrl,    setLogoUrlState]   = useState<string | null>(null);
 
   useEffect(() => {

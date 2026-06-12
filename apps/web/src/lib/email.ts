@@ -6,8 +6,9 @@ function getResend(apiKey?: string | null) {
   return new Resend(apiKey ?? process.env.RESEND_API_KEY);
 }
 
-/** Default "from" address — overridden by per-user fromEmail if set. */
-const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL ?? "orders@sucrekaker.com";
+/** Platform-wide fallback "from" address. Each workspace should set their
+ *  own in email settings; this env var is an optional admin escape hatch. */
+const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL ?? null;
 
 // ── Order confirmation ────────────────────────────────────────────────────────
 
@@ -25,10 +26,14 @@ export interface OrderConfirmationData {
 }
 
 export async function sendOrderConfirmation(data: OrderConfirmationData) {
+  const from = data.fromEmail ?? DEFAULT_FROM;
+  if (!from) throw new Error("Email not configured: set a From address in settings.");
+
   const greeting = data.customerName ? `Hi ${data.customerName.split(" ")[0]},` : "Hi there,";
   const orderRef = data.shopifyOrderNumber ? ` (${data.shopifyOrderNumber})` : "";
   const dueLine  = data.dueDate ? `<p>Your order is due on <strong>${formatDate(data.dueDate)}</strong>.</p>` : "";
   const noteLine = data.notes  ? `<p><em>${data.notes}</em></p>` : "";
+  const signoff  = data.fromName ? `<p style="color:#9ca3af;font-size:12px;margin-top:32px">${data.fromName}</p>` : "";
 
   const itemRows = data.items
     .map((i) => `<tr><td style="padding:4px 8px">${i.title}</td><td style="padding:4px 8px;text-align:right">${i.quantity}</td></tr>`)
@@ -51,17 +56,19 @@ export async function sendOrderConfirmation(data: OrderConfirmationData) {
       ${dueLine}
       ${noteLine}
       <p>If you have any questions, just reply to this email.</p>
-      <p style="color:#9ca3af;font-size:12px;margin-top:32px">Sucre Kaker</p>
+      ${signoff}
     </div>
   `;
 
-  const from = data.fromEmail ?? DEFAULT_FROM;
   const fromLabel = data.fromName ? `${data.fromName} <${from}>` : from;
+  const subject   = data.fromName
+    ? `Order confirmed${orderRef} — ${data.fromName}`
+    : `Order confirmed${orderRef}`;
 
   return getResend(data.resendApiKey).emails.send({
-    from:    fromLabel,
-    to:      data.customerEmail,
-    subject: `Order confirmed${orderRef} — ${data.fromName ?? "Sucre Kaker"}`,
+    from: fromLabel,
+    to:   data.customerEmail,
+    subject,
     html,
   });
 }
@@ -88,8 +95,12 @@ export async function sendStatusUpdate(data: StatusUpdateData) {
   const label    = STATUS_LABELS[data.newStatus];
   if (!label) return; // don't email for planned / pending status changes
 
+  const from = data.fromEmail ?? DEFAULT_FROM;
+  if (!from) throw new Error("Email not configured: set a From address in settings.");
+
   const greeting = data.customerName ? `Hi ${data.customerName.split(" ")[0]},` : "Hi there,";
   const orderRef = data.shopifyOrderNumber ? ` (${data.shopifyOrderNumber})` : "";
+  const signoff  = data.fromName ? `<p style="color:#9ca3af;font-size:12px;margin-top:32px">${data.fromName}</p>` : "";
 
   const html = `
     <div style="font-family:sans-serif;max-width:540px;margin:0 auto;color:#1a1a1a">
@@ -97,17 +108,19 @@ export async function sendStatusUpdate(data: StatusUpdateData) {
       <p>${greeting}</p>
       <p><strong>${label}.</strong></p>
       <p>If you have any questions, just reply to this email.</p>
-      <p style="color:#9ca3af;font-size:12px;margin-top:32px">Sucre Kaker</p>
+      ${signoff}
     </div>
   `;
 
-  const from = data.fromEmail ?? DEFAULT_FROM;
   const fromLabel = data.fromName ? `${data.fromName} <${from}>` : from;
+  const subject   = data.fromName
+    ? `${label}${orderRef} — ${data.fromName}`
+    : `${label}${orderRef}`;
 
   return getResend(data.resendApiKey).emails.send({
-    from:    fromLabel,
-    to:      data.customerEmail,
-    subject: `${label}${orderRef} — ${data.fromName ?? "Sucre Kaker"}`,
+    from: fromLabel,
+    to:   data.customerEmail,
+    subject,
     html,
   });
 }

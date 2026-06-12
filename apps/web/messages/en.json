@@ -755,7 +755,7 @@
   },
   "consent": {
     "title": "Before you continue",
-    "intro": "Please read and accept the following to use the Bakery Management System.",
+    "intro": "Please read and accept the following to use RisenShine.",
     "dataStorageTitle": "Data storage",
     "dataStorageText": "Your recipes, ingredients, orders, and shopping lists are stored securely in our database and are only accessible with your account. We do not share your data with third parties.",
     "personalDataTitle": "Personal data",

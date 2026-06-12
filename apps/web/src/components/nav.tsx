@@ -230,12 +230,12 @@ function PersonalisePanel({ onClose, isLoggedIn, isAnonymous, positionClass = "a
               className="form-input flex-1 text-sm"
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
-              placeholder="My Bakery"
+              placeholder="Your bakery"
               maxLength={40}
-              onKeyDown={(e) => { if (e.key === "Enter") { setBakeryName(nameInput.trim() || "My Bakery"); onClose(); } }}
+              onKeyDown={(e) => { if (e.key === "Enter") { setBakeryName(nameInput.trim() || "Your bakery"); onClose(); } }}
             />
             <button
-              onClick={() => { setBakeryName(nameInput.trim() || "My Bakery"); onClose(); }}
+              onClick={() => { setBakeryName(nameInput.trim() || "Your bakery"); onClose(); }}
               className="px-3 py-1.5 rounded-xl bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 transition-colors"
             >
               {tc("save")}
@@ -562,7 +562,7 @@ export function Nav() {
             ) : (
               <span className="text-xl flex-shrink-0 leading-none">🏪</span>
             )}
-            <span>Bakery Management System</span>
+            <span>{bakeryName === "Your bakery" ? "RisenShine" : bakeryName}</span>
           </Link>
 
           <div className="justify-self-end flex items-center gap-1">
@@ -658,7 +658,7 @@ export function Nav() {
           {logoUrl ? (
             <img src={logoUrl} alt={bakeryName} className="h-7 max-w-[120px] object-contain" />
           ) : (
-            <span className="font-semibold text-brand-700 text-sm truncate">{bakeryName}</span>
+            <span className="font-semibold text-brand-700 text-sm truncate">{bakeryName === "Your bakery" ? "RisenShine" : bakeryName}</span>
           )}
         </Link>
         <div className="flex items-center gap-1 flex-shrink-0">

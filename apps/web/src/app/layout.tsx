@@ -10,7 +10,7 @@ import { FeedbackWidget } from "@/components/FeedbackWidget";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Bakery Management",
+  title: "RisenShine",
   description: "Manage recipes, ingredients, suppliers, and orders for your bakery",
   viewport: { width: "device-width", initialScale: 1, viewportFit: "cover" } as never,
 };

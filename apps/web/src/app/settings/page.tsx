@@ -754,7 +754,7 @@ function IgnoredShopifyProductsCard() {
 
 const RESEND_STEPS = [
   { n: 1, text: "Go to resend.com and create a free account (3,000 emails/month free)." },
-  { n: 2, text: "Add your domain (e.g. sucrekaker.com) under Domains and verify the DNS records they give you. This usually takes a few minutes." },
+  { n: 2, text: "Add your domain (e.g. yourbakery.com) under Domains and verify the DNS records they give you. This usually takes a few minutes." },
   { n: 3, text: "Go to API Keys → Create API Key. Copy the key — it's shown only once." },
   { n: 4, text: "Paste the key below along with the email address you want orders to be sent from." },
 ];
@@ -909,7 +909,7 @@ function EmailSettingsSection() {
           <label className="form-label">From name</label>
           <input
             className="form-input"
-            placeholder="Sucre Kaker"
+            placeholder="Your Bakery"
             value={fromName}
             onChange={(e) => setFromName(e.target.value)}
           />
@@ -1032,11 +1032,11 @@ function PersonalizationSection() {
               className="form-input flex-1"
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
-              placeholder="My Bakery"
+              placeholder="Your bakery"
               maxLength={40}
             />
             <button
-              onClick={() => setBakeryName(nameInput.trim() || "My Bakery")}
+              onClick={() => setBakeryName(nameInput.trim() || "Your bakery")}
               className="px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors"
             >
               Save
