@@ -40,9 +40,6 @@ const PersonalizationCtx = createContext<Ctx>({
   logoUrl: null,      setLogoUrl: () => {},
 });
 
-// Sentinel values that mean "user hasn't picked a name yet" — never migrated to DB.
-const DEFAULT_NAMES = new Set(["Your bakery", "My Bakery"]);
-
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme,      setThemeState]     = useState<ThemeId>("sunrise");
   const [dark,       setDarkState]      = useState<boolean>(false);
@@ -87,23 +84,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Reconcile server state for real users. If the server already holds a name,
-  // mirror it locally — this is what makes the setting follow them across
-  // devices. If the server is empty but localStorage has a real value, push it
-  // up once so existing personalisation isn't lost on the device-to-account move.
+  // Reconcile server state for real users. Server is the source of truth for
+  // bakeryName — if it holds a value, mirror it into localStorage so this
+  // browser shows it on next paint without waiting for the tRPC roundtrip.
+  // If the server holds null, clear localStorage too so a name set under a
+  // different account doesn't bleed into this one.
   useEffect(() => {
     if (!prefs || !isAuthed) return;
     if (prefs.bakeryName) {
       setBakeryNameState(prefs.bakeryName);
       localStorage.setItem("bms-bakery-name", prefs.bakeryName);
     } else {
-      const local = localStorage.getItem("bms-bakery-name");
-      if (local && local.trim() && !DEFAULT_NAMES.has(local)) {
-        updatePref.mutate({ bakeryName: local });
-      }
+      setBakeryNameState("Your bakery");
+      localStorage.removeItem("bms-bakery-name");
     }
-    // updatePref is stable via useMutation; reacting to it would re-fire migration.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefs, isAuthed]);
 
   const setTheme = (t: ThemeId) => {
