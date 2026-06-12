@@ -558,7 +558,7 @@ export function Nav() {
 
           <Link
             href="/"
-            className="justify-self-center flex items-center gap-2 text-base font-bold text-brand-700 hover:text-brand-900 transition-colors"
+            className="justify-self-center flex items-center gap-2 text-base font-bold text-brand-700 dark:text-brand-500 hover:text-brand-900 transition-colors"
           >
             {logoUrl ? (
               <img src={logoUrl} alt="logo" className="h-8 w-8 rounded-lg object-contain flex-shrink-0" />
@@ -667,7 +667,7 @@ export function Nav() {
             <>
               <img src="/brand/risenshine-icon.svg" alt="" className="h-7 w-7 flex-shrink-0 dark:hidden" />
               <img src="/brand/risenshine-icon-dark.svg" alt="" className="h-7 w-7 flex-shrink-0 hidden dark:block" />
-              <span className="font-semibold text-brand-700 text-sm truncate">{bakeryName === "Your bakery" ? "RisenShine" : bakeryName}</span>
+              <span className="font-semibold text-brand-700 dark:text-brand-500 text-sm truncate">{bakeryName === "Your bakery" ? "RisenShine" : bakeryName}</span>
             </>
           )}
         </Link>
