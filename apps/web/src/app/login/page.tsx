@@ -41,8 +41,17 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="text-center">
-          <p className="text-4xl font-bold text-brand-700 leading-none tracking-tight">RisenShine</p>
-          <p className="text-brand-400 mt-2 text-sm">{t("title")}</p>
+          <img
+            src="/brand/risenshine-lockup.svg"
+            alt="RisenShine"
+            className="mx-auto h-24 w-auto dark:hidden"
+          />
+          <img
+            src="/brand/risenshine-lockup-dark.svg"
+            alt="RisenShine"
+            className="mx-auto h-24 w-auto hidden dark:block"
+          />
+          <p className="text-brand-400 mt-3 text-sm">{t("title")}</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-rose-100 shadow-sm p-8 space-y-5">

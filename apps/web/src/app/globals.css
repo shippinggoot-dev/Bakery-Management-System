@@ -6,7 +6,21 @@
 
 /* ── Theme variables (RGB, space-separated for Tailwind opacity support) ───── */
 
-:root, [data-theme="rose"] {
+:root, [data-theme="sunrise"] {
+  --brand-50:  255 244 224;
+  --brand-100: 253 231 192;
+  --brand-200: 248 213 152;
+  --brand-300: 244 193 108;
+  --brand-400: 242 169 59;
+  --brand-500: 224 133 42;
+  --brand-600: 178 95  28;
+  --brand-700: 43  30  20;
+  --rose-50:   247 240 226;
+  --rose-100:  240 225 196;
+  --rose-200:  226 207 167;
+}
+
+[data-theme="rose"] {
   --brand-50:  253 240 241;
   --brand-100: 248 226 228;
   --brand-200: 240 205 209;
@@ -102,9 +116,19 @@
   --rose-200: 60  47  50;
 }
 
+/* Sunrise dark variant — warm brown surfaces instead of warm rose dark gray.
+   `.dark[data-theme="sunrise"]` outscores the generic `.dark` rule because it
+   carries one class + one attribute selector. */
+.dark[data-theme="sunrise"] {
+  --rose-50:  36 25 16;
+  --rose-100: 56 38 22;
+  --rose-200: 82 55 30;
+}
+
 /* Hardcoded white surfaces and dark gray text are flipped here so existing
    components keep working without per-element `dark:` variants. */
 .dark .bg-white { background-color: rgb(43 26 29); }
+.dark[data-theme="sunrise"] .bg-white { background-color: rgb(46 31 18); }
 .dark .text-gray-900 { color: rgb(240 232 233); }
 .dark .text-gray-800 { color: rgb(221 208 209); }
 .dark .text-gray-700 { color: rgb(194 168 170); }

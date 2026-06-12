@@ -210,7 +210,10 @@ function PersonalisePanel({ onClose, isLoggedIn, isAnonymous, positionClass = "a
                   >✕</button>
                 </div>
               ) : (
-                <div className="h-14 w-14 rounded-xl border-2 border-dashed border-rose-200 flex items-center justify-center text-brand-300 text-xl">🏪</div>
+                <div className="h-14 w-14 rounded-xl border-2 border-dashed border-rose-200 flex items-center justify-center bg-white">
+                  <img src="/brand/risenshine-icon.svg" alt="" className="h-9 w-9 dark:hidden" />
+                  <img src="/brand/risenshine-icon-dark.svg" alt="" className="h-9 w-9 hidden dark:block" />
+                </div>
               )}
               <div className="flex-1">
                 <label className="cursor-pointer block w-full text-center py-2 px-3 rounded-xl bg-brand-50 border border-brand-200 text-brand-600 text-xs font-semibold hover:bg-brand-100 transition-colors">
@@ -560,7 +563,10 @@ export function Nav() {
             {logoUrl ? (
               <img src={logoUrl} alt="logo" className="h-8 w-8 rounded-lg object-contain flex-shrink-0" />
             ) : (
-              <span className="text-xl flex-shrink-0 leading-none">🏪</span>
+              <>
+                <img src="/brand/risenshine-icon.svg" alt="" className="h-8 w-8 flex-shrink-0 dark:hidden" />
+                <img src="/brand/risenshine-icon-dark.svg" alt="" className="h-8 w-8 flex-shrink-0 hidden dark:block" />
+              </>
             )}
             <span>{bakeryName === "Your bakery" ? "RisenShine" : bakeryName}</span>
           </Link>
@@ -658,7 +664,11 @@ export function Nav() {
           {logoUrl ? (
             <img src={logoUrl} alt={bakeryName} className="h-7 max-w-[120px] object-contain" />
           ) : (
-            <span className="font-semibold text-brand-700 text-sm truncate">{bakeryName === "Your bakery" ? "RisenShine" : bakeryName}</span>
+            <>
+              <img src="/brand/risenshine-icon.svg" alt="" className="h-7 w-7 flex-shrink-0 dark:hidden" />
+              <img src="/brand/risenshine-icon-dark.svg" alt="" className="h-7 w-7 flex-shrink-0 hidden dark:block" />
+              <span className="font-semibold text-brand-700 text-sm truncate">{bakeryName === "Your bakery" ? "RisenShine" : bakeryName}</span>
+            </>
           )}
         </Link>
         <div className="flex items-center gap-1 flex-shrink-0">

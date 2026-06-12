@@ -1008,9 +1008,9 @@ function PersonalizationSection() {
   useEffect(() => { setNameInput(bakeryName); }, [bakeryName]);
 
   const categories: Array<{ id: string; label: string; ids: ThemeId[] }> = [
-    { id: "current",  label: "Current",  ids: ["rose"]               },
+    { id: "warm",     label: "Warm",     ids: ["sunrise", "rose"]        },
     { id: "neutral",  label: "Neutral",  ids: ["slate", "stone", "sage"] },
-    { id: "feminine", label: "Feminine", ids: ["lavender", "peach"]  },
+    { id: "feminine", label: "Feminine", ids: ["lavender", "peach"]      },
   ];
 
   return (

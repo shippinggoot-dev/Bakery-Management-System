@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { api } from "@/trpc/react";
 import { createClientSupabase } from "@/lib/supabase/client";
 
-export type ThemeId = "rose" | "slate" | "stone" | "sage" | "lavender" | "peach";
+export type ThemeId = "sunrise" | "rose" | "slate" | "stone" | "sage" | "lavender" | "peach";
 
 export const THEMES: Record<ThemeId, {
   label: string;
@@ -13,6 +13,7 @@ export const THEMES: Record<ThemeId, {
   accent: string;
   category: "current" | "neutral" | "feminine";
 }> = {
+  sunrise:  { label: "Sunrise",  desc: "Warm cream & honey",   bg: "#f7f0e2", accent: "#f2a93b", category: "current"  },
   rose:     { label: "Rose",     desc: "Warm & inviting",      bg: "#fdf0f0", accent: "#9d6569", category: "current"  },
   slate:    { label: "Slate",    desc: "Clean & professional", bg: "#f8fafc", accent: "#334155", category: "neutral"  },
   stone:    { label: "Stone",    desc: "Earthy & minimal",     bg: "#fafaf9", accent: "#44403c", category: "neutral"  },
@@ -33,7 +34,7 @@ interface Ctx {
 }
 
 const PersonalizationCtx = createContext<Ctx>({
-  theme: "rose",      setTheme: () => {},
+  theme: "sunrise",   setTheme: () => {},
   dark: false,        setDark: () => {},
   bakeryName: "Your bakery", setBakeryName: () => {},
   logoUrl: null,      setLogoUrl: () => {},
@@ -43,7 +44,7 @@ const PersonalizationCtx = createContext<Ctx>({
 const DEFAULT_NAMES = new Set(["Your bakery", "My Bakery"]);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme,      setThemeState]     = useState<ThemeId>("rose");
+  const [theme,      setThemeState]     = useState<ThemeId>("sunrise");
   const [dark,       setDarkState]      = useState<boolean>(false);
   const [bakeryName, setBakeryNameState] = useState("Your bakery");
   const [logoUrl,    setLogoUrlState]   = useState<string | null>(null);
