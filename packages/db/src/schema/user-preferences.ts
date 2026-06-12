@@ -1,4 +1,4 @@
-import { pgTable, uuid, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, boolean, text, timestamp } from "drizzle-orm/pg-core";
 
 /**
  * Per-user workflow preferences (UX toggles, not workspace data).
@@ -20,6 +20,10 @@ export const userPreferences = pgTable("user_preferences", {
    *  dashboard's Today row. When false, the Tomorrow preview tile takes
    *  that slot instead. Default true so users discover the integration. */
   dashboardShowShopifyTile: boolean("dashboard_show_shopify_tile").notNull().default(true),
+
+  /** Workspace display name shown in the in-app header. Nullable means
+   *  "not personalised yet"; the UI falls back to the RisenShine brand. */
+  bakeryName: text("bakery_name"),
 
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
