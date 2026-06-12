@@ -1165,5 +1165,57 @@
       "status": "Status",
       "error": "Error"
     }
+  },
+  "feedback": {
+    "openButton": "Feedback",
+    "modalTitle": "Send feedback",
+    "modalSubtitle": "Tell us what's working, what isn't, or what you'd like to see.",
+    "category": "Type",
+    "categories": {
+      "bug": "Something is broken",
+      "idea": "Idea or suggestion",
+      "question": "Question",
+      "other": "Other"
+    },
+    "message": "Your message",
+    "messagePlaceholder": "Describe what happened or what you'd like…",
+    "includeScreenshot": "Include a screenshot of this screen (recommended for bugs)",
+    "attachment": "Attach a file (optional)",
+    "attachmentHint": "Image or PDF, up to 5 MB.",
+    "cancel": "Cancel",
+    "send": "Send",
+    "sending": "Sending…",
+    "close": "Close",
+    "thanksTitle": "Thanks!",
+    "thanksBody": "Your feedback has been sent. We'll look into it.",
+    "errorGeneric": "Something went wrong. Please try again.",
+    "errorAttachmentTooLarge": "Attachment is larger than 5 MB. Please attach a smaller file.",
+    "errorNotSignedIn": "You need to be signed in to send feedback."
+  },
+  "feedbackAdmin": {
+    "title": "Feedback",
+    "subtitle": "User-submitted feedback from across all workspaces.",
+    "filters": {
+      "new": "New",
+      "handled": "Handled",
+      "dismissed": "Dismissed"
+    },
+    "categories": {
+      "bug": "Bug",
+      "idea": "Idea",
+      "question": "Question",
+      "other": "Other"
+    },
+    "loading": "Loading feedback…",
+    "empty": "No feedback in this view.",
+    "from": "From",
+    "page": "Page",
+    "anonymous": "anonymous",
+    "screenshot": "Screenshot",
+    "attachment": "Attachment",
+    "technical": "Technical details",
+    "markHandled": "Mark handled",
+    "dismiss": "Dismiss",
+    "reopen": "Reopen"
   }
 }

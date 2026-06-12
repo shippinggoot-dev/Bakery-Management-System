@@ -43,6 +43,7 @@ export * from "./ai-usage";
 export * from "./brand-voice";
 export * from "./subscriptions";
 export * from "./shopify-ignored-products";
+export * from "./feedback";
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 // All relations are defined here to avoid circular import issues between files.

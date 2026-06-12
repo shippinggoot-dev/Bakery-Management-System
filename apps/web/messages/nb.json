@@ -1165,5 +1165,57 @@
       "status": "Status",
       "error": "Feil"
     }
+  },
+  "feedback": {
+    "openButton": "Tilbakemelding",
+    "modalTitle": "Send tilbakemelding",
+    "modalSubtitle": "Fortell oss hva som fungerer, hva som ikke gjør det, eller hva du ønsker deg.",
+    "category": "Type",
+    "categories": {
+      "bug": "Noe er ødelagt",
+      "idea": "Idé eller forslag",
+      "question": "Spørsmål",
+      "other": "Annet"
+    },
+    "message": "Din melding",
+    "messagePlaceholder": "Beskriv hva som skjedde eller hva du ønsker…",
+    "includeScreenshot": "Inkluder et skjermbilde av denne siden (anbefalt for feil)",
+    "attachment": "Legg ved en fil (valgfritt)",
+    "attachmentHint": "Bilde eller PDF, opp til 5 MB.",
+    "cancel": "Avbryt",
+    "send": "Send",
+    "sending": "Sender…",
+    "close": "Lukk",
+    "thanksTitle": "Takk!",
+    "thanksBody": "Tilbakemeldingen din er sendt. Vi tar en titt.",
+    "errorGeneric": "Noe gikk galt. Prøv igjen.",
+    "errorAttachmentTooLarge": "Vedlegget er større enn 5 MB. Legg ved en mindre fil.",
+    "errorNotSignedIn": "Du må være logget inn for å sende tilbakemelding."
+  },
+  "feedbackAdmin": {
+    "title": "Tilbakemeldinger",
+    "subtitle": "Tilbakemeldinger fra brukere på tvers av alle arbeidsområder.",
+    "filters": {
+      "new": "Nye",
+      "handled": "Behandlet",
+      "dismissed": "Avvist"
+    },
+    "categories": {
+      "bug": "Feil",
+      "idea": "Idé",
+      "question": "Spørsmål",
+      "other": "Annet"
+    },
+    "loading": "Laster tilbakemeldinger…",
+    "empty": "Ingen tilbakemeldinger i denne visningen.",
+    "from": "Fra",
+    "page": "Side",
+    "anonymous": "anonym",
+    "screenshot": "Skjermbilde",
+    "attachment": "Vedlegg",
+    "technical": "Tekniske detaljer",
+    "markHandled": "Marker som behandlet",
+    "dismiss": "Avvis",
+    "reopen": "Gjenåpne"
   }
 }

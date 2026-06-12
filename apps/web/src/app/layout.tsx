@@ -6,6 +6,7 @@ import { TRPCReactProvider } from "@/trpc/client";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -36,6 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   {children}
                 </div>
               </main>
+              <FeedbackWidget />
             </ThemeProvider>
           </TRPCReactProvider>
         </NextIntlClientProvider>

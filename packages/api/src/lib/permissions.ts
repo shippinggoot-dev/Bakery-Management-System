@@ -40,3 +40,18 @@ export function canUnlockRecordedBatch(user: CtxUser): boolean {
 export function canOverrideRecordedBatch(user: CtxUser): boolean {
   return isMember(user);
 }
+
+/**
+ * Super admin — operator(s) of the platform itself, distinct from workspace
+ * members. Has cross-tenant access to triage feedback, etc. The allow-list
+ * comes from the SUPER_ADMIN_EMAILS env var (comma-separated). Keep in sync
+ * with the matching RLS policy in 2026-06-12_feedback.sql.
+ */
+export function isSuperAdmin(user: CtxUser): boolean {
+  if (!user || !user.email || user.isAnonymous) return false;
+  const allowlist = (process.env.SUPER_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return allowlist.includes(user.email.toLowerCase());
+}

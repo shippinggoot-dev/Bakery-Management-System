@@ -22,6 +22,7 @@ import { premadeCakesRouter } from "./routers/premade-cakes";
 import { preferencesRouter } from "./routers/preferences";
 import { diagnosticsRouter } from "./routers/diagnostics";
 import { aiAssistantRouter } from "./routers/ai-assistant";
+import { feedbackRouter } from "./routers/feedback";
 
 export const appRouter = createTRPCRouter({
   recipes:        recipesRouter,
@@ -47,6 +48,7 @@ export const appRouter = createTRPCRouter({
   preferences:      preferencesRouter,
   diagnostics:      diagnosticsRouter,
   aiAssistant:      aiAssistantRouter,
+  feedback:         feedbackRouter,
 });
 
 export type AppRouter = typeof appRouter;
