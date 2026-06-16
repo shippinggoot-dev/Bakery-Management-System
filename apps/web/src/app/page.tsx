@@ -143,6 +143,7 @@ export default function DashboardPage() {
   const { data: tomorrow }                              = api.dashboard.getTomorrowPreview.useQuery();
   const { data: shopify }                               = api.dashboard.getShopifyActivity.useQuery();
   const { data: prefs }                                 = api.preferences.get.useQuery();
+  const { data: socialPlannedToday = 0 }                = api.socialPosts.todayPlannedCount.useQuery();
 
   const showShopifyTile = prefs?.dashboardShowShopifyTile ?? true;
 
@@ -163,6 +164,32 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8 max-w-5xl">
+
+      {/* Social reminder — posts the user planned for today, awaiting hand-off
+          to whichever network they use. Drives them straight to /social where
+          they can copy the caption and download the image. */}
+      {socialPlannedToday > 0 && (
+        <div className="card p-4 border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 flex items-start gap-3">
+          <span className="text-xl flex-shrink-0">📣</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-purple-800 text-sm">
+              {socialPlannedToday === 1
+                ? t("socialPlanned_one")
+                : t("socialPlanned_other", { count: socialPlannedToday })}
+            </p>
+            <p className="text-xs text-purple-700 mt-0.5">
+              {t("socialPlannedHint")}
+            </p>
+          </div>
+          <Link
+            href="/social"
+            prefetch={false}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-500 text-white hover:bg-purple-600 transition-colors flex-shrink-0"
+          >
+            {t("socialPlannedCta")} →
+          </Link>
+        </div>
+      )}
 
       {/* Stocktake nudge — appears when overdue or never done, dismissable */}
       {stocktakeOverdue && !stocktakeDismissed && (

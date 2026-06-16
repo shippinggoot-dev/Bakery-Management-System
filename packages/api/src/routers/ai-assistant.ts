@@ -18,7 +18,7 @@ import { z } from "zod";
 import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, nonAnonymousProcedure } from "../trpc";
-import { recipes, premadeCakes, brandVoice, instagramPosts } from "@bakery/db";
+import { recipes, premadeCakes, brandVoice, socialPosts } from "@bakery/db";
 import { checkQuota, recordUsage, getMonthlyUsageSummary } from "../lib/ai-quota";
 import {
   isClaudeConfigured,
@@ -271,12 +271,12 @@ export const aiAssistantRouter = createTRPCRouter({
         where: eq(brandVoice.ownerId, ctx.user.id),
       }),
       ctx.db
-        .select({ count: instagramPosts.id })
-        .from(instagramPosts)
+        .select({ count: socialPosts.id })
+        .from(socialPosts)
         .where(and(
-          eq(instagramPosts.ownerId, ctx.user.id),
-          eq(instagramPosts.status, "posted"),
-          isNotNull(instagramPosts.caption),
+          eq(socialPosts.ownerId, ctx.user.id),
+          eq(socialPosts.status, "posted"),
+          isNotNull(socialPosts.caption),
         ))
         .limit(50),  // we only need to know "is it ≥ MIN", not the exact count
     ]);
@@ -323,13 +323,13 @@ export const aiAssistantRouter = createTRPCRouter({
       }
 
       // Load the 20 most recent successfully-posted captions
-      const recentPosts = await ctx.db.query.instagramPosts.findMany({
+      const recentPosts = await ctx.db.query.socialPosts.findMany({
         where: and(
-          eq(instagramPosts.ownerId, ctx.user.id),
-          eq(instagramPosts.status, "posted"),
-          isNotNull(instagramPosts.caption),
+          eq(socialPosts.ownerId, ctx.user.id),
+          eq(socialPosts.status, "posted"),
+          isNotNull(socialPosts.caption),
         ),
-        orderBy: [desc(instagramPosts.postedAt)],
+        orderBy: [desc(socialPosts.postedAt)],
         limit:   20,
         columns: { caption: true },
       });
@@ -474,13 +474,13 @@ export const aiAssistantRouter = createTRPCRouter({
           where: eq(brandVoice.ownerId, ctx.user.id),
           columns: { voiceDescription: true },
         }),
-        ctx.db.query.instagramPosts.findMany({
+        ctx.db.query.socialPosts.findMany({
           where: and(
-            eq(instagramPosts.ownerId, ctx.user.id),
-            eq(instagramPosts.status, "posted"),
-            isNotNull(instagramPosts.caption),
+            eq(socialPosts.ownerId, ctx.user.id),
+            eq(socialPosts.status, "posted"),
+            isNotNull(socialPosts.caption),
           ),
-          orderBy: [desc(instagramPosts.postedAt)],
+          orderBy: [desc(socialPosts.postedAt)],
           limit:   10,
           columns: { caption: true },
         }),

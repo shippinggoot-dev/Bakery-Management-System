@@ -74,7 +74,7 @@
     "operations": "Operations",
     "production": "Production Schedule",
     "sales": "Sales Dashboard",
-    "social": "Instagram",
+    "social": "Content planner",
     "overview": "Overview",
     "kitchenStock": "Kitchen & Stock"
   },
@@ -839,24 +839,23 @@
     "variantLinkedToShopify": "Linked to Shopify"
   },
   "social": {
+    "pageTitle": "Content planner",
+    "pageSubtitle": "Plan posts, write captions, then share them on whichever network you use.",
     "insertFromCatalog": "Insert from catalog",
     "hideCatalog": "Hide catalog",
     "catalogSearchPlaceholder": "Search recipes & cakes…",
     "premadeCakes": "Premade cakes",
     "recipes": "Recipes",
     "catalogNoResults": "No matches in catalog.",
-    "postingAs": "Posting as",
-    "manageConnection": "Manage connection",
     "calendar": {
       "prevMonth": "Previous month",
       "nextMonth": "Next month",
-      "legendScheduled": "Scheduled",
-      "legendPublished": "Published",
-      "legendFailed": "Failed"
+      "legendPlanned": "Planned",
+      "legendOverdue": "Overdue",
+      "legendPosted": "Posted"
     },
     "drafts": {
       "title": "Drafts",
-      "failed": "Failed — needs attention",
       "noCaption": "No caption yet"
     },
     "composer": {
@@ -868,42 +867,41 @@
       "uploading": "Uploading…",
       "captionLabel": "Caption",
       "captionPlaceholder": "Write a caption… #bakery #freshbread",
-      "scheduleLabel": "Schedule for",
+      "scheduleLabel": "Plan for",
       "scheduleHint": "Leave empty to save as a draft.",
       "saveDraft": "Save as draft",
       "updateDraft": "Update draft",
-      "schedule": "Schedule",
-      "updateSchedule": "Update schedule",
-      "postNow": "Post now",
-      "posting": "Posting…",
+      "savePlan": "Save plan",
+      "updatePlan": "Update plan",
       "saving": "Saving…",
       "upload": {
         "tooLarge": "Image is too large. Please choose a file under 10 MB.",
         "wrongType": "Only JPEG, PNG, or WebP images are allowed.",
         "notSignedIn": "You must be signed in to upload photos.",
         "demoAccount": "Sign up to upload photos. The demo account can preview features but can't add media."
+      },
+      "handoff": {
+        "title": "Ready to share?",
+        "description": "Copy the caption and download the photo, then paste them into Instagram, Facebook, Pinterest, or wherever your customers hang out.",
+        "copyCaption": "Copy caption",
+        "copied": "Copied!",
+        "downloadPhoto": "Download photo",
+        "markPosted": "I posted it"
       }
     },
     "dayModal": {
-      "empty": "No posts scheduled for this day."
+      "empty": "No posts planned for this day."
     },
     "actions": {
       "edit": "Edit",
       "delete": "Delete",
-      "publishNow": "Publish now",
-      "deleteConfirm": "Delete this draft?"
+      "markPosted": "Mark posted",
+      "deleteConfirm": "Delete this post?"
     },
     "status": {
       "draft": "Draft",
-      "scheduled": "Scheduled",
-      "publishing": "Publishing…",
-      "published": "Published",
-      "failed": "Failed"
-    },
-    "recent": {
-      "title": "Recent posts",
-      "empty": "No posts yet.",
-      "loading": "Loading…"
+      "planned": "Planned",
+      "posted": "Posted"
     },
     "ai": {
       "button": "AI caption",
@@ -944,8 +942,8 @@
       "generate": "Generate plan ({quota})",
       "generating": "Building your week…",
       "clear": "Clear plan",
-      "schedule": "Schedule as draft",
-      "scheduled": "Scheduled",
+      "addToCalendar": "Add to calendar",
+      "planned": "Planned",
       "quotaExhausted": "You've used your monthly content plan. Resets next month.",
       "costHint": "Uses 1 weekly-plan quota point. Free tier: 1 per month.",
       "pastDateWarning": "That date is in the past — pick a different week.",
@@ -954,6 +952,40 @@
         "midday": "Midday (~12pm)",
         "afternoon": "Afternoon (~3pm)",
         "evening": "Evening (~6pm)"
+      }
+    },
+    "guide": {
+      "title": "How to post well",
+      "intro": "Algorithms change every season — these principles don't. Pick one or two to try this week.",
+      "tips": {
+        "consistency": {
+          "title": "Consistency beats perfection",
+          "body": "Three OK posts a week will outperform one polished post a month — every time. Algorithms reward bakeries that show up regularly, and customers notice when their favourite shop goes quiet.\n\nPick a rhythm you can actually keep — Monday, Wednesday, Friday is plenty — and stick to it for six weeks before judging the results."
+        },
+        "hook": {
+          "title": "Win the first three seconds",
+          "body": "Scrollers decide in a heartbeat whether to stop. The first line of your caption and the first frame of your photo are the only things that matter.\n\nOpen with the sensory bit — \"warm out of the oven\", \"only twelve made today\", \"this one is gone by 9am\" — not with \"Hello bakers!\". Show the food close, lit by daylight, before any wide shot of the shop."
+        },
+        "format": {
+          "title": "Carousels and short video outperform single images",
+          "body": "On every major network, multi-image carousels (swipeable posts) and short vertical videos get more reach than a single static photo. The platform shows the content twice if someone doesn't swipe the first time, and it counts each swipe as engagement.\n\nEasy starting point: a 3-photo carousel — the finished product, a process shot, and a slice or close-up. Or 10 seconds of video showing the dough being shaped."
+        },
+        "hashtags": {
+          "title": "Use specific niche tags, not generic ones",
+          "body": "#bread has 50 million posts — your bakery vanishes in the noise. #sourdoughoslo has a few hundred and gets seen by people actually looking for what you sell.\n\nA workable mix: two or three broad tags (#bakery #freshbread), then five to eight niche ones combining your city, your style, and your specialty (#bergenbakery #norskbakst #cinnamonbuns)."
+        },
+        "timing": {
+          "title": "Post when your customers are awake",
+          "body": "For a bakery, that usually means morning (7–9am, before work) and late afternoon (4–6pm, on the way home). Lunchtime works too if you sell lunch food.\n\nCheck your own network's analytics after a couple of weeks — every audience is a little different, and your followers' habits are more reliable than any rule of thumb."
+        },
+        "crosspost": {
+          "title": "Write once, post everywhere",
+          "body": "Don't write a separate post for each network. Compose it here, then paste the same caption and image into Instagram, Facebook, Pinterest, or whatever else you use.\n\nLittle tweaks per network if you have time — Pinterest likes a longer description, Twitter/X wants 280 characters, TikTok wants vertical video — but the same content with the same caption is fine 90 % of the time."
+        },
+        "engagement": {
+          "title": "Reply to every comment for the first hour",
+          "body": "Networks measure how much conversation your post generates in the first 60 minutes and use that to decide whether to show it to more people. Replying to every comment within that window — even with just an emoji — can double or triple your reach.\n\nKeep your phone within arm's reach for the hour after you post, and treat it like opening the shop door."
+        }
       }
     }
   },
@@ -1017,8 +1049,12 @@
     "stockDeductions": "Stock deductions"
   },
   "dashboard": {
-    "integrationsHint": "Optional integrations — Shopify, email, Instagram — live in <link>Settings</link>.",
+    "integrationsHint": "Optional integrations — Shopify and email — live in <link>Settings</link>.",
     "batchesEmpty": "Nothing scheduled — plan today's production",
+    "socialPlanned_one": "You planned 1 post to share today",
+    "socialPlanned_other": "You planned {count} posts to share today",
+    "socialPlannedHint": "Open the content planner to grab the caption and photo, then post it on your network of choice.",
+    "socialPlannedCta": "Open planner",
     "shopifyTitle": "Shopify",
     "shopifyOptional": "Optional",
     "shopifyOffer": "Sync orders and products from your shop into the planner.",

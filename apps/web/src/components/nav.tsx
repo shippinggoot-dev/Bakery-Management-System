@@ -12,7 +12,7 @@ import { GlobalSearchTrigger } from "@/components/GlobalSearch";
 
 // ── Nav data ──────────────────────────────────────────────────────────────────
 
-type NavItem    = { href: string; label: string };
+type NavItem    = { href: string; label: string; badge?: boolean };
 type NavSection = {
   key:      string;
   label:    string;
@@ -21,7 +21,7 @@ type NavSection = {
   prefixes: string[];      // pathname prefixes that count as "this section is active"
 };
 
-function useNavSections(): NavSection[] {
+function useNavSections(socialPlannedToday: number): NavSection[] {
   const t = useTranslations("nav");
   return [
     {
@@ -82,7 +82,7 @@ function useNavSections(): NavSection[] {
       items: [
         { href: "/production", label: t("production") },
         { href: "/sales",      label: t("sales") },
-        { href: "/social",     label: t("social") },
+        { href: "/social",     label: t("social"), badge: socialPlannedToday > 0 },
       ],
       prefixes: ["/production", "/sales", "/social"],
     },
@@ -444,7 +444,12 @@ function SubNavLink({ item, pathname }: { item: NavItem; pathname: string }) {
         active ? "text-brand-700 font-medium" : "text-gray-500 hover:text-brand-600"
       }`}
     >
-      {item.label}
+      <span className="inline-flex items-center gap-1.5">
+        {item.label}
+        {item.badge && (
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-500" aria-hidden="true" />
+        )}
+      </span>
       {active && (
         <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1/2 h-[2px] bg-brand-500 rounded-full" />
       )}
@@ -462,7 +467,7 @@ const MOBILE_TABS = [
   { labelKey: "operations", icon: "🏭", href: "/production",prefixes: ["/production", "/sales", "/social"] },
 ] as const;
 
-function BottomTabBar() {
+function BottomTabBar({ socialPlannedToday }: { socialPlannedToday: number }) {
   const pathname = usePathname();
   const t        = useTranslations("nav");
 
@@ -477,6 +482,9 @@ function BottomTabBar() {
     >
       {MOBILE_TABS.map((tab) => {
         const active = isTabActive(tab.prefixes);
+        // Show a small purple dot on the Operations tab when there's a planned
+        // social post for today the user still needs to share.
+        const showSocialDot = tab.labelKey === "operations" && socialPlannedToday > 0;
         return (
           <Link
             key={tab.href}
@@ -489,8 +497,11 @@ function BottomTabBar() {
             {active && (
               <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-brand-600" />
             )}
-            <span className={`text-xl leading-none transition-transform ${active ? "scale-110" : ""}`}>
+            <span className={`relative text-xl leading-none transition-transform ${active ? "scale-110" : ""}`}>
               {tab.icon}
+              {showSocialDot && (
+                <span className="absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-purple-500 ring-2 ring-rose-50" aria-hidden="true" />
+              )}
             </span>
             <span>{t(tab.labelKey)}</span>
           </Link>
@@ -531,7 +542,9 @@ export function Nav() {
     { select: (td) => td.filter((x) => !x.completed).length }
   );
 
-  const sections      = useNavSections();
+  const { data: socialPlannedToday = 0 } = api.socialPosts.todayPlannedCount.useQuery();
+
+  const sections      = useNavSections(socialPlannedToday);
   const activeSection = sections.find((s) => isSectionActive(s, pathname));
   const showSubNav    = !!activeSection && activeSection.items.length > 0;
 
@@ -709,7 +722,7 @@ export function Nav() {
       </header>
 
       <TodoSidebar open={todoOpen} onClose={() => setTodoOpen(false)} />
-      <BottomTabBar />
+      <BottomTabBar socialPlannedToday={socialPlannedToday} />
     </>
   );
 }

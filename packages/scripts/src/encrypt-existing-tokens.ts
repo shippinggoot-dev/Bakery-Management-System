@@ -1,6 +1,6 @@
 /**
- * One-off migration: encrypt existing plaintext tokens in shopify_settings,
- * email_settings, and instagram_connections.
+ * One-off migration: encrypt existing plaintext tokens in shopify_settings
+ * and email_settings.
  *
  * Run this ONCE per environment before deploying the code that requires
  * encrypted-only reads. Idempotent: re-running skips rows already in v1
@@ -30,7 +30,6 @@ import {
   db,
   shopifySettings,
   emailSettings,
-  instagramConnections,
   encryptToken,
   isEncrypted,
 } from "@bakery/db";
@@ -116,30 +115,6 @@ async function migrateEmailSettings(): Promise<TableStats> {
   return stats;
 }
 
-async function migrateInstagramConnections(): Promise<TableStats> {
-  const stats = newStats();
-  const rows = await db.query.instagramConnections.findMany({
-    columns: { id: true, accessToken: true },
-  });
-  for (const row of rows) {
-    stats.scanned++;
-    if (!row.accessToken) {
-      stats.emptyNull++;
-      continue;
-    }
-    if (isEncrypted(row.accessToken)) {
-      stats.alreadyOk++;
-      continue;
-    }
-    await db.update(instagramConnections)
-      .set({ accessToken: encryptToken(row.accessToken), updatedAt: new Date() })
-      .where(eq(instagramConnections.id, row.id));
-    stats.encrypted++;
-    console.log(`  + instagram_connections ${row.id}: encrypted accessToken`);
-  }
-  return stats;
-}
-
 async function main() {
   // Fail fast if the key isn't set. encryptToken throws with a clear message,
   // but probing here lets us refuse to start instead of partially migrating.
@@ -154,15 +129,13 @@ async function main() {
   console.log("Encrypting existing third-party tokens at rest...");
   console.log("");
 
-  const shopify   = await migrateShopifySettings();
-  const email     = await migrateEmailSettings();
-  const instagram = await migrateInstagramConnections();
+  const shopify = await migrateShopifySettings();
+  const email   = await migrateEmailSettings();
 
   console.log("");
   console.log("Summary:");
-  logStats("shopify_settings",      shopify);
-  logStats("email_settings",        email);
-  logStats("instagram_connections", instagram);
+  logStats("shopify_settings", shopify);
+  logStats("email_settings",   email);
   console.log("");
   console.log("Done.");
 }

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SECURITY — Instagram media uploads
+ * SECURITY — Photo uploads
  *
  * `handleFileChange` below performs CLIENT-SIDE checks: a 10 MB size cap,
  * a MIME allowlist (jpeg/png/webp), and a per-user storage prefix
@@ -16,10 +16,14 @@
  *   3. Caps file size and MIME at the bucket level.
  * Without those bucket-level policies, the protections in this file can be
  * trivially bypassed by hitting the storage API directly.
+ *
+ * The bucket is still named "instagram-media" for historical reasons — it
+ * predates the platform-agnostic rebrand. Renaming a Supabase Storage bucket
+ * with existing objects is invasive, so the legacy name stays; semantically
+ * it now holds "social media" assets for any network.
  */
 
 import { useState, useRef, useMemo, useEffect } from "react";
-import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
 import { api } from "@/trpc/react";
 import { createClientSupabase } from "@/lib/supabase/client";
@@ -72,62 +76,44 @@ function toLocalInput(d: Date | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// ─── Connect prompt (unchanged from original) ─────────────────────────────────
-
-function ConnectPrompt() {
-  const appId       = process.env.NEXT_PUBLIC_META_APP_ID;
-  const redirectUri = typeof window !== "undefined"
-    ? `${window.location.origin}/api/instagram/callback`
-    : "";
-
-  const oauthUrl = appId
-    ? `https://www.facebook.com/v20.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement&response_type=code`
-    : null;
-
-  return (
-    <div className="card p-8 text-center space-y-4 max-w-md mx-auto">
-      <div className="text-5xl">📸</div>
-      <h2 className="text-lg font-semibold text-gray-800">Connect Instagram</h2>
-      <p className="text-sm text-gray-500">
-        Link your Instagram Business or Creator account to post directly from your bakery dashboard.
-      </p>
-      {oauthUrl ? (
-        <a
-          href={oauthUrl}
-          className="inline-block px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
-        >
-          Connect Instagram
-        </a>
-      ) : (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-          <p className="font-medium">Setup required</p>
-          <p className="mt-1">
-            Add <span className="font-mono">NEXT_PUBLIC_META_APP_ID</span> to your environment variables,
-            then redeploy. See Settings → Instagram for instructions.
-          </p>
-        </div>
-      )}
-      <p className="text-xs text-gray-400">
-        Requires an Instagram Business or Creator account linked to a Facebook Page.
-      </p>
-    </div>
-  );
+/**
+ * Trigger a file download for an image URL the user wants to repost on a
+ * social network. Goes via fetch() so we can name the file and avoid the
+ * browser's "open in new tab" default on some hosts.
+ */
+async function downloadImage(url: string, suggestedName: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = suggestedName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    // Fallback — open in a new tab so the user can long-press / right-click.
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
 }
 
-// ─── Calendar ─────────────────────────────────────────────────────────────────
+// ─── Post row type ────────────────────────────────────────────────────────────
 
-type DraftRow = {
+type PostRow = {
   id:           string;
   imageUrl:     string | null;
   caption:      string | null;
   scheduledFor: Date | null;
-  status:       string;
-  errorMessage: string | null;
-  publishedAt:  Date | null;
+  status:       string; // "draft" | "planned" | "posted"
+  postedAt:     Date | null;
 };
 
+// ─── Calendar ─────────────────────────────────────────────────────────────────
+
 interface CalendarProps {
-  drafts:        DraftRow[];
+  posts:         PostRow[];
   viewYear:      number;
   viewMonth:     number; // 0-11
   selectedDate:  Date | null;
@@ -136,25 +122,23 @@ interface CalendarProps {
   onPickDay:     (date: Date) => void;
 }
 
-function Calendar({ drafts, viewYear, viewMonth, selectedDate, onPrev, onNext, onPickDay }: CalendarProps) {
+function Calendar({ posts, viewYear, viewMonth, selectedDate, onPrev, onNext, onPickDay }: CalendarProps) {
   const t      = useTranslations("social");
   const locale = useLocale();
 
-  // Group drafts by YYYY-MM-DD for fast lookup
+  // Group posts by YYYY-MM-DD for fast lookup
   const dayMap = useMemo(() => {
-    const map = new Map<string, DraftRow[]>();
-    for (const d of drafts) {
-      if (!d.scheduledFor) continue;
-      const k = ymd(new Date(d.scheduledFor));
+    const map = new Map<string, PostRow[]>();
+    for (const p of posts) {
+      if (!p.scheduledFor) continue;
+      const k = ymd(new Date(p.scheduledFor));
       const arr = map.get(k) ?? [];
-      arr.push(d);
+      arr.push(p);
       map.set(k, arr);
     }
     return map;
-  }, [drafts]);
+  }, [posts]);
 
-  // Build day grid for the visible month. First row may include trailing days
-  // of the previous month so the grid starts on Monday.
   const cells = useMemo(() => {
     const first = new Date(viewYear, viewMonth, 1);
     // Monday-start: 0 = Mon … 6 = Sun
@@ -172,7 +156,6 @@ function Calendar({ drafts, viewYear, viewMonth, selectedDate, onPrev, onNext, o
     year:  "numeric",
   });
 
-  // Localised short day names, Monday first
   const dayNames = useMemo(() => {
     // Build by formatting a known Monday (2024-01-01 was a Monday)
     const monday = new Date(2024, 0, 1);
@@ -206,7 +189,6 @@ function Calendar({ drafts, viewYear, viewMonth, selectedDate, onPrev, onNext, o
         </button>
       </div>
 
-      {/* Day-of-week labels */}
       <div className="grid grid-cols-7 border-b border-rose-100">
         {dayNames.map((name) => (
           <div key={name} className="px-2 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">
@@ -215,7 +197,6 @@ function Calendar({ drafts, viewYear, viewMonth, selectedDate, onPrev, onNext, o
         ))}
       </div>
 
-      {/* Day cells */}
       <div className="grid grid-cols-7">
         {cells.map((d, i) => {
           const k        = ymd(d);
@@ -223,9 +204,12 @@ function Calendar({ drafts, viewYear, viewMonth, selectedDate, onPrev, onNext, o
           const isToday  = k === today;
           const isPicked = k === selected;
           const dayPosts = dayMap.get(k) ?? [];
-          const scheduledCount = dayPosts.filter((p) => p.status === "scheduled").length;
-          const publishedCount = dayPosts.filter((p) => p.status === "published").length;
-          const failedCount    = dayPosts.filter((p) => p.status === "failed").length;
+          const plannedCount = dayPosts.filter((p) => p.status === "planned").length;
+          const postedCount  = dayPosts.filter((p) => p.status === "posted").length;
+          // Overdue = planned date is in the past
+          const overdueCount = dayPosts.filter((p) =>
+            p.status === "planned" && p.scheduledFor && p.scheduledFor.getTime() < Date.now()
+          ).length;
 
           return (
             <button
@@ -241,19 +225,18 @@ function Calendar({ drafts, viewYear, viewMonth, selectedDate, onPrev, onNext, o
               <div className={`text-xs ${isToday ? "text-brand-600" : inMonth ? "text-gray-700" : "text-gray-300"}`}>
                 {d.getDate()}
               </div>
-              {/* Status dots */}
-              {(scheduledCount + publishedCount + failedCount) > 0 && (
+              {(plannedCount + postedCount) > 0 && (
                 <div className="absolute bottom-1 left-1 right-1 flex flex-wrap gap-0.5 justify-start">
-                  {Array.from({ length: Math.min(scheduledCount, 3) }).map((_, j) => (
-                    <div key={`s${j}`} className="w-1.5 h-1.5 rounded-full bg-purple-400" title="Scheduled" />
+                  {Array.from({ length: Math.min(plannedCount - overdueCount, 3) }).map((_, j) => (
+                    <div key={`pl${j}`} className="w-1.5 h-1.5 rounded-full bg-purple-400" title={t("calendar.legendPlanned")} />
                   ))}
-                  {Array.from({ length: Math.min(publishedCount, 3) }).map((_, j) => (
-                    <div key={`p${j}`} className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Published" />
+                  {Array.from({ length: Math.min(overdueCount, 3) }).map((_, j) => (
+                    <div key={`ov${j}`} className="w-1.5 h-1.5 rounded-full bg-amber-500" title={t("calendar.legendOverdue")} />
                   ))}
-                  {Array.from({ length: Math.min(failedCount, 3) }).map((_, j) => (
-                    <div key={`f${j}`} className="w-1.5 h-1.5 rounded-full bg-red-400" title="Failed" />
+                  {Array.from({ length: Math.min(postedCount, 3) }).map((_, j) => (
+                    <div key={`po${j}`} className="w-1.5 h-1.5 rounded-full bg-emerald-400" title={t("calendar.legendPosted")} />
                   ))}
-                  {(scheduledCount + publishedCount + failedCount) > 9 && (
+                  {(plannedCount + postedCount) > 9 && (
                     <span className="text-[9px] text-gray-400 leading-none">+</span>
                   )}
                 </div>
@@ -263,11 +246,10 @@ function Calendar({ drafts, viewYear, viewMonth, selectedDate, onPrev, onNext, o
         })}
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 px-5 py-2 border-t border-rose-100 text-[10px] text-gray-500">
-        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-purple-400" /> {t("calendar.legendScheduled")}</span>
-        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> {t("calendar.legendPublished")}</span>
-        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400" /> {t("calendar.legendFailed")}</span>
+      <div className="flex items-center gap-4 px-5 py-2 border-t border-rose-100 text-[10px] text-gray-500 flex-wrap">
+        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-purple-400" /> {t("calendar.legendPlanned")}</span>
+        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> {t("calendar.legendOverdue")}</span>
+        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> {t("calendar.legendPosted")}</span>
       </div>
     </div>
   );
@@ -277,9 +259,9 @@ function Calendar({ drafts, viewYear, viewMonth, selectedDate, onPrev, onNext, o
 
 interface DayDetailModalProps {
   date:    Date;
-  posts:   DraftRow[];
+  posts:   PostRow[];
   onClose: () => void;
-  onEdit:  (draft: DraftRow) => void;
+  onEdit:  (post: PostRow) => void;
 }
 
 function DayDetailModal({ date, posts, onClose, onEdit }: DayDetailModalProps) {
@@ -287,12 +269,15 @@ function DayDetailModal({ date, posts, onClose, onEdit }: DayDetailModalProps) {
   const locale = useLocale();
   const utils  = api.useUtils();
 
-  const deleteDraft = api.instagram.deleteDraft.useMutation({
-    onSuccess: () => utils.instagram.listDrafts.invalidate(),
+  const deletePost = api.socialPosts.delete.useMutation({
+    onSuccess: () => utils.socialPosts.list.invalidate(),
   });
 
-  const publishNow = api.instagram.publishDraftNow.useMutation({
-    onSuccess: () => utils.instagram.listDrafts.invalidate(),
+  const markPosted = api.socialPosts.markPosted.useMutation({
+    onSuccess: () => {
+      utils.socialPosts.list.invalidate();
+      utils.socialPosts.todayPlannedCount.invalidate();
+    },
   });
 
   const dateLabel = date.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
@@ -318,24 +303,18 @@ function DayDetailModal({ date, posts, onClose, onEdit }: DayDetailModalProps) {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-700 line-clamp-2">{p.caption}</p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        p.status === "scheduled"  ? "bg-purple-100 text-purple-700" :
-                        p.status === "published"  ? "bg-emerald-100 text-emerald-700" :
-                        p.status === "publishing" ? "bg-amber-100 text-amber-700" :
-                        p.status === "failed"     ? "bg-red-100 text-red-700" :
-                                                    "bg-gray-100 text-gray-600"
+                        p.status === "planned" ? "bg-purple-100 text-purple-700" :
+                        p.status === "posted"  ? "bg-emerald-100 text-emerald-700" :
+                                                 "bg-gray-100 text-gray-600"
                       }`}>
                         {t(`status.${p.status}` as never, { default: p.status } as never)}
                       </span>
-                      <span className="text-[10px] text-gray-400">{formatDateTime(p.scheduledFor)}</span>
+                      <span className="text-[10px] text-gray-400">{formatDateTime(p.scheduledFor ?? p.postedAt)}</span>
                     </div>
-                    {p.errorMessage && (
-                      <p className="text-[10px] text-red-500 mt-1 line-clamp-2">{p.errorMessage}</p>
-                    )}
-                    {/* Actions */}
-                    <div className="flex gap-1.5 mt-2">
-                      {(p.status === "scheduled" || p.status === "failed" || p.status === "draft") && (
+                    <div className="flex gap-1.5 mt-2 flex-wrap">
+                      {(p.status === "planned" || p.status === "draft") && (
                         <>
                           <button
                             onClick={() => { onEdit(p); onClose(); }}
@@ -344,18 +323,18 @@ function DayDetailModal({ date, posts, onClose, onEdit }: DayDetailModalProps) {
                             {t("actions.edit")}
                           </button>
                           <button
-                            onClick={() => { if (confirm(t("actions.deleteConfirm"))) deleteDraft.mutate(p.id); }}
+                            onClick={() => { if (confirm(t("actions.deleteConfirm"))) deletePost.mutate(p.id); }}
                             className="text-[10px] px-2 py-0.5 rounded bg-red-50 text-red-600 hover:bg-red-100"
                           >
                             {t("actions.delete")}
                           </button>
                           {p.imageUrl && p.caption && (
                             <button
-                              onClick={() => publishNow.mutate(p.id)}
-                              disabled={publishNow.isPending}
-                              className="text-[10px] px-2 py-0.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                              onClick={() => markPosted.mutate(p.id)}
+                              disabled={markPosted.isPending}
+                              className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                             >
-                              {publishNow.isPending ? "…" : t("actions.publishNow")}
+                              {markPosted.isPending ? "…" : t("actions.markPosted")}
                             </button>
                           )}
                         </>
@@ -375,23 +354,22 @@ function DayDetailModal({ date, posts, onClose, onEdit }: DayDetailModalProps) {
 // ─── Drafts list ──────────────────────────────────────────────────────────────
 
 interface DraftsListProps {
-  drafts: DraftRow[];
-  onEdit: (draft: DraftRow) => void;
+  posts:  PostRow[];
+  onEdit: (post: PostRow) => void;
 }
 
-function DraftsList({ drafts, onEdit }: DraftsListProps) {
+function DraftsList({ posts, onEdit }: DraftsListProps) {
   const t     = useTranslations("social");
   const utils = api.useUtils();
 
-  const deleteDraft = api.instagram.deleteDraft.useMutation({
-    onSuccess: () => utils.instagram.listDrafts.invalidate(),
+  const deletePost = api.socialPosts.delete.useMutation({
+    onSuccess: () => utils.socialPosts.list.invalidate(),
   });
 
-  // Unscheduled drafts only — scheduled ones already appear on the calendar
-  const unscheduled = drafts.filter((d) => !d.scheduledFor && d.status === "draft");
-  const failed      = drafts.filter((d) => d.status === "failed");
+  // Only unscheduled drafts here — planned posts already show on the calendar
+  const unscheduled = posts.filter((p) => !p.scheduledFor && p.status === "draft");
 
-  if (unscheduled.length === 0 && failed.length === 0) return null;
+  if (unscheduled.length === 0) return null;
 
   return (
     <div className="card overflow-hidden">
@@ -399,73 +377,33 @@ function DraftsList({ drafts, onEdit }: DraftsListProps) {
         {t("drafts.title")}
       </div>
 
-      {/* Unscheduled drafts */}
-      {unscheduled.length > 0 && (
-        <div className="divide-y divide-rose-50">
-          {unscheduled.map((d) => (
-            <div key={d.id} className="px-5 py-3 flex gap-3 items-start">
-              {d.imageUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={d.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-rose-100" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-700 line-clamp-2">{d.caption || <span className="italic text-gray-400">{t("drafts.noCaption")}</span>}</p>
-                <div className="flex gap-1.5 mt-1.5">
-                  <button
-                    onClick={() => onEdit(d)}
-                    className="text-[10px] px-2 py-0.5 rounded bg-rose-50 text-gray-600 hover:bg-rose-100"
-                  >
-                    {t("actions.edit")}
-                  </button>
-                  <button
-                    onClick={() => { if (confirm(t("actions.deleteConfirm"))) deleteDraft.mutate(d.id); }}
-                    className="text-[10px] px-2 py-0.5 rounded bg-red-50 text-red-600 hover:bg-red-100"
-                  >
-                    {t("actions.delete")}
-                  </button>
-                </div>
+      <div className="divide-y divide-rose-50">
+        {unscheduled.map((d) => (
+          <div key={d.id} className="px-5 py-3 flex gap-3 items-start">
+            {d.imageUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={d.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-rose-100" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-gray-700 line-clamp-2">{d.caption || <span className="italic text-gray-400">{t("drafts.noCaption")}</span>}</p>
+              <div className="flex gap-1.5 mt-1.5">
+                <button
+                  onClick={() => onEdit(d)}
+                  className="text-[10px] px-2 py-0.5 rounded bg-rose-50 text-gray-600 hover:bg-rose-100"
+                >
+                  {t("actions.edit")}
+                </button>
+                <button
+                  onClick={() => { if (confirm(t("actions.deleteConfirm"))) deletePost.mutate(d.id); }}
+                  className="text-[10px] px-2 py-0.5 rounded bg-red-50 text-red-600 hover:bg-red-100"
+                >
+                  {t("actions.delete")}
+                </button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Failed posts */}
-      {failed.length > 0 && (
-        <>
-          <div className="px-5 py-2 bg-red-50/50 border-t border-rose-100 text-[10px] font-bold text-red-600 uppercase tracking-wider">
-            {t("drafts.failed")}
           </div>
-          <div className="divide-y divide-rose-50">
-            {failed.map((d) => (
-              <div key={d.id} className="px-5 py-3 flex gap-3 items-start">
-                {d.imageUrl && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={d.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-rose-100" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-700 line-clamp-2">{d.caption}</p>
-                  <p className="text-[10px] text-red-500 mt-0.5 line-clamp-1">{d.errorMessage}</p>
-                  <div className="flex gap-1.5 mt-1.5">
-                    <button
-                      onClick={() => onEdit(d)}
-                      className="text-[10px] px-2 py-0.5 rounded bg-rose-50 text-gray-600 hover:bg-rose-100"
-                    >
-                      {t("actions.edit")}
-                    </button>
-                    <button
-                      onClick={() => { if (confirm(t("actions.deleteConfirm"))) deleteDraft.mutate(d.id); }}
-                      className="text-[10px] px-2 py-0.5 rounded bg-red-50 text-red-600 hover:bg-red-100"
-                    >
-                      {t("actions.delete")}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
@@ -473,13 +411,13 @@ function DraftsList({ drafts, onEdit }: DraftsListProps) {
 // ─── Composer ─────────────────────────────────────────────────────────────────
 
 interface ComposerProps {
-  /** When non-null, the composer renders in "edit" mode for that draft */
-  editing:      DraftRow | null;
+  /** When non-null, the composer renders in "edit" mode for that post */
+  editing:       PostRow | null;
   /** Pre-fill schedule date from the calendar selection */
   prefilledDate: Date | null;
-  onDone:       () => void;
-  recipes:      Array<{ id: string; name: string; description: string | null; sellingPrice: string | null }>;
-  premades:     Array<{ id: string; name: string; description: string | null; basePrice: string; allergens: string | null }>;
+  onDone:        () => void;
+  recipes:       Array<{ id: string; name: string; description: string | null; sellingPrice: string | null }>;
+  premades:      Array<{ id: string; name: string; description: string | null; basePrice: string; allergens: string | null }>;
 }
 
 function Composer({ editing, prefilledDate, onDone, recipes, premades }: ComposerProps) {
@@ -488,7 +426,6 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
   const utils  = api.useUtils();
   const { bakeryName } = usePersonalization();
 
-  // Form state
   const [caption,       setCaption]       = useState("");
   const [imageUrl,      setImageUrl]      = useState("");
   const [previewUrl,    setPreviewUrl]    = useState<string | null>(null);
@@ -501,8 +438,11 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
   // AI caption state — separate panel; mutually exclusive with catalog picker
   const [showAi,        setShowAi]        = useState(false);
   const [aiToneHint,    setAiToneHint]    = useState<string>("");
-  /** Preview of a generated caption awaiting user accept/discard */
   const [aiPreview,     setAiPreview]     = useState<{ caption: string; hashtags: string[] } | null>(null);
+
+  // Handoff state
+  const [copyFlash,     setCopyFlash]     = useState(false);
+
   const fileRef = useRef<HTMLInputElement>(null);
 
   // AI plumbing
@@ -511,13 +451,13 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
   const { data: brandVoice } = api.aiAssistant.getBrandVoice.useQuery();
   const [showVoiceDetail, setShowVoiceDetail] = useState(false);
 
-  const generateCaption     = api.aiAssistant.generateCaption.useMutation({
+  const generateCaption = api.aiAssistant.generateCaption.useMutation({
     onSuccess: (data) => {
       setAiPreview(data);
       utils.aiAssistant.getQuotaUsage.invalidate();
     },
     onError: () => {
-      utils.aiAssistant.getQuotaUsage.invalidate();  // failed calls still consume quota
+      utils.aiAssistant.getQuotaUsage.invalidate();
     },
   });
 
@@ -539,7 +479,7 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
     ? `${quota.byFeature.caption.used} / ${quota.byFeature.caption.limit}`
     : "—";
 
-  // Initialise form from editing draft or prefilled date
+  // Initialise form from editing post or prefilled date
   useEffect(() => {
     if (editing) {
       setCaption(editing.caption ?? "");
@@ -554,26 +494,28 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
     }
   }, [editing, prefilledDate]);
 
-  const createDraft = api.instagram.createDraft.useMutation({
+  const createPost = api.socialPosts.create.useMutation({
     onSuccess: () => {
-      utils.instagram.listDrafts.invalidate();
+      utils.socialPosts.list.invalidate();
+      utils.socialPosts.todayPlannedCount.invalidate();
       resetForm();
       onDone();
     },
   });
 
-  const updateDraft = api.instagram.updateDraft.useMutation({
+  const updatePost = api.socialPosts.update.useMutation({
     onSuccess: () => {
-      utils.instagram.listDrafts.invalidate();
+      utils.socialPosts.list.invalidate();
+      utils.socialPosts.todayPlannedCount.invalidate();
       resetForm();
       onDone();
     },
   });
 
-  const createPost = api.instagram.createPost.useMutation({
+  const markPosted = api.socialPosts.markPosted.useMutation({
     onSuccess: () => {
-      utils.instagram.getPosts.invalidate();
-      utils.instagram.listDrafts.invalidate();
+      utils.socialPosts.list.invalidate();
+      utils.socialPosts.todayPlannedCount.invalidate();
       resetForm();
       onDone();
     },
@@ -612,7 +554,6 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
     setShowCatalog(false);
   }
 
-  /** Apply a generated caption: replace the textarea content, append hashtags */
   function acceptAiPreview() {
     if (!aiPreview) return;
     const hashtagLine = aiPreview.hashtags.length > 0
@@ -689,38 +630,58 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
     }
   }
 
+  async function copyCaption() {
+    if (!caption.trim()) return;
+    try {
+      await navigator.clipboard.writeText(caption);
+      setCopyFlash(true);
+      setTimeout(() => setCopyFlash(false), 1500);
+    } catch {
+      // Clipboard API can fail in insecure contexts — fall back to a hidden
+      // textarea + document.execCommand for older browsers.
+      const ta = document.createElement("textarea");
+      ta.value = caption;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); setCopyFlash(true); setTimeout(() => setCopyFlash(false), 1500); }
+      finally { document.body.removeChild(ta); }
+    }
+  }
+
+  function handleDownloadImage() {
+    if (!imageUrl) return;
+    const fileName = `bakery-post-${Date.now()}.${imageUrl.split(".").pop()?.split("?")[0] ?? "jpg"}`;
+    void downloadImage(imageUrl, fileName);
+  }
+
+  function handleMarkPosted() {
+    if (!editing) return;
+    markPosted.mutate(editing.id);
+  }
+
   const scheduledDate = fromLocalInput(scheduledFor);
   const isScheduled   = !!scheduledDate;
   const canSubmit     = !!imageUrl && !!caption.trim();
-  const isPending     = createDraft.isPending || updateDraft.isPending || createPost.isPending;
+  const isPending     = createPost.isPending || updatePost.isPending || markPosted.isPending;
+  const editingPlanned = editing?.status === "planned";
 
-  function handleSaveDraft() {
+  function handleSave() {
     if (editing) {
-      updateDraft.mutate({
+      updatePost.mutate({
         id:           editing.id,
         imageUrl:     imageUrl || null,
         caption:      caption || null,
         scheduledFor: scheduledDate,
       });
     } else {
-      createDraft.mutate({
+      createPost.mutate({
         imageUrl:     imageUrl || null,
         caption:      caption || null,
         scheduledFor: scheduledDate,
       });
     }
-  }
-
-  function handlePostNow() {
-    if (!canSubmit) return;
-    if (editing) {
-      // For an existing draft, we'd need a "publish this draft" action.
-      // For simplicity here: save edits as draft, then user can use the
-      // "Publish now" button on the day modal. Could be improved later.
-      handleSaveDraft();
-      return;
-    }
-    createPost.mutate({ imageUrl, caption: caption.trim() });
   }
 
   return (
@@ -781,7 +742,6 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
           >
             {showCatalog ? `× ${t("hideCatalog")}` : `🧁 ${t("insertFromCatalog")}`}
           </button>
-          {/* AI caption button — disabled with explanation if not configured / quota hit */}
           <button
             type="button"
             onClick={() => { setShowAi((v) => !v); setShowCatalog(false); }}
@@ -801,11 +761,9 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
           </button>
         </div>
 
-        {/* AI panel — shows preview if available, otherwise the picker */}
         {showAi && (
           <div className="mb-2 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50/40 to-pink-50/40 p-3 space-y-3">
 
-            {/* Brand voice indicator — sits above generation controls */}
             <div className="rounded-lg bg-white/60 border border-purple-100 px-2.5 py-1.5">
               <div className="flex items-center gap-2 text-[11px]">
                 <span className="text-purple-700 font-semibold">🎨 {t("ai.voice.label")}:</span>
@@ -851,7 +809,6 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
                 </button>
               </div>
 
-              {/* Expanded voice description */}
               {showVoiceDetail && brandVoice?.voiceDescription && (
                 <div className="mt-2 pt-2 border-t border-purple-100 space-y-2">
                   <p className="text-[11px] text-gray-700 whitespace-pre-wrap leading-relaxed">
@@ -880,7 +837,6 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
             </div>
 
             {aiPreview ? (
-              /* Preview state — show generated caption + hashtags, let user accept */
               <div className="space-y-2">
                 <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">
                   ✨ {t("ai.previewTitle")}
@@ -920,7 +876,6 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
                 </div>
               </div>
             ) : (
-              /* Picker state — choose tone + product to trigger generation */
               <>
                 <div>
                   <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-1">
@@ -1071,41 +1026,66 @@ function Composer({ editing, prefilledDate, onDone, recipes, premades }: Compose
         <p className="text-xs text-gray-500 mt-1">{t("composer.scheduleHint")}</p>
       </div>
 
-      {(createDraft.error || updateDraft.error || createPost.error) && (
+      {(createPost.error || updatePost.error || markPosted.error) && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
-          {(createDraft.error?.message ?? updateDraft.error?.message ?? createPost.error?.message)}
+          {(createPost.error?.message ?? updatePost.error?.message ?? markPosted.error?.message)}
         </div>
       )}
 
-      {/* Actions */}
+      {/* Save action */}
       <div className="flex gap-2">
         <button
-          onClick={handleSaveDraft}
+          onClick={handleSave}
           disabled={isPending}
           className="flex-1 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-brand-600 text-sm font-medium hover:bg-rose-100 disabled:opacity-40"
         >
           {isPending
             ? t("composer.saving")
             : isScheduled
-              ? (editing ? t("composer.updateSchedule") : t("composer.schedule"))
-              : (editing ? t("composer.updateDraft")   : t("composer.saveDraft"))
+              ? (editing ? t("composer.updatePlan") : t("composer.savePlan"))
+              : (editing ? t("composer.updateDraft") : t("composer.saveDraft"))
           }
         </button>
-        {!editing && !isScheduled && (
-          <button
-            onClick={handlePostNow}
-            disabled={!canSubmit || isPending}
-            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-semibold hover:from-purple-600 hover:to-pink-600 disabled:opacity-40"
-          >
-            {createPost.isPending ? t("composer.posting") : t("composer.postNow")}
-          </button>
-        )}
       </div>
+
+      {/* Post-handoff actions — only meaningful once the post has content */}
+      {canSubmit && (
+        <div className="space-y-2 pt-3 border-t border-rose-100">
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+            {t("composer.handoff.title")}
+          </p>
+          <p className="text-xs text-gray-500">{t("composer.handoff.description")}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={copyCaption}
+              className="py-2 rounded-xl bg-white border border-rose-200 text-brand-600 text-xs font-medium hover:bg-rose-50 transition-colors"
+            >
+              {copyFlash ? `✓ ${t("composer.handoff.copied")}` : `📋 ${t("composer.handoff.copyCaption")}`}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadImage}
+              className="py-2 rounded-xl bg-white border border-rose-200 text-brand-600 text-xs font-medium hover:bg-rose-50 transition-colors"
+            >
+              ⬇️ {t("composer.handoff.downloadPhoto")}
+            </button>
+          </div>
+          {editingPlanned && (
+            <button
+              type="button"
+              onClick={handleMarkPosted}
+              disabled={markPosted.isPending}
+              className="w-full py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-50"
+            >
+              {markPosted.isPending ? "…" : `✓ ${t("composer.handoff.markPosted")}`}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-
-// ─── Recent posts ─────────────────────────────────────────────────────────────
 
 // ─── Weekly plan card ─────────────────────────────────────────────────────────
 
@@ -1148,7 +1128,7 @@ function WeeklyPlanCard() {
 
   const [weekStart,  setWeekStart]  = useState(nextMondayYmd());
   const [plan,       setPlan]       = useState<PlannedPost[] | null>(null);
-  /** Tracks which posts have been turned into drafts. Index into plan array. */
+  /** Tracks which posts have been turned into plans. Index into plan array. */
   const [accepted,   setAccepted]   = useState<Set<number>>(new Set());
 
   const { data: aiConfig } = api.aiAssistant.getConfigStatus.useQuery();
@@ -1165,9 +1145,10 @@ function WeeklyPlanCard() {
     },
   });
 
-  const createDraft = api.instagram.createDraft.useMutation({
+  const createPost = api.socialPosts.create.useMutation({
     onSuccess: () => {
-      utils.instagram.listDrafts.invalidate();
+      utils.socialPosts.list.invalidate();
+      utils.socialPosts.todayPlannedCount.invalidate();
     },
   });
 
@@ -1182,13 +1163,10 @@ function WeeklyPlanCard() {
     if (!post) return;
 
     const hour = TIME_OF_DAY_HOUR[post.suggestedTime] ?? 10;
-    // Build local-time datetime from the post's date string + suggested hour
     const [y, m, d] = post.date.split("-").map((n) => parseInt(n, 10));
     if (!y || !m || !d) return;
     const scheduledFor = new Date(y, m - 1, d, hour, 0, 0, 0);
 
-    // Refuse past-dated scheduling — the createDraft endpoint enforces this
-    // too, but bail early to give the user a clearer UX.
     if (scheduledFor.getTime() < Date.now()) {
       alert(t("plan.pastDateWarning"));
       return;
@@ -1198,10 +1176,9 @@ function WeeklyPlanCard() {
       ? "\n\n" + post.hashtags.map((h) => `#${h}`).join(" ")
       : "";
 
-    createDraft.mutate({
+    createPost.mutate({
       caption:      post.captionDraft + hashtagSuffix,
       scheduledFor,
-      platforms:    ["instagram"],
     }, {
       onSuccess: () => {
         setAccepted((s) => new Set(s).add(idx));
@@ -1317,16 +1294,16 @@ function WeeklyPlanCard() {
                 <div className="flex gap-1.5 pt-1">
                   {accepted.has(i) ? (
                     <span className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
-                      ✓ {t("plan.scheduled")}
+                      ✓ {t("plan.planned")}
                     </span>
                   ) : (
                     <button
                       type="button"
                       onClick={() => acceptPost(i)}
-                      disabled={createDraft.isPending}
+                      disabled={createPost.isPending}
                       className="flex-1 text-[10px] px-2 py-1 rounded bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold hover:from-purple-600 hover:to-pink-600 disabled:opacity-50"
                     >
-                      {t("plan.schedule")}
+                      {t("plan.addToCalendar")}
                     </button>
                   )}
                 </div>
@@ -1339,47 +1316,50 @@ function WeeklyPlanCard() {
   );
 }
 
-function RecentPostsList() {
-  const t = useTranslations("social");
-  const { data: posts = [], isLoading } = api.instagram.getPosts.useQuery();
+// ─── Content guide card ───────────────────────────────────────────────────────
+
+/**
+ * Tip keys map 1:1 to translation keys under "social.guide.tips.*". Add new
+ * tips by appending here and adding the matching key in en.json / nb.json.
+ */
+const GUIDE_TIPS = ["consistency", "hook", "format", "hashtags", "timing", "crosspost", "engagement"] as const;
+
+function ContentGuideCard() {
+  const t = useTranslations("social.guide");
+  const [open, setOpen] = useState<string | null>("consistency");
 
   return (
     <div className="card overflow-hidden">
-      <div className="px-5 py-3 border-b border-rose-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-        {t("recent.title")}
+      <div className="px-5 py-3 border-b border-rose-100 flex items-center gap-2">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex-1">
+          📚 {t("title")}
+        </p>
       </div>
-      {isLoading ? (
-        <div className="px-5 py-6 text-sm text-gray-400 text-center animate-pulse">{t("recent.loading")}</div>
-      ) : posts.length === 0 ? (
-        <div className="px-5 py-6 text-sm text-gray-400 text-center">{t("recent.empty")}</div>
-      ) : (
-        <div className="divide-y divide-rose-50 max-h-96 overflow-y-auto">
-          {posts.map((post) => (
-            <div key={post.id} className="px-5 py-3 flex gap-3 items-start">
-              {post.imageUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={post.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-rose-100" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-700 line-clamp-2">{post.caption}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
-                    post.status === "posted"
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : "bg-red-50 text-red-600 border-red-200"
-                  }`}>
-                    {post.status === "posted" ? t("status.published") : t("status.failed")}
-                  </span>
-                  <span className="text-[10px] text-gray-400">
-                    {post.postedAt ? formatDateTime(post.postedAt) : formatDateTime(post.createdAt)}
-                  </span>
-                </div>
-                {post.errorMessage && <p className="text-[10px] text-red-500 mt-1">{post.errorMessage}</p>}
+      <div className="px-5 py-4 space-y-3">
+        <p className="text-xs text-gray-500 leading-relaxed">{t("intro")}</p>
+        <div className="space-y-1.5">
+          {GUIDE_TIPS.map((key) => {
+            const isOpen = open === key;
+            return (
+              <div key={key} className="rounded-lg border border-rose-100 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setOpen(isOpen ? null : key)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-rose-50 transition-colors"
+                >
+                  <span>{t(`tips.${key}.title`)}</span>
+                  <span className={`text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}>▼</span>
+                </button>
+                {isOpen && (
+                  <div className="px-3 pb-3 pt-1 text-xs text-gray-600 leading-relaxed whitespace-pre-line border-t border-rose-50">
+                    {t(`tips.${key}.body`)}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1388,10 +1368,9 @@ function RecentPostsList() {
 
 export default function SocialPage() {
   const t = useTranslations("social");
-  const { data: conn,  isLoading: connLoading }  = api.instagram.getConnection.useQuery();
-  const { data: drafts = [] }                    = api.instagram.listDrafts.useQuery(undefined, { enabled: conn?.connected });
-  const { data: recipes  = [] }                  = api.recipes.getAll.useQuery({ limit: 200 });
-  const { data: premades = [] }                  = api.premadeCakes.list.useQuery({ isActive: true });
+  const { data: posts = [], isLoading } = api.socialPosts.list.useQuery();
+  const { data: recipes  = [] }         = api.recipes.getAll.useQuery({ limit: 200 });
+  const { data: premades = [] }         = api.premadeCakes.list.useQuery({ isActive: true });
 
   // Calendar state
   const today = new Date();
@@ -1401,27 +1380,25 @@ export default function SocialPage() {
   const [dayModalOpen, setDayModalOpen] = useState(false);
 
   // Composer state
-  const [editing, setEditing] = useState<DraftRow | null>(null);
+  const [editing, setEditing] = useState<PostRow | null>(null);
 
   // Normalise dates from server (they come over the wire as strings or Date depending on superjson)
-  const draftsNormalised: DraftRow[] = useMemo(
-    () => drafts.map((d) => ({
-      id:           d.id,
-      imageUrl:     d.imageUrl,
-      caption:      d.caption,
-      scheduledFor: d.scheduledFor ? new Date(d.scheduledFor) : null,
-      status:       d.status,
-      errorMessage: d.errorMessage,
-      publishedAt:  d.publishedAt ? new Date(d.publishedAt) : null,
+  const postsNormalised: PostRow[] = useMemo(
+    () => posts.map((p) => ({
+      id:           p.id,
+      imageUrl:     p.imageUrl,
+      caption:      p.caption,
+      scheduledFor: p.scheduledFor ? new Date(p.scheduledFor) : null,
+      status:       p.status,
+      postedAt:     p.postedAt ? new Date(p.postedAt) : null,
     })),
-    [drafts],
+    [posts],
   );
 
   function pickDay(d: Date) {
     setSelectedDate(d);
-    // Open modal if there are posts on this day
     const k = ymd(d);
-    const hasPosts = draftsNormalised.some((p) => p.scheduledFor && ymd(p.scheduledFor) === k);
+    const hasPosts = postsNormalised.some((p) => p.scheduledFor && ymd(p.scheduledFor) === k);
     if (hasPosts) setDayModalOpen(true);
   }
 
@@ -1434,7 +1411,7 @@ export default function SocialPage() {
     else setViewMonth((m) => m + 1);
   }
 
-  if (connLoading) {
+  if (isLoading) {
     return (
       <div className="space-y-4 animate-pulse max-w-2xl mx-auto">
         <div className="h-8 bg-rose-100 rounded w-40" />
@@ -1443,44 +1420,22 @@ export default function SocialPage() {
     );
   }
 
-  if (!conn?.connected) {
-    return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="page-title">Social</h1>
-        <ConnectPrompt />
-      </div>
-    );
-  }
-
   const postsForSelectedDay = selectedDate
-    ? draftsNormalised.filter((p) => p.scheduledFor && ymd(p.scheduledFor) === ymd(selectedDate))
+    ? postsNormalised.filter((p) => p.scheduledFor && ymd(p.scheduledFor) === ymd(selectedDate))
     : [];
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-10">
 
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">Social</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {t("postingAs")}{" "}
-            <span className="font-medium text-gray-700">
-              {conn.igUsername ? `@${conn.igUsername}` : conn.pageName ?? "Instagram"}
-            </span>
-          </p>
-        </div>
-        <Link href="/settings" className="text-xs text-gray-400 hover:text-gray-700">
-          {t("manageConnection")} →
-        </Link>
+      <div>
+        <h1 className="page-title">{t("pageTitle")}</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{t("pageSubtitle")}</p>
       </div>
 
-      {/* Two-column layout — calendar+drafts on left, composer+recent on right */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column (2/3 width on lg+) */}
         <div className="lg:col-span-2 space-y-6">
           <Calendar
-            drafts={draftsNormalised}
+            posts={postsNormalised}
             viewYear={viewYear}
             viewMonth={viewMonth}
             selectedDate={selectedDate}
@@ -1489,12 +1444,12 @@ export default function SocialPage() {
             onPickDay={pickDay}
           />
           <DraftsList
-            drafts={draftsNormalised}
+            posts={postsNormalised}
             onEdit={(d) => setEditing(d)}
           />
+          <ContentGuideCard />
         </div>
 
-        {/* Right column (1/3 width on lg+) */}
         <div className="space-y-6">
           <WeeklyPlanCard />
           <Composer
@@ -1504,11 +1459,9 @@ export default function SocialPage() {
             recipes={recipes.map((r) => ({ id: r.id, name: r.name, description: r.description, sellingPrice: r.sellingPrice }))}
             premades={premades.map((p) => ({ id: p.id, name: p.name, description: p.description, basePrice: p.basePrice, allergens: p.allergens }))}
           />
-          <RecentPostsList />
         </div>
       </div>
 
-      {/* Day detail modal */}
       {dayModalOpen && selectedDate && (
         <DayDetailModal
           date={selectedDate}

@@ -74,7 +74,7 @@
     "operations": "Drift",
     "production": "Produksjonsplan",
     "sales": "Salgsdashboard",
-    "social": "Instagram",
+    "social": "Innholdsplanlegger",
     "overview": "Oversikt",
     "kitchenStock": "Kjøkken & Lager"
   },
@@ -839,24 +839,23 @@
     "variantLinkedToShopify": "Koblet til Shopify"
   },
   "social": {
+    "pageTitle": "Innholdsplanlegger",
+    "pageSubtitle": "Planlegg innlegg, skriv tekster, og del dem på nettverket du selv bruker.",
     "insertFromCatalog": "Sett inn fra katalog",
     "hideCatalog": "Skjul katalog",
     "catalogSearchPlaceholder": "Søk oppskrifter og kaker…",
     "premadeCakes": "Ferdigkaker",
     "recipes": "Oppskrifter",
     "catalogNoResults": "Ingen treff i katalogen.",
-    "postingAs": "Publiserer som",
-    "manageConnection": "Administrer tilkobling",
     "calendar": {
       "prevMonth": "Forrige måned",
       "nextMonth": "Neste måned",
-      "legendScheduled": "Planlagt",
-      "legendPublished": "Publisert",
-      "legendFailed": "Mislyktes"
+      "legendPlanned": "Planlagt",
+      "legendOverdue": "Forfalt",
+      "legendPosted": "Publisert"
     },
     "drafts": {
       "title": "Utkast",
-      "failed": "Mislyktes — trenger oppmerksomhet",
       "noCaption": "Ingen tekst enda"
     },
     "composer": {
@@ -872,16 +871,22 @@
       "scheduleHint": "La feltet stå tomt for å lagre som utkast.",
       "saveDraft": "Lagre som utkast",
       "updateDraft": "Oppdater utkast",
-      "schedule": "Planlegg",
-      "updateSchedule": "Oppdater planlegging",
-      "postNow": "Publiser nå",
-      "posting": "Publiserer…",
+      "savePlan": "Lagre plan",
+      "updatePlan": "Oppdater plan",
       "saving": "Lagrer…",
       "upload": {
         "tooLarge": "Bildet er for stort. Velg en fil under 10 MB.",
         "wrongType": "Kun JPEG-, PNG- eller WebP-bilder er tillatt.",
         "notSignedIn": "Du må være innlogget for å laste opp bilder.",
         "demoAccount": "Registrer deg for å laste opp bilder. Demo-kontoen kan forhåndsvise funksjoner, men kan ikke legge til media."
+      },
+      "handoff": {
+        "title": "Klar til å dele?",
+        "description": "Kopier teksten og last ned bildet, og lim det så inn i Instagram, Facebook, Pinterest eller der kundene dine er.",
+        "copyCaption": "Kopier tekst",
+        "copied": "Kopiert!",
+        "downloadPhoto": "Last ned bilde",
+        "markPosted": "Jeg har publisert"
       }
     },
     "dayModal": {
@@ -890,20 +895,13 @@
     "actions": {
       "edit": "Rediger",
       "delete": "Slett",
-      "publishNow": "Publiser nå",
-      "deleteConfirm": "Slette dette utkastet?"
+      "markPosted": "Marker som publisert",
+      "deleteConfirm": "Slette dette innlegget?"
     },
     "status": {
       "draft": "Utkast",
-      "scheduled": "Planlagt",
-      "publishing": "Publiserer…",
-      "published": "Publisert",
-      "failed": "Mislyktes"
-    },
-    "recent": {
-      "title": "Nylige innlegg",
-      "empty": "Ingen innlegg ennå.",
-      "loading": "Laster…"
+      "planned": "Planlagt",
+      "posted": "Publisert"
     },
     "ai": {
       "button": "AI-tekst",
@@ -944,8 +942,8 @@
       "generate": "Lag plan ({quota})",
       "generating": "Bygger uken din…",
       "clear": "Tøm plan",
-      "schedule": "Planlegg som utkast",
-      "scheduled": "Planlagt",
+      "addToCalendar": "Legg til i kalender",
+      "planned": "Planlagt",
       "quotaExhausted": "Du har brukt månedens innholdsplan. Nullstilles neste måned.",
       "costHint": "Bruker 1 ukentlig-plan-kvotepoeng. Gratis nivå: 1 per måned.",
       "pastDateWarning": "Den datoen er i fortiden — velg en annen uke.",
@@ -954,6 +952,40 @@
         "midday": "Lunsj (~kl 12)",
         "afternoon": "Ettermiddag (~kl 15)",
         "evening": "Kveld (~kl 18)"
+      }
+    },
+    "guide": {
+      "title": "Slik publiserer du godt",
+      "intro": "Algoritmene endrer seg hvert kvartal — disse prinsippene gjør det ikke. Velg ett eller to å prøve denne uken.",
+      "tips": {
+        "consistency": {
+          "title": "Jevn frekvens slår perfeksjon",
+          "body": "Tre OK innlegg i uken slår ett polert innlegg i måneden — hver gang. Algoritmene belønner bakerier som dukker opp jevnlig, og kundene merker når favorittstedet deres blir stille.\n\nVelg en rytme du faktisk kan holde — mandag, onsdag, fredag er nok — og stå i det i seks uker før du dømmer resultatet."
+        },
+        "hook": {
+          "title": "Vinn de tre første sekundene",
+          "body": "Folk avgjør i et øyeblikk om de skal stoppe i strømmen. Første linje i teksten og første bilde er det eneste som teller.\n\nÅpne med det sanselige — \"rett fra ovnen\", \"bare tolv stykk i dag\", \"ute innen kl 9\" — ikke med \"Hei alle bakere!\". Vis maten tett, i dagslys, før du viser et oversiktsbilde av butikken."
+        },
+        "format": {
+          "title": "Karuseller og kortvideo slår enkeltbilder",
+          "body": "På alle store nettverk gir karuseller (innlegg du sveiper gjennom) og korte loddrette videoer mer rekkevidde enn et enkelt stillbilde. Plattformen viser innholdet to ganger hvis noen ikke sveiper første gang, og hvert sveip teller som engasjement.\n\nEnkelt utgangspunkt: en karusell med tre bilder — det ferdige produktet, et prosessbilde, og en skive eller nærbilde. Eller 10 sekunder video som viser deigen bli formet."
+        },
+        "hashtags": {
+          "title": "Bruk smale nisjetagger, ikke generiske",
+          "body": "#brød har 50 millioner innlegg — bakeriet ditt forsvinner i støyen. #surdeigoslo har et par hundre og blir sett av folk som faktisk leter etter det du selger.\n\nEn brukbar miks: to-tre brede tagger (#bakeri #ferskbrød), så fem-åtte nisjetagger som kombinerer byen din, stilen din og spesialiteten din (#bergensbakeri #norskbakst #kanelboller)."
+        },
+        "timing": {
+          "title": "Publiser når kundene er våkne",
+          "body": "For et bakeri betyr det vanligvis morgen (kl 7–9, før jobb) og sen ettermiddag (kl 16–18, på vei hjem). Lunsjtid funker også hvis du selger lunsjmat.\n\nSjekk din egen analyse etter et par uker — hvert publikum er litt forskjellig, og dine følgeres vaner er mer pålitelige enn noen tommelfingerregel."
+        },
+        "crosspost": {
+          "title": "Skriv én gang, publiser overalt",
+          "body": "Ikke skriv et eget innlegg for hvert nettverk. Lag det her, og lim deretter inn samme tekst og bilde i Instagram, Facebook, Pinterest eller det du nå bruker.\n\nSmå justeringer per nettverk hvis du har tid — Pinterest liker lengre beskrivelser, Twitter/X vil ha 280 tegn, TikTok vil ha loddrett video — men samme innhold med samme tekst funker i 90 % av tilfellene."
+        },
+        "engagement": {
+          "title": "Svar på alle kommentarer den første timen",
+          "body": "Nettverkene måler hvor mye samtale innlegget ditt skaper de første 60 minuttene, og bruker det til å avgjøre om de skal vise det til flere. Å svare på hver kommentar innen det vinduet — selv bare med en emoji — kan doble eller tredoble rekkevidden.\n\nHa telefonen i nærheten timen etter at du publiserer, og behandle det som å åpne butikkdøra."
+        }
       }
     }
   },
@@ -1017,8 +1049,12 @@
     "stockDeductions": "Lagertrekk"
   },
   "dashboard": {
-    "integrationsHint": "Valgfrie integrasjoner — Shopify, e-post, Instagram — finnes i <link>Innstillinger</link>.",
+    "integrationsHint": "Valgfrie integrasjoner — Shopify og e-post — finnes i <link>Innstillinger</link>.",
     "batchesEmpty": "Ingenting planlagt — legg inn dagens produksjon",
+    "socialPlanned_one": "Du har planlagt 1 innlegg i dag",
+    "socialPlanned_other": "Du har planlagt {count} innlegg i dag",
+    "socialPlannedHint": "Åpne innholdsplanleggeren for å hente tekst og bilde, og publiser så på nettverket du selv bruker.",
+    "socialPlannedCta": "Åpne planlegger",
     "shopifyTitle": "Shopify",
     "shopifyOptional": "Valgfri",
     "shopifyOffer": "Synkroniser bestillinger og produkter fra butikken din inn i planleggeren.",

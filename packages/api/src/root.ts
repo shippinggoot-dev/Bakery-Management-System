@@ -16,7 +16,7 @@ import { productionRouter } from "./routers/production";
 import { salesRouter } from "./routers/sales";
 import { dashboardRouter } from "./routers/dashboard";
 import { otherDeliveriesRouter } from "./routers/other-deliveries";
-import { instagramRouter } from "./routers/instagram";
+import { socialPostsRouter } from "./routers/social-posts";
 import { customOptionsRouter } from "./routers/custom-options";
 import { premadeCakesRouter } from "./routers/premade-cakes";
 import { preferencesRouter } from "./routers/preferences";
@@ -42,7 +42,7 @@ export const appRouter = createTRPCRouter({
   sales:          salesRouter,
   dashboard:      dashboardRouter,
   otherDeliveries: otherDeliveriesRouter,
-  instagram:        instagramRouter,
+  socialPosts:      socialPostsRouter,
   customOptions:    customOptionsRouter,
   premadeCakes:     premadeCakesRouter,
   preferences:      preferencesRouter,

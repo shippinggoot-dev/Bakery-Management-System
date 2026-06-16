@@ -32,7 +32,7 @@ export * from "./cake-orders";
 export * from "./email-settings";
 export * from "./production-schedules";
 export * from "./other-deliveries";
-export * from "./instagram";
+export * from "./social-posts";
 export * from "./custom-options";
 export * from "./premade-cakes";
 export * from "./premade-cake-variants";
@@ -417,9 +417,9 @@ export const otherDeliveriesRelations = relations(otherDeliveries, ({ one }) => 
   }),
 }));
 
-// ─── Instagram ────────────────────────────────────────────────────────────────
-// instagramConnections and instagramPosts are standalone per-owner tables with no cross-table
-// foreign keys, so no Drizzle relations are needed here.
+// ─── Social posts ─────────────────────────────────────────────────────────────
+// socialPosts is a standalone per-owner table with no cross-table foreign
+// keys, so no Drizzle relations are needed here.
 
 // ─── Premade cakes catalog ────────────────────────────────────────────────────
 

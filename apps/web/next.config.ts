@@ -23,7 +23,7 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
  *                                 https hosts (Supabase Storage, Instagram CDN);
  *                                 data: covers QR codes, blob: covers previews
  *   connect-src                 — XHR/WebSocket targets: Supabase REST + Realtime,
- *                                 Meta Graph (Instagram publish), Shopify Admin
+ *                                 Shopify Admin
  *   font-src    'self' data:
  *   frame-ancestors 'none'      — equivalent to X-Frame-Options: DENY
  */
@@ -33,7 +33,7 @@ const CSP_REPORT_ONLY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' https: data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://graph.facebook.com https://graph.instagram.com https://*.myshopify.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.myshopify.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -65,9 +65,6 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },
-      { protocol: "https", hostname: "scontent.cdninstagram.com" },
-      { protocol: "https", hostname: "*.cdninstagram.com" },
-      { protocol: "https", hostname: "*.fbcdn.net" },
     ],
   },
 

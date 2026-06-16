@@ -8,7 +8,6 @@
     "./services/price-ingestion": "./src/services/price-ingestion.ts",
     "./services/inventory": "./src/services/inventory.ts",
     "./services/loyalty": "./src/services/loyalty.ts",
-    "./lib/instagram-publish": "./src/lib/instagram-publish.ts",
     "./lib/ai-tiers": "./src/lib/ai-tiers.ts",
     "./lib/shopify-order-mapping": "./src/lib/shopify-order-mapping.ts"
   },

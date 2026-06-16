@@ -38,7 +38,6 @@ import {
   db,
   shopifySettings,
   emailSettings,
-  instagramConnections,
   encryptToken,
   decryptToken,
 } from "@bakery/db";
@@ -125,28 +124,6 @@ async function rotateEmailSettings(): Promise<RotationStats> {
   return stats;
 }
 
-async function rotateInstagramConnections(): Promise<RotationStats> {
-  const stats = newStats();
-  const rows = await db.query.instagramConnections.findMany({
-    columns: { id: true, accessToken: true },
-  });
-  for (const row of rows) {
-    stats.scanned++;
-    if (!row.accessToken) { stats.empty++; continue; }
-    try {
-      const rotated = rotateValue(row.accessToken);
-      await db.update(instagramConnections)
-        .set({ accessToken: rotated, updatedAt: new Date() })
-        .where(eq(instagramConnections.id, row.id));
-      stats.rotated++;
-    } catch (err) {
-      stats.errors++;
-      console.error(`  ! instagram_connections ${row.id}: ${err instanceof Error ? err.message : err}`);
-    }
-  }
-  return stats;
-}
-
 async function main() {
   // Self-check: confirm both encrypt and decrypt work with the configured
   // env before scanning the database.
@@ -174,18 +151,16 @@ async function main() {
   console.log("Rotating third-party token encryption to the current key...");
   console.log("");
 
-  const shopify   = await rotateShopifySettings();
-  const email     = await rotateEmailSettings();
-  const instagram = await rotateInstagramConnections();
+  const shopify = await rotateShopifySettings();
+  const email   = await rotateEmailSettings();
 
   console.log("");
   console.log("Summary:");
-  logStats("shopify_settings",      shopify);
-  logStats("email_settings",        email);
-  logStats("instagram_connections", instagram);
+  logStats("shopify_settings", shopify);
+  logStats("email_settings",   email);
   console.log("");
 
-  const totalErrors = shopify.errors + email.errors + instagram.errors;
+  const totalErrors = shopify.errors + email.errors;
   if (totalErrors > 0) {
     console.error(`Completed with ${totalErrors} error(s). Investigate before retiring TOKEN_ENCRYPTION_KEY_PREVIOUS.`);
     process.exit(1);
