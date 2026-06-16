@@ -150,7 +150,7 @@ export function FeedbackWidget() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-40 px-4 py-2.5 rounded-full bg-brand-500 text-white shadow-lg hover:bg-brand-600 active:scale-95 transition-all flex items-center gap-2 text-sm font-medium"
+          className="fixed bottom-[calc(68px+env(safe-area-inset-bottom))] right-4 md:bottom-5 md:right-5 z-40 px-4 py-2.5 rounded-full bg-brand-500 text-white shadow-lg hover:bg-brand-600 active:scale-95 transition-all flex items-center gap-2 text-sm font-medium"
           aria-label={t("openButton")}
         >
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
