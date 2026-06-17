@@ -25,6 +25,12 @@ export const userPreferences = pgTable("user_preferences", {
    *  "not personalised yet"; the UI falls back to the RisenShine brand. */
   bakeryName: text("bakery_name"),
 
+  /** Opt-in flag for PostHog session recording. Default false to satisfy
+   *  GDPR — recording is a non-essential analytics behaviour that requires
+   *  explicit consent. Even when on, all text content and form inputs are
+   *  masked by PostHog so prices, recipes, and customer data don't leak. */
+  sessionRecordingEnabled: boolean("session_recording_enabled").notNull().default(false),
+
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

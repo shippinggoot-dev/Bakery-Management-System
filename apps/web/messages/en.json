@@ -1253,5 +1253,24 @@
     "markHandled": "Mark handled",
     "dismiss": "Dismiss",
     "reopen": "Reopen"
+  },
+  "privacy": {
+    "title": "Help us improve",
+    "subtitle": "Share how you use the app so we can spot bugs and improve features",
+    "toggleLabel": "Share session recordings with the development team",
+    "toggleDescription": "We can see how you navigate the app, but not what you type or your bakery's data.",
+    "statusOn": "Recording on",
+    "statusOff": "Recording off",
+    "learnMore": "What's recorded and what isn't",
+    "capturedHeading": "What we see",
+    "capturedItem1": "Which pages you visit and in what order",
+    "capturedItem2": "Which buttons you click",
+    "capturedItem3": "How long things take to load",
+    "maskedHeading": "What we don't see",
+    "maskedItem1": "Recipe names, ingredients, and instructions",
+    "maskedItem2": "Customer names and contact details",
+    "maskedItem3": "Prices, sales figures, and supplier names",
+    "maskedItem4": "Anything you've typed into the app",
+    "footnote": "You can turn this off any time. Recording stops immediately."
   }
 }

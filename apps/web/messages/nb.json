@@ -1253,5 +1253,24 @@
     "markHandled": "Marker som behandlet",
     "dismiss": "Avvis",
     "reopen": "Gjenåpne"
+  },
+  "privacy": {
+    "title": "Hjelp oss å forbedre",
+    "subtitle": "Del hvordan du bruker appen så vi kan oppdage feil og forbedre funksjoner",
+    "toggleLabel": "Del sesjonsopptak med utviklingsteamet",
+    "toggleDescription": "Vi ser hvordan du navigerer i appen, men ikke hva du skriver eller bakeriets data.",
+    "statusOn": "Opptak på",
+    "statusOff": "Opptak av",
+    "learnMore": "Hva som tas opp og hva som ikke gjør det",
+    "capturedHeading": "Hva vi ser",
+    "capturedItem1": "Hvilke sider du besøker og i hvilken rekkefølge",
+    "capturedItem2": "Hvilke knapper du klikker på",
+    "capturedItem3": "Hvor lang tid ting tar å laste",
+    "maskedHeading": "Hva vi ikke ser",
+    "maskedItem1": "Oppskriftsnavn, ingredienser og instruksjoner",
+    "maskedItem2": "Kundenavn og kontaktinformasjon",
+    "maskedItem3": "Priser, salgstall og leverandørnavn",
+    "maskedItem4": "Alt du har skrevet i appen",
+    "footnote": "Du kan slå dette av når som helst. Opptaket stopper umiddelbart."
   }
 }

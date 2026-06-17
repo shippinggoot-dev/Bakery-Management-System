@@ -825,6 +825,87 @@ function WorkflowPreferencesSection() {
   );
 }
 
+// ── Privacy / session recording opt-in ────────────────────────────────────────
+
+function PrivacySection() {
+  const t = useTranslations("privacy");
+  const utils = api.useUtils();
+  const { data: prefs } = api.preferences.get.useQuery();
+  const update = api.preferences.update.useMutation({
+    onSuccess: () => utils.preferences.get.invalidate(),
+  });
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const enabled = prefs?.sessionRecordingEnabled ?? false;
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="px-6 py-4 border-b border-rose-100 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 flex items-center justify-center text-base flex-shrink-0">
+          🔒
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-gray-800 text-sm">{t("title")}</p>
+          <p className="text-xs text-gray-500">{t("subtitle")}</p>
+        </div>
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${
+          enabled
+            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+            : "bg-gray-100 text-gray-500 border-gray-200"
+        }`}>
+          {enabled ? t("statusOn") : t("statusOff")}
+        </span>
+      </div>
+      <div className="px-6 py-5 space-y-4">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => update.mutate({ sessionRecordingEnabled: e.target.checked })}
+            disabled={update.isPending}
+            className="w-4 h-4 mt-0.5 rounded accent-brand-500"
+          />
+          <div className="flex-1">
+            <p className="text-sm text-gray-700 font-medium">{t("toggleLabel")}</p>
+            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{t("toggleDescription")}</p>
+          </div>
+        </label>
+
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((v) => !v)}
+          className="text-xs text-brand-500 hover:text-brand-400 underline underline-offset-2"
+        >
+          {t("learnMore")}
+        </button>
+
+        {detailsOpen && (
+          <div className="rounded-lg bg-rose-50 border border-rose-100 px-4 py-3 space-y-3">
+            <div>
+              <p className="font-semibold text-gray-700 text-xs mb-1.5">{t("capturedHeading")}</p>
+              <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                <li>{t("capturedItem1")}</li>
+                <li>{t("capturedItem2")}</li>
+                <li>{t("capturedItem3")}</li>
+              </ul>
+            </div>
+            <div>
+              <p className="font-semibold text-gray-700 text-xs mb-1.5">{t("maskedHeading")}</p>
+              <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                <li>{t("maskedItem1")}</li>
+                <li>{t("maskedItem2")}</li>
+                <li>{t("maskedItem3")}</li>
+                <li>{t("maskedItem4")}</li>
+              </ul>
+            </div>
+            <p className="text-xs text-gray-500 italic">{t("footnote")}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EmailSettingsSection() {
   const utils = api.useUtils();
   const { data: emailCfg, isLoading } = api.emailSettings.getSettings.useQuery();
@@ -1119,6 +1200,9 @@ export default function SettingsPage() {
 
       {/* Workflow preferences */}
       {!isAnonymous && <WorkflowPreferencesSection />}
+
+      {/* Privacy / session recording opt-in */}
+      {!isAnonymous && <PrivacySection />}
 
       {/* Must be signed in */}
       {isAnonymous && (

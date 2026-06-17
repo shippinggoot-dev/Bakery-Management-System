@@ -7,6 +7,7 @@ const DEFAULTS = {
   confirmBatchCompletion:    true,
   dashboardShowShopifyTile:  true,
   bakeryName:                null as string | null,
+  sessionRecordingEnabled:   false,
 };
 
 export const preferencesRouter = createTRPCRouter({
@@ -26,6 +27,7 @@ export const preferencesRouter = createTRPCRouter({
       confirmBatchCompletion:    row.confirmBatchCompletion,
       dashboardShowShopifyTile:  row.dashboardShowShopifyTile,
       bakeryName:                row.bakeryName,
+      sessionRecordingEnabled:   row.sessionRecordingEnabled,
     };
   }),
 
@@ -36,6 +38,7 @@ export const preferencesRouter = createTRPCRouter({
         confirmBatchCompletion:    z.boolean().optional(),
         dashboardShowShopifyTile:  z.boolean().optional(),
         bakeryName:                z.string().trim().max(40).nullable().optional(),
+        sessionRecordingEnabled:   z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -56,6 +59,9 @@ export const preferencesRouter = createTRPCRouter({
             ...(input.bakeryName !== undefined
               ? { bakeryName: input.bakeryName === "" ? null : input.bakeryName }
               : {}),
+            ...(input.sessionRecordingEnabled !== undefined
+              ? { sessionRecordingEnabled: input.sessionRecordingEnabled }
+              : {}),
             updatedAt: new Date(),
           })
           .where(eq(userPreferences.userId, ctx.user.id))
@@ -70,6 +76,7 @@ export const preferencesRouter = createTRPCRouter({
           confirmBatchCompletion:   input.confirmBatchCompletion   ?? DEFAULTS.confirmBatchCompletion,
           dashboardShowShopifyTile: input.dashboardShowShopifyTile ?? DEFAULTS.dashboardShowShopifyTile,
           bakeryName:               input.bakeryName === "" ? null : (input.bakeryName ?? null),
+          sessionRecordingEnabled:  input.sessionRecordingEnabled  ?? DEFAULTS.sessionRecordingEnabled,
         })
         .returning();
       return inserted;

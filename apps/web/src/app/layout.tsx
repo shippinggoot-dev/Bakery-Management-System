@@ -8,6 +8,7 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { PostHogProvider } from "@/components/PostHogProvider";
+import { PostHogRecordingSwitch } from "@/components/PostHogRecordingSwitch";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <PostHogProvider>
           <NextIntlClientProvider locale={locale} messages={messages}>
             <TRPCReactProvider>
+              <PostHogRecordingSwitch />
               <ThemeProvider>
                 <Nav />
                 <GlobalSearch />
