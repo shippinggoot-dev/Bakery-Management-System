@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
@@ -33,7 +34,7 @@ const CSP_REPORT_ONLY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' https: data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.myshopify.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.myshopify.com https://*.ingest.de.sentry.io https://eu.i.posthog.com https://eu-assets.i.posthog.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -78,4 +79,18 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withNextIntl(nextConfig);
+export default withSentryConfig(withNextIntl(nextConfig), {
+  org: "risenshine",
+  project: "javascript-nextjs",
+
+  // Quiet the build output unless we're in CI debugging a release.
+  silent: !process.env.CI,
+
+  // Skip source map upload until a Sentry auth token is configured.
+  // Without upload, errors will show minified line numbers instead of
+  // your source code — readable enough but not ideal. Setup TODO.
+  sourcemaps: { disable: true },
+
+  // Strip Sentry's own console.log calls from the production build.
+  disableLogger: true,
+});

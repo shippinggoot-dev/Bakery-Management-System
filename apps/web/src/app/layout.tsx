@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
+import { PostHogProvider } from "@/components/PostHogProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,21 +27,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('bms-theme');if(t)document.documentElement.setAttribute('data-theme',t);if(localStorage.getItem('bms-dark')==='1')document.documentElement.classList.add('dark');}catch(e){}` }} />
       </head>
       <body>
-        <NextIntlClientProvider locale={locale} messages={messages}>
-          <TRPCReactProvider>
-            <ThemeProvider>
-              <Nav />
-              <GlobalSearch />
-              <main className="min-h-screen pt-12 md:pt-0 pb-20 md:pb-0">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                  <Breadcrumb />
-                  {children}
-                </div>
-              </main>
-              <FeedbackWidget />
-            </ThemeProvider>
-          </TRPCReactProvider>
-        </NextIntlClientProvider>
+        <PostHogProvider>
+          <NextIntlClientProvider locale={locale} messages={messages}>
+            <TRPCReactProvider>
+              <ThemeProvider>
+                <Nav />
+                <GlobalSearch />
+                <main className="min-h-screen pt-12 md:pt-0 pb-20 md:pb-0">
+                  <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    <Breadcrumb />
+                    {children}
+                  </div>
+                </main>
+                <FeedbackWidget />
+              </ThemeProvider>
+            </TRPCReactProvider>
+          </NextIntlClientProvider>
+        </PostHogProvider>
       </body>
     </html>
   );
