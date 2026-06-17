@@ -86,10 +86,11 @@ export default withSentryConfig(withNextIntl(nextConfig), {
   // Quiet the build output unless we're in CI debugging a release.
   silent: !process.env.CI,
 
-  // Skip source map upload until a Sentry auth token is configured.
-  // Without upload, errors will show minified line numbers instead of
-  // your source code — readable enough but not ideal. Setup TODO.
-  sourcemaps: { disable: true },
+  // Source maps upload to Sentry's servers (not the public bundle) so
+  // production stack traces show real file paths and line numbers
+  // instead of minified gibberish. Requires SENTRY_AUTH_TOKEN env var
+  // in Vercel — without it the upload step is a silent no-op.
+  sourcemaps: { disable: false },
 
   // Strip Sentry's own console.log calls from the production build.
   disableLogger: true,
