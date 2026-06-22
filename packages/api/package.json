@@ -14,7 +14,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
     "@bakery/db": "workspace:*",
-    "@trpc/server": "^11.0.0",
+    "@trpc/server": "^11.18.0",
     "superjson": "^2.2.1",
     "zod": "^3.23.8"
   },
