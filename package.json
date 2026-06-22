@@ -12,9 +12,9 @@
     "db:studio": "turbo db:studio"
   },
   "devDependencies": {
-    "prettier": "^3.3.3",
-    "turbo": "^2.3.3",
-    "typescript": "^5.6.3"
+    "prettier": "^3.8.4",
+    "turbo": "^2.9.18",
+    "typescript": "^6.0.3"
   },
   "pnpm": {
     "overrides": {
